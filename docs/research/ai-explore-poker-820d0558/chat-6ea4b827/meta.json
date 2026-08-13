@@ -1,0 +1,66 @@
+{
+  "url": "https://ai.explore.poker/chat",
+  "title": "Chat - Explore",
+  "lang": "en",
+  "metaDescription": "Start exploring your ideas with AI",
+  "metaKeywords": "AI,knowledge management,note-taking,exploration,chat",
+  "viewportMeta": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual",
+  "framework": "unknown",
+  "fonts": [
+    "\"Noto Sans SC\"",
+    "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  ],
+  "favicons": [
+    {
+      "href": "https://ai.explore.poker/my-favicon/favicon.ico",
+      "sizes": ""
+    },
+    {
+      "href": "https://ai.explore.poker/my-favicon/favicon-96x96.png",
+      "sizes": "96x96"
+    },
+    {
+      "href": "https://ai.explore.poker/my-favicon/favicon.svg",
+      "sizes": ""
+    },
+    {
+      "href": "https://ai.explore.poker/my-favicon/apple-touch-icon.png",
+      "sizes": "180x180"
+    }
+  ],
+  "themeColor": "#101010",
+  "bodyBg": "rgb(16, 16, 16)",
+  "bodyColor": "rgb(255, 255, 255)",
+  "bodyFontSize": "16px",
+  "scrollHeight": 900,
+  "clientHeight": 900,
+  "hasLenis": false,
+  "hasLocomotive": false,
+  "shadowRoots": 1,
+  "scripts": [
+    "https://ai.explore.poker/_next/static/chunks/fd9d1056-aa9b9ca480dc9276.js",
+    "https://ai.explore.poker/_next/static/chunks/117-55110f0ad63252dd.js",
+    "https://ai.explore.poker/_next/static/chunks/main-app-6892e4d766f2b193.js",
+    "https://ai.explore.poker/_next/static/chunks/515-a25b10c1efe4de71.js",
+    "https://ai.explore.poker/_next/static/chunks/233-78b577096d24891c.js",
+    "https://ai.explore.poker/_next/static/chunks/app/chat/page-de82bf6d7e77a6d2.js",
+    "https://ai.explore.poker/_next/static/chunks/app/layout-d185057d889a92f8.js",
+    "https://ai.explore.poker/_next/static/chunks/app/global-error-0b7d7f653c42b23d.js",
+    "https://ai.explore.poker/_next/static/chunks/polyfills-42372ed130431b0a.js",
+    "https://ai.explore.poker/_next/static/chunks/bd904a5c.b304132d7b1a331f.js",
+    "https://ai.explore.poker/_next/static/chunks/b536a0f1.917a722719b04a78.js",
+    "https://ai.explore.poker/_next/static/chunks/496.983078ecaf89c294.js",
+    "https://ai.explore.poker/_next/static/chunks/126.0dff0c4c11010dbe.js",
+    "https://ai.explore.poker/_next/static/chunks/9b0008ae.e0e972606e8bf51f.js",
+    "https://ai.explore.poker/_next/static/chunks/323.9f291a95e762428f.js",
+    "https://ai.explore.poker/_next/static/chunks/652.798c13d9e15d6ecb.js",
+    "https://ai.explore.poker/_next/static/chunks/615-c3e1f8cacf4bdfb8.js",
+    "https://ai.explore.poker/_next/static/chunks/app/page-e887bbbb6994646f.js",
+    "https://ai.explore.poker/_next/static/chunks/webpack-31c0ffe91f78fdb2.js"
+  ],
+  "stylesheets": [
+    "https://ai.explore.poker/_next/static/css/072d755a2cf1d395.css",
+    "https://ai.explore.poker/_next/static/css/a7619269bb3dc3fe.css",
+    "https://ai.explore.poker/_next/static/css/8bb84db899dbb32f.css"
+  ]
+}

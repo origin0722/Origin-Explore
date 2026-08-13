@@ -1,0 +1,1 @@
+Moved Permanently. Redirecting to https://raw.githubusercontent.com/jcodesmore/ai-website-cloner-template/master/docs/research/INSPECTION_GUIDE.md

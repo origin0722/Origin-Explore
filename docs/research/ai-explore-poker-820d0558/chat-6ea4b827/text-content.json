@@ -1,0 +1,2432 @@
+[
+  {
+    "tag": "script",
+    "cls": "",
+    "text": "(function(){try{var raw=window.localStorage.getItem('settings-storage');var state={};if(raw){var parsed=JSON.parse(raw);state=parsed&&parsed.state?parsed.state:{};}var zoom=Number(state.uiZoom);var gen=Number(state.uiZoomDefaultGeneration);if(!isFinite(zoom)||zoom<=0){zoom=0.9;}else if((!isFinite(gen)||gen<2)&&zoom===1){zoom=0.9;}zoom=Math.min(2,Math.max(0.5,zoom));if(zoom!==1)document.documentElement.style.zoom=String(zoom);if(typeof state.theme==='string'&&state.theme){document.documentElement.setAttribute('data-theme',state.theme);}}catch(e){}})()",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h2",
+    "cls": "text-xl text-primary font-bold",
+    "text": "Settings",
+    "fontSize": "24px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "p-2 rounded text-primary cursor-pointer bg-btn-std",
+    "text": "Available Models",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "p-2 rounded text-primary cursor-pointer ",
+    "text": "Model Assignment",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "p-2 rounded text-primary cursor-pointer ",
+    "text": "API Keys",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "p-2 rounded text-primary cursor-pointer ",
+    "text": "Color Theme",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "p-2 rounded text-primary cursor-pointer ",
+    "text": "Edit Permissions",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "p-2 rounded text-primary cursor-pointer ",
+    "text": "Shortcuts",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "p-2 rounded text-primary cursor-pointer ",
+    "text": "Auto Behavior",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "p-2 rounded text-primary cursor-pointer ",
+    "text": "Language",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "p-2 rounded text-primary cursor-pointer ",
+    "text": "Layout",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "text-lg text-primary font-semibold",
+    "text": "Available Models",
+    "fontSize": "18px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h4",
+    "cls": "text-sm font-semibold text-header-secondary",
+    "text": "Available",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(229, 229, 229)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "p",
+    "cls": "text-xs text-tertiary",
+    "text": "Free tier can add 1 BYOK model. Subscribe to add unlimited models.",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "deepseek-v4-flash-0731",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Free",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.3",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate underline decoration-brand underline-offset-2",
+    "text": "deepseek-v4-flash-0731",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Free",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.3",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "Step-3.5-Flash",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Free",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.2",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "qwen3.5-flash",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Free",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.2",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "qwen3.5-flash",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Free",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.2",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h4",
+    "cls": "text-sm font-semibold text-header-secondary",
+    "text": "Locked (Upgrade to unlock)",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(229, 229, 229)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate underline decoration-brand underline-offset-2",
+    "text": "gemini-3.1-pro-preview",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Max",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×8.2",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "anthropic/claude-fable-5",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Max",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×35.0",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "openai/gpt-5.6-sol",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Max",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×20.4",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "openai/gpt-5.6-sol",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Max",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×20.4",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "kimi-k3",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Max",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×10.0",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate underline decoration-brand underline-offset-2",
+    "text": "grok-4.5",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Pro",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×4.7",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "gemini-3.6-flash",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Pro",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×5.0",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "glm-5.2",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Pro",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×3.0",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "glm-5.2",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Pro",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×3.0",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "Kimi-K2.5",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Pro",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×2.1",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "Kimi-K2.5",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Pro",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×2.1",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "kimi-k2.6",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Pro",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×2.8",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "kimi-k2.6",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Pro",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×2.8",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate underline decoration-brand underline-offset-2",
+    "text": "deepseek-v4-pro-202606",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Plus",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.8",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "deepseek-v4-pro-202606",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Plus",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.8",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "mimo-v2.5-pro",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Plus",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.8",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "mimo-v2.5-pro-ultraspeed",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Plus",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.8",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "qwen3.5-plus",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Plus",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.5",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "qwen3.5-plus",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Plus",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.5",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "qwen/qwen3.7-flash",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Plus",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.1",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "qwen/qwen3.7-flash",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Plus",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.1",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] content-brand border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Vision",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "hy3",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Plus",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.4",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "truncate ",
+    "text": "hy3",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "Plus",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0",
+    "text": "×0.4",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h2",
+    "cls": "text-2xl font-bold text-primary mb-2 flex-shrink-0",
+    "text": "Choose Theme",
+    "fontSize": "26px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "p",
+    "cls": "text-tertiary mb-6 flex-shrink-0",
+    "text": "Select your preferred visual style.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Default (暗色)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Warm (温暖)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Midnight Forest (午夜深林)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Sakura (樱花)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Memphis (孟菲斯)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Sunset (晚霞)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Default-Purple (暗紫)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Default-Blue (暗蓝)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Default-Orange (暗橙)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h2",
+    "cls": "text-xl font-bold text-primary",
+    "text": "Log In",
+    "fontSize": "24px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-tertiary uppercase font-bold tracking-wider",
+    "text": "Email",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-tertiary uppercase font-bold tracking-wider",
+    "text": "Password",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "text-xs content-brand transition-colors",
+    "text": "Forgot password?",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "content-brand hover:underline",
+    "text": "Sign up",
+    "fontSize": "14px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h2",
+    "cls": "text-xl font-bold text-primary",
+    "text": "Log In",
+    "fontSize": "24px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-tertiary uppercase font-bold tracking-wider",
+    "text": "Email",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-tertiary uppercase font-bold tracking-wider",
+    "text": "Password",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "text-xs content-brand transition-colors",
+    "text": "Forgot password?",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "content-brand hover:underline",
+    "text": "Sign up",
+    "fontSize": "14px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h2",
+    "cls": "text-xl text-primary font-bold mb-4",
+    "text": "Profile",
+    "fontSize": "24px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "font-bruno-ace font-normal text-xl content-brand shadow-brand",
+    "text": "Explore",
+    "fontSize": "24px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__brunoAce_ef0eca, __brunoAce_Fallback_ef0eca, \"Bruno Ace\", sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "text-lg text-primary font-semibold",
+    "text": "Profile Info",
+    "fontSize": "18px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "text-xl font-bold text-primary",
+    "text": "Welcome Back",
+    "fontSize": "24px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "p",
+    "cls": "text-sm",
+    "text": "Log in to manage subscription and unlock more features.",
+    "fontSize": "14px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "bg-brandtw hover:bg-brandtw/90 text-black font-bold py-3 px-8 rounded-full shado",
+    "text": "Sign Up / Log In",
+    "fontSize": "16px",
+    "fontWeight": "700",
+    "color": "rgb(0, 0, 0)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h2",
+    "cls": "text-xl font-bold text-primary",
+    "text": "Log In",
+    "fontSize": "24px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-tertiary uppercase font-bold tracking-wider",
+    "text": "Email",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-tertiary uppercase font-bold tracking-wider",
+    "text": "Password",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "text-xs content-brand transition-colors",
+    "text": "Forgot password?",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "content-brand hover:underline",
+    "text": "Sign up",
+    "fontSize": "14px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "style",
+    "cls": "",
+    "text": ".markdown-content ul, .markdown-content ol { padding-left: 1.75rem; margin-block: 0.5rem; }\n        .markdown-content ol { list-style-type: decimal; }\n        .markdown-content ul { list-style-type: disc; }\n        .markdown-content li { margin-bottom: 0.25rem; }\n\n        .markdown-content h1,\n        .markdown-content h2,\n        .markdown-content h3,\n        .markdown-content h4,\n        .markdown-content h5,\n        .markdown-content h6 {\n          font-weight: 600;\n          margin-top: 1em;\n          margin-bottom: 0.5em;\n          line-height: 1.25;\n        }\n        .markdown-content h1 { font-size: 2em; }\n        .markdown-content h2 { font-size: 1.5em; }\n        .markdown-content h3 { font-size: 1.25em; }\n        .markdown-content h4 { font-size: 1em; }\n        .markdown-content h5 { font-size: 0.875em; }\n        .markdown-content h6 { font-size: 0.85em; }",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h1",
+    "cls": "",
+    "text": "Explore — AI-Powered Structured Thinking & Knowledge Exploration Tool",
+    "fontSize": "32px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "p",
+    "cls": "",
+    "text": "Explore is an application that enables deep conversations with your favorite AI. Here, you can break free from the constraints of linear chat boxes and easily achieve multi-level dialogues. Complex discussions that used to get lost in linear conversations can now be fully unfolded here.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h1",
+    "cls": "",
+    "text": "Core Features",
+    "fontSize": "32px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "",
+    "text": "Smart Annotation",
+    "fontSize": "20px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "Click on underlined text to quickly preview its explanation.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "",
+    "text": "Hierarchical Dialogue",
+    "fontSize": "20px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "Click the new card button in different directions to create corresponding cards for hierarchical dialogue.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "Reads the corresponding title of the upstream card as the background theme.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "Reads the corresponding title of the upstream card as the related theme.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "Inherits the theme of the upstream card and the conversation history before the branch point.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "",
+    "text": "Document Reading",
+    "fontSize": "20px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "Import documents for efficient reading and exploration.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "",
+    "text": "Thought Universe",
+    "fontSize": "20px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "Express your understanding of knowledge in your own words, and the AI will integrate it into your Thought Universe.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "",
+    "text": "Context Management",
+    "fontSize": "20px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "A more free, precise, and intuitive way to manage conversation context.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "Multiple quotes supported.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "",
+    "text": "Immersive Interface & Interaction",
+    "fontSize": "20px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "Meticulously designed conversational interface interactions.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "Unread indicators on card tree navigation nodes; right-click to manually toggle.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "",
+    "text": "Smart Summary",
+    "fontSize": "20px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "Smart summarization of project content available in the Favorites section.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "",
+    "text": "Personalization",
+    "fontSize": "20px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "li",
+    "cls": "",
+    "text": "Choose your language and color theme to help you enter a flow state.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h2",
+    "cls": "text-2xl font-bold text-primary mb-2 flex-shrink-0",
+    "text": "Choose Theme",
+    "fontSize": "26px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "p",
+    "cls": "text-tertiary mb-6 flex-shrink-0",
+    "text": "Select your preferred visual style.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Default (暗色)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Warm (温暖)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Midnight Forest (午夜深林)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Sakura (樱花)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Memphis (孟菲斯)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Sunset (晚霞)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Default-Purple (暗紫)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Default-Blue (暗蓝)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-primary font-medium",
+    "text": "Default-Orange (暗橙)",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h2",
+    "cls": "text-xl font-bold text-primary",
+    "text": "Log In",
+    "fontSize": "24px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-tertiary uppercase font-bold tracking-wider",
+    "text": "Email",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-tertiary uppercase font-bold tracking-wider",
+    "text": "Password",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "text-xs content-brand transition-colors",
+    "text": "Forgot password?",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "content-brand hover:underline",
+    "text": "Sign up",
+    "fontSize": "14px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h2",
+    "cls": "text-xl font-bold text-primary",
+    "text": "Log In",
+    "fontSize": "24px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-tertiary uppercase font-bold tracking-wider",
+    "text": "Email",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-tertiary uppercase font-bold tracking-wider",
+    "text": "Password",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "text-xs content-brand transition-colors",
+    "text": "Forgot password?",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "content-brand hover:underline",
+    "text": "Sign up",
+    "fontSize": "14px",
+    "fontWeight": "400",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "text-lg font-bold",
+    "text": "Project Sync Conflict",
+    "fontSize": "18px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "p",
+    "cls": "text-secondary text-sm mb-2",
+    "text": "Project \"\" has been modified on another device. Choose how to resolve:",
+    "fontSize": "14px",
+    "fontWeight": "400",
+    "color": "rgb(209, 209, 209)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "text-sm font-medium text-primary",
+    "text": "Load Remote Version",
+    "fontSize": "14px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "text-xs text-tertiary",
+    "text": "Discard local changes, use latest cloud version",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "text-sm font-medium text-primary",
+    "text": "Duplicate as New",
+    "fontSize": "14px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "text-xs text-tertiary",
+    "text": "Keep local changes and create a copy",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "text-sm font-medium text-primary",
+    "text": "Force Overwrite",
+    "fontSize": "14px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "text-xs text-tertiary",
+    "text": "Overwrite cloud data with local version",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h3",
+    "cls": "text-lg font-bold mb-4",
+    "text": "Switch Layout Mode?",
+    "fontSize": "18px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "p",
+    "cls": "text-secondary mb-6",
+    "text": "Portrait mode detected. Switch to mobile layout? (Can be changed in settings)",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(209, 209, 209)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h2",
+    "cls": "text-2xl font-bold",
+    "text": "Welcome to Explore",
+    "fontSize": "26px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  {
+    "tag": "p",
+    "cls": "mt-2 text-text-secondary",
+    "text": "Select a project on the left, or create a new one to begin.",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(209, 209, 209)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "px-6 py-2 bg-btn-std bg-btn-std-hover text-primary rounded-full transition-color",
+    "text": "How to Use",
+    "fontSize": "16px",
+    "fontWeight": "500",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  {
+    "tag": "a",
+    "cls": "text-tertiary-hover transition-colors",
+    "text": "沪ICP备2025147118号",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(119, 119, 119)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  {
+    "tag": "a",
+    "cls": "text-tertiary-hover transition-colors",
+    "text": "沪公网安备31010102008430号",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(119, 119, 119)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-base font-normal text-primary whitespace-nowrap transition-all duration-300",
+    "text": "Toggle Sidebar",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-base font-normal text-primary whitespace-nowrap transition-all duration-300",
+    "text": "New Folder",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-base font-normal text-primary whitespace-nowrap transition-all duration-300",
+    "text": "New Project",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-base font-normal text-primary whitespace-nowrap transition-all duration-300",
+    "text": "Document Reading",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-base font-normal text-primary whitespace-nowrap transition-all duration-300",
+    "text": "Import Project",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-base font-normal text-primary whitespace-nowrap transition-all duration-300",
+    "text": "Settings",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-base font-normal text-primary whitespace-nowrap transition-all duration-300",
+    "text": "Account",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif"
+  },
+  {
+    "tag": "script",
+    "cls": "",
+    "text": "(self.__next_f=self.__next_f||[]).push([0]);self.__next_f.push([2,null])",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "script",
+    "cls": "",
+    "text": "self.__next_f.push([1,\"1:HL[\\\"/_next/static/media/5a0c43ffa288c21a-s.p.woff2\\\",\\\"font\\\",{\\\"crossOrigin\\\":\\\"\\\",\\\"type\\\":\\\"font/woff2\\\"}]\\n2:HL[\\\"/_next/static/media/6c596dfcddeca1e9-s.p.woff2\\\",\\\"font\\\",{\\\"crossOrigin\\\":\\\"\\\",\\\"type\\\":\\\"font/woff2\\\"}]\\n3:HL[\\\"/_next/static/media/9e14b7a9936897f0-s.p.woff2\\\",\\\"font\\\",{\\\"crossOrigin\\\":\\\"\\\",\\\"type\\\":\\\"font/woff2\\\"}]\\n4:HL[\\\"/_next/static/media/a865edea076e0166-s.p.woff2\\\",\\\"font\\\",{\\\"crossOrigin\\\":\\\"\\\",\\\"type\\\":\\\"font/woff2\\\"}]\\n5:HL[\\\"/_next/static/css/072d755a2cf1d395.css\\\",\\\"style\\\"]\\n6:HL[\\\"/_next/static/css/a7619269bb3dc3fe.css\\\",\\\"style\\\"]\\n\"])",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "script",
+    "cls": "",
+    "text": "self.__next_f.push([1,\"7:I[12846,[],\\\"\\\"]\\n9:I[19107,[],\\\"ClientPageRoot\\\"]\\na:I[74723,[\\\"515\\\",\\\"static/chunks/515-a25b10c1efe4de71.js\\\",\\\"233\\\",\\\"static/chunks/233-78b577096d24891c.js\\\",\\\"929\\\",\\\"static/chunks/app/chat/page-de82bf6d7e77a6d2.js\\\"],\\\"default\\\",1]\\nb:I[4707,[],\\\"\\\"]\\nc:I[36423,[],\\\"\\\"]\\nd:I[2374,[\\\"185\\\",\\\"static/chunks/app/layout-d185057d889a92f8.js\\\"],\\\"default\\\"]\\ne:I[41952,[\\\"185\\\",\\\"static/chunks/app/layout-d185057d889a92f8.js\\\"],\\\"default\\\"]\\nf:I[26443,[\\\"185\\\",\\\"static/chunks/app/layout-d185057d889a92f8.js\\\"],\\\"default\\\"]\\n11:I[57063,[\\\"470\\\",\\\"static/chunks/app/global-error-0b7d7f653c42b23d.js\\\"],\\\"default\\\"]\\n12:[]\\n\"])",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "script",
+    "cls": "",
+    "text": "self.__next_f.push([1,\"0:[\\\"$\\\",\\\"$L7\\\",null,{\\\"buildId\\\":\\\"hz-4uSDR2ph7ZWsyOYBIK\\\",\\\"assetPrefix\\\":\\\"\\\",\\\"urlParts\\\":[\\\"\\\",\\\"chat\\\"],\\\"initialTree\\\":[\\\"\\\",{\\\"children\\\":[\\\"chat\\\",{\\\"children\\\":[\\\"__PAGE__\\\",{}]}]},\\\"$undefined\\\",\\\"$undefined\\\",true],\\\"initialSeedData\\\":[\\\"\\\",{\\\"children\\\":[\\\"chat\\\",{\\\"children\\\":[\\\"__PAGE__\\\",{},[[\\\"$L8\\\",[\\\"$\\\",\\\"$L9\\\",null,{\\\"props\\\":{\\\"params\\\":{},\\\"searchParams\\\":{}},\\\"Component\\\":\\\"$a\\\"}],null],null],null]},[[null,[\\\"$\\\",\\\"div\\\",null,{\\\"className\\\":\\\"fixed inset-0 flex bg-slate-900 overflow-hidden overscroll-none\\\",\\\"children\\\":[\\\"$\\\",\\\"$Lb\\\",null,{\\\"parallelRouterKey\\\":\\\"children\\\",\\\"segmentPath\\\":[\\\"children\\\",\\\"chat\\\",\\\"children\\\"],\\\"error\\\":\\\"$undefined\\\",\\\"errorStyles\\\":\\\"$undefined\\\",\\\"errorScripts\\\":\\\"$undefined\\\",\\\"template\\\":[\\\"$\\\",\\\"$Lc\\\",null,{}],\\\"templateStyles\\\":\\\"$undefined\\\",\\\"templateScripts\\\":\\\"$undefined\\\",\\\"notFound\\\":\\\"$undefined\\\",\\\"notFoundStyles\\\":\\\"$undefined\\\"}]}]],null],null]},[[[[\\\"$\\\",\\\"link\\\",\\\"0\\\",{\\\"rel\\\":\\\"stylesheet\\\",\\\"href\\\":\\\"/_next/static/css/072d755a2cf1d395.css\\\",\\\"precedence\\\":\\\"next\\\",\\\"crossOrigin\\\":\\\"$undefined\\\"}],[\\\"$\\\",\\\"link\\\",\\\"1\\\",{\\\"rel\\\":\\\"stylesheet\\\",\\\"href\\\":\\\"/_next/static/css/a7619269bb3dc3fe.css\\\",\\\"precedence\\\":\\\"next\\\",\\\"crossOrigin\\\":\\\"$undefined\\\"}]],[\\\"$\\\",\\\"html\\\",null,{\\\"lang\\\":\\\"en\\\",\\\"data-theme\\\":\\\"Default (暗色)\\\",\\\"suppressHydrationWarning\\\":true,\\\"children\\\":[\\\"$\\\",\\\"body\\\",null,{\\\"className\\\":\\\"__variable_528daf __variable_ef0eca __variable_605ab6 __variable_db8ee8 font-sans antialiased\\\",\\\"children\\\":[[\\\"$\\\",\\\"script\\\",null,{\\\"dangerouslySetInnerHTML\\\":{\\\"__html\\\":\\\"(function(){try{var raw=window.localStorage.getItem('settings-storage');var state={};if(raw){var parsed=JSON.parse(raw);state=parsed\\u0026\\u0026parsed.state?parsed.state:{};}var zoom=Number(state.uiZoom);var gen=Number(state.uiZoomDefaultGeneration);if(!isFinite(zoom)||zoom\\u003c=0){zoom=0.9;}else if((!isFinite(gen)||gen\\u003c2)\\u0026\\u0026zoom===1){zoom=0.9;}zoom=Math.min(2,Math.max(0.5,zoom));if(zoom!==1)document.documentElement.style.zoom=String(zoom);if(typeof state.theme==='string'\\u0026\\u0026state.theme){document.documentElement.setAttribute('data-theme',state.theme);}}catch(e){}})()\\\"}}],[\\\"$\\\",\\\"$Ld\\\",null,{}],[\\\"$\\\",\\\"$Le\\\",null,{}],[\\\"$\\\",\\\"$Lf\\\",null,{}],[\\\"$\\\",\\\"$Lb\\\",null,{\\\"parallelRouterKey\\\":\\\"children\\\",\\\"segmentPath\\\":[\\\"children\\\"],\\\"error\\\":\\\"$undefined\\\",\\\"errorStyles\\\":\\\"$undefined\\\",\\\"errorScripts\\\":\\\"$undefined\\\",\\\"template\\\":[\\\"$\\\",\\\"$Lc\\\",null,{}],\\\"templateStyles\\\":\\\"$undefined\\\",\\\"templateScripts\\\":\\\"$undefined\\\",\\\"notFound\\\":[[\\\"$\\\",\\\"title\\\",null,{\\\"children\\\":\\\"404: This page could not be found.\\\"}],[\\\"$\\\",\\\"div\\\",null,{\\\"style\\\":{\\\"fontFamily\\\":\\\"system-ui,\\\\\\\"Segoe UI\\\\\\\",Roboto,Helvetica,Arial,sans-serif,\\\\\\\"Apple Color Emoji\\\\\\\",\\\\\\\"Segoe UI Emoji\\\\\\\"\\\",\\\"height\\\":\\\"100vh\\\",\\\"textAlign\\\":\\\"center\\\",\\\"display\\\":\\\"flex\\\",\\\"flexDirection\\\":\\\"column\\\",\\\"alignItems\\\":\\\"center\\\",\\\"justifyContent\\\":\\\"center\\\"},\\\"children\\\":[\\\"$\\\",\\\"div\\\",null,{\\\"children\\\":[[\\\"$\\\",\\\"style\\\",null,{\\\"dangerouslySetInnerHTML\\\":{\\\"__html\\\":\\\"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}\\\"}}],[\\\"$\\\",\\\"h1\\\",null,{\\\"className\\\":\\\"next-error-h1\\\",\\\"style\\\":{\\\"display\\\":\\\"inline-block\\\",\\\"margin\\\":\\\"0 20px 0 0\\\",\\\"padding\\\":\\\"0 23px 0 0\\\",\\\"fontSize\\\":24,\\\"fontWeight\\\":500,\\\"verticalAlign\\\":\\\"top\\\",\\\"lineHeight\\\":\\\"49px\\\"},\\\"children\\\":\\\"404\\\"}],[\\\"$\\\",\\\"div\\\",null,{\\\"style\\\":{\\\"display\\\":\\\"inline-block\\\"},\\\"children\\\":[\\\"$\\\",\\\"h2\\\",null,{\\\"style\\\":{\\\"fontSize\\\":14,\\\"fontWeight\\\":400,\\\"lineHeight\\\":\\\"49px\\\",\\\"margin\\\":0},\\\"children\\\":\\\"This page could not be found.\\\"}]}]]}]}]],\\\"notFoundStyles\\\":[]}],[\\\"$\\\",\\\"div\\\",null,{\\\"id\\\":\\\"portal-root\\\"}]]}]}]],null],null],\\\"couldBeIntercepted\\\":false,\\\"initialHead\\\":[null,\\\"$L10\\\"],\\\"globalErrorComponent\\\":\\\"$11\\\",\\\"missingSlots\\\":\\\"$W12\\\"}]\\n\"])",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "script",
+    "cls": "",
+    "text": "self.__next_f.push([1,\"10:[[\\\"$\\\",\\\"meta\\\",\\\"0\\\",{\\\"name\\\":\\\"viewport\\\",\\\"content\\\":\\\"width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"1\\\",{\\\"name\\\":\\\"theme-color\\\",\\\"content\\\":\\\"#101010\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"2\\\",{\\\"charSet\\\":\\\"utf-8\\\"}],[\\\"$\\\",\\\"title\\\",\\\"3\\\",{\\\"children\\\":\\\"Chat - Explore\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"4\\\",{\\\"name\\\":\\\"description\\\",\\\"content\\\":\\\"Start exploring your ideas with AI\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"5\\\",{\\\"name\\\":\\\"author\\\",\\\"content\\\":\\\"Explore Team\\\"}],[\\\"$\\\",\\\"link\\\",\\\"6\\\",{\\\"rel\\\":\\\"manifest\\\",\\\"href\\\":\\\"/my-favicon/site.webmanifest\\\",\\\"crossOrigin\\\":\\\"use-credentials\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"7\\\",{\\\"name\\\":\\\"keywords\\\",\\\"content\\\":\\\"AI,knowledge management,note-taking,exploration,chat\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"8\\\",{\\\"name\\\":\\\"mobile-web-app-capable\\\",\\\"content\\\":\\\"yes\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"9\\\",{\\\"name\\\":\\\"apple-mobile-web-app-capable\\\",\\\"content\\\":\\\"yes\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"10\\\",{\\\"name\\\":\\\"apple-mobile-web-app-title\\\",\\\"content\\\":\\\"Explore\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"11\\\",{\\\"name\\\":\\\"apple-mobile-web-app-status-bar-style\\\",\\\"content\\\":\\\"default\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"12\\\",{\\\"property\\\":\\\"og:title\\\",\\\"content\\\":\\\"Explore - AI-Powered Knowledge Exploration\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"13\\\",{\\\"property\\\":\\\"og:description\\\",\\\"content\\\":\\\"A dynamic, card-based knowledge exploration tool.\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"14\\\",{\\\"property\\\":\\\"og:type\\\",\\\"content\\\":\\\"website\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"15\\\",{\\\"name\\\":\\\"twitter:card\\\",\\\"content\\\":\\\"summary\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"16\\\",{\\\"name\\\":\\\"twitter:title\\\",\\\"content\\\":\\\"Explore - AI-Powered Knowledge Exploration\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"17\\\",{\\\"name\\\":\\\"twitter:description\\\",\\\"content\\\":\\\"A dynamic, card-based knowledge exploration tool.\\\"}],[\\\"$\\\",\\\"link\\\",\\\"18\\\",{\\\"rel\\\":\\\"shortcut icon\\\",\\\"href\\\":\\\"/my-favicon/favicon.ico\\\"}],[\\\"$\\\",\\\"link\\\",\\\"19\\\",{\\\"rel\\\":\\\"icon\\\",\\\"href\\\":\\\"/my-favicon/favicon-96x96.png\\\",\\\"sizes\\\":\\\"96x96\\\",\\\"type\\\":\\\"image/png\\\"}],[\\\"$\\\",\\\"link\\\",\\\"20\\\",{\\\"rel\\\":\\\"icon\\\",\\\"href\\\":\\\"/my-favicon/favicon.svg\\\",\\\"type\\\":\\\"image/svg+xml\\\"}],[\\\"$\\\",\\\"link\\\",\\\"21\\\",{\\\"rel\\\":\\\"apple-touch-icon\\\",\\\"href\\\":\\\"/my-favicon/apple-touch-icon.png\\\",\\\"sizes\\\":\\\"180x180\\\"}],[\\\"$\\\",\\\"meta\\\",\\\"22\\\",{\\\"name\\\":\\\"next-size-adjust\\\"}]]\\n8:null\\n\"])",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "text-xs text-tertiary hover:text-primary transition-colors whitespace-nowrap mt-",
+    "text": "prefer afdian?",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "text-xs font-bold text-secondary mb-1.5",
+    "text": "Free",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(209, 209, 209)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "text-xs font-bold content-brand mb-1.5",
+    "text": "Paid",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "py-2 rounded-lg text-sm font-semibold transition-all bg-brand text-opposite shad",
+    "text": "Subscription",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(68, 68, 68)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "button",
+    "cls": "py-2 rounded-lg text-sm font-semibold transition-all text-tertiary hover:text-pr",
+    "text": "One-time",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "font-semibold text-sm text-primary",
+    "text": "Go",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-xs font-normal text-tertiary",
+    "text": "/mo",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "shrink-0",
+    "text": "·",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "",
+    "text": "Simple everyday Q&A and chats (undergraduate level and below)",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "shrink-0",
+    "text": "·",
+    "fontSize": "12px",
+    "fontWeight": "600",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "",
+    "text": "Ideal with your own API key",
+    "fontSize": "12px",
+    "fontWeight": "600",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "shrink-0",
+    "text": "·",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "",
+    "text": "300 AI usage units/mo",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "absolute -top-2 -right-2 bg-brand text-opposite text-[10px] font-bold px-2 py-0.",
+    "text": "Popular",
+    "fontSize": "10px",
+    "fontWeight": "700",
+    "color": "rgb(68, 68, 68)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "font-semibold text-sm content-brand",
+    "text": "Plus",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-xs font-normal text-tertiary",
+    "text": "/mo",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "shrink-0",
+    "text": "·",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "",
+    "text": "Unlocks Plus-tier models",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "shrink-0",
+    "text": "·",
+    "fontSize": "12px",
+    "fontWeight": "600",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "",
+    "text": "Covers most knowledge Q&A and chats (up to graduate level)",
+    "fontSize": "12px",
+    "fontWeight": "600",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "shrink-0",
+    "text": "·",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "",
+    "text": "1200 AI usage units/mo",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "font-semibold text-sm text-primary",
+    "text": "Pro",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-xs font-normal text-tertiary",
+    "text": "/mo",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "shrink-0",
+    "text": "·",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "",
+    "text": "Unlocks Pro-tier models",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "shrink-0",
+    "text": "·",
+    "fontSize": "12px",
+    "fontWeight": "600",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "",
+    "text": "For heavy users and deeper professional topics",
+    "fontSize": "12px",
+    "fontWeight": "600",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "shrink-0",
+    "text": "·",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "",
+    "text": "3200 AI usage units/mo",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "div",
+    "cls": "font-semibold text-sm text-primary",
+    "text": "Max",
+    "fontSize": "14px",
+    "fontWeight": "600",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-xs font-normal text-tertiary",
+    "text": "/mo",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "shrink-0",
+    "text": "·",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "",
+    "text": "Unlocks Max-tier models",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "shrink-0",
+    "text": "·",
+    "fontSize": "12px",
+    "fontWeight": "600",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "",
+    "text": "For heavy users and the most advanced, cutting-edge topics",
+    "fontSize": "12px",
+    "fontWeight": "600",
+    "color": "rgb(19, 228, 37)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "shrink-0",
+    "text": "·",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "",
+    "text": "9600 AI usage units/mo",
+    "fontSize": "12px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "ml-1 opacity-80",
+    "text": "· $5/mo",
+    "fontSize": "14px",
+    "fontWeight": "700",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-[10px] text-tertiary group-hover:text-brandtw transition-colors",
+    "text": "Switch to",
+    "fontSize": "10px",
+    "fontWeight": "400",
+    "color": "rgb(153, 153, 153)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "span",
+    "cls": "text-xs font-semibold",
+    "text": "WeChat / Alipay",
+    "fontSize": "12px",
+    "fontWeight": "600",
+    "color": "rgb(209, 209, 209)",
+    "ff": "__inter_528daf, __inter_Fallback_528daf, Inter, system-ui, sans-serif"
+  },
+  {
+    "tag": "h2",
+    "cls": "text-xl font-space font-bold text-white tracking-tight",
+    "text": "Subscription Seats Full",
+    "fontSize": "24px",
+    "fontWeight": "700",
+    "color": "rgb(255, 255, 255)",
+    "ff": "__spaceGrotesk_605ab6, __spaceGrotesk_Fallback_605ab6, sans-serif"
+  },
+  {
+    "tag": "p",
+    "cls": "text-gray-400 text-sm",
+    "text": "All Beta subscription seats are currently taken. Leave your info and we will notify you the moment seats open up.",
+    "fontSize": "14px",
+    "fontWeight": "400",
+    "color": "rgb(156, 163, 175)",
+    "ff": "__jetbrainsMono_db8ee8, __jetbrainsMono_Fallback_db8ee8, monospace"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-gray-400 uppercase font-bold tracking-wider",
+    "text": "Nickname",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(156, 163, 175)",
+    "ff": "__jetbrainsMono_db8ee8, __jetbrainsMono_Fallback_db8ee8, monospace"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-gray-400 uppercase font-bold tracking-wider",
+    "text": "Email",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(156, 163, 175)",
+    "ff": "__jetbrainsMono_db8ee8, __jetbrainsMono_Fallback_db8ee8, monospace"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-gray-400 uppercase font-bold tracking-wider",
+    "text": "How did you hear about Explore",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(156, 163, 175)",
+    "ff": "__jetbrainsMono_db8ee8, __jetbrainsMono_Fallback_db8ee8, monospace"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-gray-400 uppercase font-bold tracking-wider",
+    "text": "Identity / Occupation",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(156, 163, 175)",
+    "ff": "__jetbrainsMono_db8ee8, __jetbrainsMono_Fallback_db8ee8, monospace"
+  },
+  {
+    "tag": "label",
+    "cls": "text-xs text-gray-400 uppercase font-bold tracking-wider",
+    "text": "Why do you want to use Explore (optional)",
+    "fontSize": "12px",
+    "fontWeight": "700",
+    "color": "rgb(156, 163, 175)",
+    "ff": "__jetbrainsMono_db8ee8, __jetbrainsMono_Fallback_db8ee8, monospace"
+  },
+  {
+    "tag": "button",
+    "cls": "mt-4 w-full bg-neural-green hover:bg-neural-green/90 text-black font-bold py-3 r",
+    "text": "Join Now",
+    "fontSize": "16px",
+    "fontWeight": "700",
+    "color": "rgb(0, 0, 0)",
+    "ff": "__jetbrainsMono_db8ee8, __jetbrainsMono_Fallback_db8ee8, monospace"
+  }
+]

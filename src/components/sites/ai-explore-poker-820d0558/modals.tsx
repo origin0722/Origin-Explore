@@ -1,0 +1,891 @@
+"use client";
+
+/**
+ * Explore — Modals (site: ai.explore.poker/chat clone)
+ * SettingsModal / OnboardingWizard / ProfileModal
+ * Personal tool: no subscription, zh-only UI, local profile ("login").
+ * Spec: docs/specs/ai-explore-poker-820d0558/07-modals.md
+ */
+import { useEffect, useRef, useState } from "react";
+import {
+  Bot,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  KeyRound,
+  Keyboard,
+  Layers,
+  Palette,
+  Plus,
+  Star,
+  X,
+  Zap,
+} from "lucide-react";
+import { useApp } from "./app-context";
+import {
+  MODELS,
+  THEMES,
+  isThemeImplemented,
+} from "@/lib/sites/ai-explore-poker-820d0558/mock";
+import type {
+  ChatSettings,
+  ModelInfo,
+  ThemeOption,
+} from "@/types/sites/ai-explore-poker-820d0558";
+
+/* ------------------------------------------------------------------ */
+/* shared modal shell                                                  */
+/* ------------------------------------------------------------------ */
+
+function ModalShell({
+  children,
+  onClose,
+  zIndex = "z-50",
+  overlay = "bg-overlay-modal",
+}: {
+  children: React.ReactNode;
+  onClose(): void;
+  zIndex?: string;
+  overlay?: string;
+}) {
+  // Escape 关闭
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className={`fixed inset-0 ${overlay} ${zIndex} flex justify-center items-center transition-opacity`}
+      onMouseDown={onClose}
+    >
+      {/* 全尺寸 flex 包装层，使子元素百分比尺寸可解析 */}
+      <div
+        className="w-full h-full flex justify-center items-center"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** 底部 toast（演示提示） */
+function ToastView({ toast }: { toast: string | null }) {
+  if (!toast) return null;
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-card-floating border border-std shadow-card px-4 py-2 text-sm text-primary whitespace-nowrap">
+      {toast}
+    </div>
+  );
+}
+
+/** toast 状态（1800ms 自动消失） */
+function useToast(): [string | null, (msg: string) => void] {
+  const [toast, setToast] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    []
+  );
+
+  const show = (msg: string) => {
+    setToast(msg);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setToast(null), 1800);
+  };
+
+  return [toast, show];
+}
+
+/** 开关（Switch 风格按钮: bg-brand / bg-btn-std） */
+function Switch({ on, onChange }: { on: boolean; onChange(v: boolean): void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => onChange(!on)}
+      className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${
+        on ? "bg-brand" : "bg-btn-std"
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
+          on ? "left-[18px]" : "left-0.5"
+        }`}
+      />
+    </button>
+  );
+}
+
+/** 单选行（radio 风格 label 行） */
+function RadioRow({
+  name,
+  label,
+  checked,
+  onSelect,
+  dot = false,
+  big = false,
+}: {
+  name: string;
+  label: React.ReactNode;
+  checked: boolean;
+  onSelect(): void;
+  dot?: boolean;
+  big?: boolean;
+}) {
+  return (
+    <label
+      className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${
+        checked ? "bg-item-std-active" : "hover:bg-item-std"
+      }`}
+    >
+      <input
+        type="radio"
+        name={name}
+        checked={checked}
+        onChange={onSelect}
+        className={big ? "h-5 w-5 accent-brand" : "h-4 w-4 accent-brand"}
+      />
+      {dot && (
+        <span
+          className={`w-3 h-3 rounded-full ${
+            checked ? "bg-brand shadow-brand" : "bg-btn-std"
+          }`}
+        />
+      )}
+      <span className={`${big ? "text-lg" : "text-sm"} text-primary`}>
+        {label}
+      </span>
+      {checked && (
+        <span className="ml-auto text-xs text-brand">使用中</span>
+      )}
+    </label>
+  );
+}
+
+/** 主题单选行（radio + 品牌色圆点；未实现主题行尾标「待实现」） */
+function ThemeRow({
+  name,
+  theme,
+  checked,
+  onSelect,
+}: {
+  name: string;
+  theme: ThemeOption;
+  checked: boolean;
+  onSelect(): void;
+}) {
+  const pending = !isThemeImplemented(theme.name);
+  return (
+    <label
+      className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${
+        checked ? "bg-item-std-active" : "hover:bg-item-std"
+      }`}
+    >
+      <input
+        type="radio"
+        name={name}
+        className="h-4 w-4 accent-brand"
+        checked={checked}
+        onChange={onSelect}
+      />
+      <span className="w-3 h-3 rounded-full bg-brand shadow-brand" />
+      <span className="text-sm text-primary">{theme.name}</span>
+      {pending && (
+        <span className="ml-auto text-[10px] text-text-quaternary">待实现</span>
+      )}
+    </label>
+  );
+}
+
+const AVATAR_COLORS = ["#13e425", "#4d9fff", "#ffb84d", "#e4e4e4", "#ff6b6b"];
+
+/** 头像色 5 圆点 radio */
+function AvatarColorPicker({
+  name,
+  value,
+  onChange,
+}: {
+  name: string;
+  value: string;
+  onChange(c: string): void;
+}) {
+  return (
+    <div className="flex gap-2.5">
+      {AVATAR_COLORS.map((c) => (
+        <label key={c} className="cursor-pointer">
+          <input
+            type="radio"
+            name={name}
+            className="peer sr-only"
+            checked={value === c}
+            onChange={() => onChange(c)}
+          />
+          <span
+            className="block w-8 h-8 rounded-full transition-transform peer-checked:scale-110 peer-checked:ring-2 peer-checked:ring-brand peer-checked:ring-offset-2 peer-checked:ring-offset-modal-std"
+            style={{ background: c }}
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* SettingsModal                                                       */
+/* ------------------------------------------------------------------ */
+
+const NAV_ITEMS: { id: string; label: string; icon: typeof Bot }[] = [
+  { id: "models", label: "AI 模型", icon: Bot },
+  { id: "allocation", label: "模型分配", icon: Layers },
+  { id: "api", label: "API 密钥", icon: KeyRound },
+  { id: "theme", label: "颜色主题", icon: Palette },
+  { id: "permissions", label: "编辑权限", icon: Eye },
+  { id: "shortcuts", label: "快捷键", icon: Keyboard },
+  { id: "auto", label: "自动行为", icon: Zap },
+];
+
+function ModelRow({
+  model,
+  selected,
+  onSelect,
+}: {
+  model: ModelInfo;
+  selected: boolean;
+  onSelect(): void;
+}) {
+  return (
+    <div
+      onClick={onSelect}
+      className={`p-3 px-4 border rounded-xl mb-2 cursor-pointer transition-colors ${
+        selected
+          ? "bg-item-std-active border-brand/50"
+          : "bg-modal-floating border-std hover:border-brand/40"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <h4 className="text-sm font-semibold flex items-center gap-1.5 min-w-0">
+              <Star
+                size={12}
+                className={`flex-shrink-0 ${selected ? "text-brand" : "text-text-quaternary"}`}
+              />
+              <span className="truncate">{model.name}</span>
+            </h4>
+            {model.vision && (
+              <span className="text-[10px] text-brand border border-brand/50 bg-brand/10 rounded px-1.5 py-0.5 flex-shrink-0">
+                Vision
+              </span>
+            )}
+            {selected && (
+              <Check size={14} className="text-brand flex-shrink-0" />
+            )}
+          </div>
+          <p className="text-xs text-text-tertiary mt-1 truncate">
+            {model.provider} · {model.description}
+          </p>
+        </div>
+        <div className="flex gap-1.5 flex-shrink-0">
+          <span className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5">
+            {model.tier.toUpperCase()}
+          </span>
+          {model.multiplier && (
+            <span className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5">
+              {model.multiplier}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SettingsModal() {
+  const { settings, setSettings, closeModal, openModal } = useApp();
+  const [draft, setDraft] = useState<ChatSettings>(settings);
+  const [section, setSection] = useState("models");
+  // 无 settings 字段支撑的面板项（演示用本地状态）
+  const [perm, setPerm] = useState("owner");
+  const [toast, showToast] = useToast();
+
+  const update = (p: Partial<ChatSettings>) =>
+    setDraft((d) => ({ ...d, ...p }));
+
+  const save = () => {
+    setSettings(draft);
+    closeModal("settings");
+  };
+
+  return (
+    <ModalShell onClose={() => closeModal("settings")}>
+      <div className="w-full h-full sm:w-[71.25%] sm:h-[71.25%] bg-modal-std rounded-3xl shadow-xl border-2 border-std flex flex-col overflow-hidden">
+        {/* 头部 */}
+        <div className="flex items-center justify-between px-6 pt-4 pb-3 border-b border-divider flex-shrink-0">
+          <h2 className="text-xl font-bold">设置</h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openModal("onboarding")}
+              className="text-xs text-brand border border-brand/40 rounded-full px-3 py-1.5 hover:bg-brand/10 transition-colors"
+            >
+              设置引导
+            </button>
+            <button
+              onClick={() => closeModal("settings")}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-text-tertiary hover:bg-item-std hover:text-primary transition-colors"
+              aria-label="关闭设置"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* 移动端横向导航 */}
+        <div className="sm:hidden overflow-x-auto no-scrollbar px-4 pt-3 flex-shrink-0">
+          <div className="flex gap-2">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setSection(item.id)}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
+                  section === item.id
+                    ? "bg-item-std-active text-primary"
+                    : "bg-btn-std text-text-secondary"
+                }`}
+              >
+                <item.icon size={12} />
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex-1 min-h-0 flex">
+          {/* 左导航 */}
+          <nav className="hidden sm:block w-1/4 min-w-[180px] border-r border-divider p-4 overflow-y-auto nav-scroll flex-shrink-0">
+            <ul className="space-y-1">
+              {NAV_ITEMS.map((item) => (
+                <li key={item.id}>
+                  <button
+                    onClick={() => setSection(item.id)}
+                    className={`w-full flex items-center gap-2.5 p-2 rounded text-sm transition-colors ${
+                      section === item.id
+                        ? "bg-item-std text-primary"
+                        : "text-text-secondary hover:bg-item-std hover:text-primary"
+                    }`}
+                  >
+                    <item.icon size={15} className="flex-shrink-0" />
+                    {item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          {/* 右面板 */}
+          <div className="flex-1 p-6 overflow-y-auto scrollbar-card-std">
+            {section === "models" && (
+              <div>
+                <h4 className="text-sm font-semibold text-text-header-secondary mb-3">
+                  可用模型
+                </h4>
+                <button
+                  onClick={() => showToast("BYOK（演示）")}
+                  className="flex items-center gap-2 text-sm text-brand mb-1 hover:opacity-80 transition-opacity"
+                >
+                  <Plus size={15} />
+                  添加 BYOK 模型
+                </button>
+                <p className="text-xs text-text-tertiary mb-4">
+                  免费档可添加 1 个 BYOK 模型
+                </p>
+
+                {MODELS.map((m) => (
+                  <ModelRow
+                    key={m.id}
+                    model={m}
+                    selected={draft.activeModelId === m.id}
+                    onSelect={() => update({ activeModelId: m.id })}
+                  />
+                ))}
+              </div>
+            )}
+
+            {section === "allocation" && (
+              <div>
+                <h4 className="text-sm font-semibold text-text-header-secondary mb-3">
+                  模型分配
+                </h4>
+                <p className="text-xs text-text-tertiary mb-4">
+                  为新对话分配默认使用的模型。
+                </p>
+                <div className="p-3 px-4 bg-modal-floating border border-std rounded-xl flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Star size={12} className="text-brand flex-shrink-0" />
+                    <span className="text-sm text-primary truncate">
+                      {MODELS.find((m) => m.id === draft.activeModelId)?.name ??
+                        draft.activeModelId}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0">
+                    默认
+                  </span>
+                </div>
+                <p className="text-xs text-text-tertiary mt-3">
+                  在「AI 模型」中点击模型可切换默认分配；对话框内亦可随时切换。
+                </p>
+              </div>
+            )}
+
+            {section === "api" && (
+              <div>
+                <h4 className="text-sm font-semibold text-text-header-secondary mb-3">
+                  API 密钥
+                </h4>
+                <label className="text-xs text-text-tertiary">BYOK 密钥</label>
+                <input
+                  type="password"
+                  placeholder="sk-…"
+                  className="mt-2 w-full bg-inputarea border border-std rounded-xl px-4 py-2.5 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
+                />
+                <p className="text-xs text-text-tertiary mt-3">
+                  密钥仅保存在本地（演示环境）。免费档可添加 1 个 BYOK 模型。
+                </p>
+              </div>
+            )}
+
+            {section === "theme" && (
+              <div>
+                <h4 className="text-sm font-semibold text-text-header-secondary mb-3">
+                  颜色主题
+                </h4>
+                <div className="space-y-1">
+                  {THEMES.map((t) => (
+                    <ThemeRow
+                      key={t.id}
+                      name="settings_theme"
+                      theme={t}
+                      checked={draft.theme === t.name}
+                      onSelect={() => update({ theme: t.name })}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {section === "permissions" && (
+              <div>
+                <h4 className="text-sm font-semibold text-text-header-secondary mb-3">
+                  编辑权限
+                </h4>
+                <p className="text-xs text-text-tertiary mb-4">
+                  控制谁能查看与编辑你的项目。
+                </p>
+                <div className="space-y-1">
+                  {[
+                    { id: "owner", label: "仅自己（私有）" },
+                    { id: "comment", label: "可评论" },
+                    { id: "view", label: "可查看" },
+                  ].map((p) => (
+                    <RadioRow
+                      key={p.id}
+                      name="settings_permission"
+                      label={p.label}
+                      checked={perm === p.id}
+                      onSelect={() => setPerm(p.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {section === "shortcuts" && (
+              <div>
+                <h4 className="text-sm font-semibold text-text-header-secondary mb-3">
+                  快捷键
+                </h4>
+                <p className="text-xs text-text-tertiary mb-4">发送消息</p>
+                <div className="space-y-1">
+                  <RadioRow
+                    name="settings_send_shortcut"
+                    label={
+                      <span className="flex items-center gap-2">
+                        按 Ctrl+Enter 发送
+                        <kbd className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5">
+                          Ctrl + Enter
+                        </kbd>
+                      </span>
+                    }
+                    checked={draft.sendShortcut === "ctrl-enter"}
+                    onSelect={() => update({ sendShortcut: "ctrl-enter" })}
+                  />
+                  <RadioRow
+                    name="settings_send_shortcut"
+                    label={
+                      <span className="flex items-center gap-2">
+                        按 Enter 发送
+                        <kbd className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5">
+                          Enter
+                        </kbd>
+                      </span>
+                    }
+                    checked={draft.sendShortcut === "enter"}
+                    onSelect={() => update({ sendShortcut: "enter" })}
+                  />
+                </div>
+              </div>
+            )}
+
+            {section === "auto" && (
+              <div>
+                <h4 className="text-sm font-semibold text-text-header-secondary mb-3">
+                  自动行为
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-4 p-3 px-4 bg-modal-floating border border-std rounded-xl">
+                    <div className="min-w-0">
+                      <div className="text-sm text-primary">自动引用</div>
+                      <p className="text-xs text-text-tertiary mt-0.5">
+                        回答中自动插入引用来源
+                      </p>
+                    </div>
+                    <Switch
+                      on={draft.autoCitationEnabled}
+                      onChange={(v) => update({ autoCitationEnabled: v })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-4 p-3 px-4 bg-modal-floating border border-std rounded-xl">
+                    <div className="min-w-0">
+                      <div className="text-sm text-primary">联网搜索</div>
+                      <p className="text-xs text-text-tertiary mt-0.5">
+                        答案不确定时自动联网检索
+                      </p>
+                    </div>
+                    <Switch
+                      on={draft.isWebSearchEnabled}
+                      onChange={(v) => update({ isWebSearchEnabled: v })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-4 p-3 px-4 bg-modal-floating border border-std rounded-xl">
+                    <div className="min-w-0">
+                      <div className="text-sm text-primary">自动标题</div>
+                      <p className="text-xs text-text-tertiary mt-0.5">
+                        自动为对话生成标题
+                      </p>
+                    </div>
+                    <Switch
+                      on={draft.autoTitleEnabled}
+                      onChange={(v) => update({ autoTitleEnabled: v })}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 底部保存 */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-divider flex-shrink-0">
+          <p className="text-xs text-text-tertiary">设置仅保存在本地（演示）</p>
+          <button
+            onClick={save}
+            className="bg-brand text-black font-bold rounded-full px-5 py-2 hover:opacity-90 transition-opacity"
+          >
+            保存
+          </button>
+        </div>
+      </div>
+
+      <ToastView toast={toast} />
+    </ModalShell>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* OnboardingWizard                                                    */
+/* ------------------------------------------------------------------ */
+
+const ONBOARDING_STEPS = ["选择主题颜色", "个人信息"];
+
+export function OnboardingWizard() {
+  const { settings, setSettings, profile, setProfile, closeModal } = useApp();
+  const [step, setStep] = useState(0);
+  const [theme, setTheme] = useState(settings.theme);
+  const [name, setName] = useState(profile?.name ?? "");
+  const [email, setEmail] = useState(profile?.email ?? "");
+  const [avatarColor, setAvatarColor] = useState(
+    profile?.avatarColor ?? AVATAR_COLORS[0]
+  );
+  const [toast, showToast] = useToast();
+
+  /** 跳过 / 完成共用的收尾：标记已引导并关闭（数据仅在完成时写入） */
+  const done = () => {
+    try {
+      localStorage.setItem("explore-onboarded", "1");
+    } catch {
+      /* localStorage unavailable — skip */
+    }
+    closeModal("onboarding");
+  };
+
+  const finish = () => {
+    if (!name.trim()) {
+      showToast("请填写昵称");
+      return;
+    }
+    setSettings({ theme });
+    setProfile({ name: name.trim(), email: email.trim(), avatarColor });
+    done();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-overlay-modal z-[100] flex items-center justify-center"
+      onMouseDown={done}
+    >
+      <div
+        className="w-[90%] max-w-[500px] h-[400px] bg-modal-std rounded-2xl shadow-2xl relative flex flex-col overflow-hidden border border-std"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {/* 跳过 */}
+        <button
+          onClick={done}
+          className="absolute top-4 right-5 text-xs text-text-tertiary hover:text-primary transition-colors z-10"
+        >
+          跳过
+        </button>
+
+        <div className="flex-1 px-8 pt-8 pb-20 flex flex-col items-center justify-center text-center min-h-0 overflow-hidden">
+          <div key={step} className="new-word-fade-in w-full flex flex-col items-center">
+            <h2 className="text-2xl font-bold">{ONBOARDING_STEPS[step]}</h2>
+
+            {step === 0 && (
+              <>
+                <p className="text-text-tertiary mt-2 text-sm">
+                  选择您喜欢的应用外观风格。
+                </p>
+                <div className="mt-4 w-full max-h-56 overflow-y-auto scrollbar-card-neon pr-1 space-y-1">
+                  {THEMES.map((t) => (
+                    <ThemeRow
+                      key={t.id}
+                      name="setup_theme"
+                      theme={t}
+                      checked={theme === t.name}
+                      onSelect={() => setTheme(t.name)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {step === 1 && (
+              <>
+                <p className="text-text-tertiary mt-2 text-sm">
+                  这些信息仅保存在本机，用于个性化体验。
+                </p>
+                <div className="mt-4 w-full space-y-3">
+                  <input
+                    type="text"
+                    placeholder="昵称"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-inputarea border border-std rounded-xl px-4 py-2.5 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
+                  />
+                  <input
+                    type="email"
+                    placeholder="邮箱（可选）"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-inputarea border border-std rounded-xl px-4 py-2.5 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
+                  />
+                  <div className="text-left">
+                    <span className="text-xs text-text-tertiary">头像颜色</span>
+                    <div className="mt-2">
+                      <AvatarColorPicker
+                        name="setup_avatar_color"
+                        value={avatarColor}
+                        onChange={setAvatarColor}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* 步骤圆点 */}
+        <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-2 pointer-events-none">
+          {[0, 1].map((i) => (
+            <span
+              key={i}
+              className={`w-2 h-2 rounded-full transition-colors ${
+                i === step ? "bg-brand" : "bg-btn-std"
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* 上一步 */}
+        {step > 0 && (
+          <button
+            onClick={() => setStep((s) => s - 1)}
+            className="absolute bottom-6 left-6 w-12 h-12 rounded-full bg-btn-std hover:bg-btn-std-hover flex items-center justify-center shadow-lg transition-colors"
+            aria-label="上一步"
+          >
+            <ChevronLeft size={24} />
+          </button>
+        )}
+
+        {/* 下一步 / 完成 */}
+        {step === 0 ? (
+          <button
+            onClick={() => setStep(1)}
+            className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-btn-std hover:bg-btn-std-hover flex items-center justify-center shadow-lg transition-colors"
+            aria-label="下一步"
+          >
+            <ChevronRight size={24} />
+          </button>
+        ) : (
+          <button
+            onClick={finish}
+            className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-brand flex items-center justify-center text-black shadow-lg hover:scale-105 transition-transform"
+            aria-label="完成"
+          >
+            <Check size={28} strokeWidth={3} />
+          </button>
+        )}
+
+        <ToastView toast={toast} />
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* ProfileModal（本地档案 = 个人工具的"登录"）                          */
+/* ------------------------------------------------------------------ */
+
+export function ProfileModal() {
+  const { profile, setProfile, closeModal } = useApp();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(profile?.name ?? "");
+  const [email, setEmail] = useState(profile?.email ?? "");
+  const [avatarColor, setAvatarColor] = useState(
+    profile?.avatarColor ?? AVATAR_COLORS[0]
+  );
+  const [toast, showToast] = useToast();
+
+  const save = () => {
+    if (!name.trim()) {
+      showToast("请填写昵称");
+      return;
+    }
+    setProfile({ name: name.trim(), email: email.trim(), avatarColor });
+    setEditing(false);
+    closeModal("login");
+    showToast("已登录（本机存档）");
+  };
+
+  const startEdit = () => {
+    if (profile) {
+      setName(profile.name);
+      setEmail(profile.email);
+      setAvatarColor(profile.avatarColor);
+    }
+    setEditing(true);
+  };
+
+  return (
+    <ModalShell onClose={() => closeModal("login")}>
+      <div className="w-[90%] max-w-[400px] bg-modal-std rounded-3xl shadow-xl border-2 border-std p-8">
+        {profile && !editing ? (
+          /* 已登录态 */
+          <>
+            <div className="flex flex-col items-center text-center">
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-black"
+                style={{ background: profile.avatarColor }}
+              >
+                {(profile.name || "?").charAt(0)}
+              </div>
+              <h2 className="text-xl font-bold mt-3">{profile.name}</h2>
+              <p className="text-sm text-text-tertiary mt-0.5">
+                {profile.email}
+              </p>
+            </div>
+            <div className="mt-6 space-y-3">
+              <button
+                onClick={startEdit}
+                className="w-full py-2.5 rounded-full bg-btn-std hover:bg-btn-std-hover text-primary transition-colors"
+              >
+                编辑
+              </button>
+              <button
+                onClick={() => setProfile(null)}
+                className="w-full py-2.5 rounded-full bg-btn-std hover:bg-btn-std-hover text-primary transition-colors"
+              >
+                退出登录
+              </button>
+            </div>
+          </>
+        ) : (
+          /* 未登录态 / 编辑态 */
+          <>
+            <div className="text-center">
+              <h1 className="font-bruno-ace text-3xl text-brand shadow-brand">
+                Explore
+              </h1>
+              <h2 className="text-xl font-bold mt-4">欢迎回来</h2>
+              <p className="text-sm text-text-tertiary mt-1">
+                登录以保存你的个人信息。（数据仅存本机）
+              </p>
+            </div>
+            <div className="mt-6 space-y-3">
+              <input
+                type="text"
+                placeholder="昵称"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full bg-inputarea border border-std rounded-xl px-4 py-2.5 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
+              />
+              <input
+                type="email"
+                placeholder="邮箱"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-inputarea border border-std rounded-xl px-4 py-2.5 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
+              />
+              <div>
+                <span className="text-xs text-text-tertiary">头像颜色</span>
+                <div className="mt-2">
+                  <AvatarColorPicker
+                    name="profile_avatar_color"
+                    value={avatarColor}
+                    onChange={setAvatarColor}
+                  />
+                </div>
+              </div>
+              <button
+                onClick={save}
+                className="w-full py-2.5 rounded-full bg-brand text-black font-bold hover:opacity-90 transition-opacity"
+              >
+                保存并登录
+              </button>
+            </div>
+          </>
+        )}
+
+        <ToastView toast={toast} />
+      </div>
+    </ModalShell>
+  );
+}

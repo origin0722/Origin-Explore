@@ -1,0 +1,188 @@
+{
+  "images": [],
+  "videos": [],
+  "backgroundImages": [],
+  "svgCount": 121,
+  "svgSample": [
+    {
+      "cls": "lucide lucide-help-circle ",
+      "width": "20",
+      "height": "20",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-plus ",
+      "width": "16",
+      "height": "16",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-zap flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-brain flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-sparkles flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-brain flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-zap flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-sparkles flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-lock ",
+      "width": "10",
+      "height": "10",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-sparkles flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-lock ",
+      "width": "10",
+      "height": "10",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-sparkles flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-lock ",
+      "width": "10",
+      "height": "10",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-zap flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-lock ",
+      "width": "10",
+      "height": "10",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-sparkles flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-lock ",
+      "width": "10",
+      "height": "10",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-sparkles flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-lock ",
+      "width": "10",
+      "height": "10",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-sparkles flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-lock ",
+      "width": "10",
+      "height": "10",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-brain flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-lock ",
+      "width": "10",
+      "height": "10",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-zap flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-lock ",
+      "width": "10",
+      "height": "10",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-brain flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-lock ",
+      "width": "10",
+      "height": "10",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-zap flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-lock ",
+      "width": "10",
+      "height": "10",
+      "viewBox": "0 0 24 24"
+    },
+    {
+      "cls": "lucide lucide-brain flex-shrink-0",
+      "width": "13",
+      "height": "13",
+      "viewBox": "0 0 24 24"
+    }
+  ]
+}

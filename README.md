@@ -1,1 +1,1 @@
-# Origin-Explore
+Moved Permanently. Redirecting to https://raw.githubusercontent.com/jcodesmore/ai-website-cloner-template/master/README.md

@@ -1,0 +1,7 @@
+{
+  "ui-state-storage": "{\"state\":{\"isLeftPanelCollapsed\":false},\"version\":0}",
+  "resident-storage": "{\"state\":{\"storageMode\":\"local\"},\"version\":0}",
+  "explore-idb-migration-v1": "done",
+  "settings-storage": "{\"state\":{\"settingsSchemaVersion\":3,\"builtinChatListFingerprint\":\"builtin:aiping/deepseek-v4-flash-0731/chat\\nbuiltin:aiping/deepseek-v4-flash-0731/reasoner\\nbuiltin:aiping/Step-3.5-Flash\",\"builtinModelTier\":\"free\",\"byokModels\":[],\"chatModelIds\":[\"builtin:aiping/deepseek-v4-flash-0731/chat\",\"builtin:aiping/deepseek-v4-flash-0731/reasoner\",\"builtin:aiping/Step-3.5-Flash\"],\"activeModelId\":\"builtin:aiping/deepseek-v4-flash-0731/chat\",\"functionalModelId\":\"builtin:tencent-tokenhub/qwen3.5-flash/reasoner\",\"imageModelId\":\"builtin:tencent-tokenhub/qwen3.5-flash/chat\",\"isWebSearchEnabled\":false,\"forceMobileLayout\":null,\"theme\":\"Default (暗色)\",\"language\":\"en\",\"autoCitationEnabled\":true,\"autoCitationBefore\":1,\"autoCitationAfter\":0,\"autoTitleEnabled\":true,\"autoTitleInterval\":5,\"allowAiMessageEditing\":false,\"uiZoom\":1,\"uiZoomDefaultGeneration\":2,\"sendShortcut\":\"ctrl-enter\",\"knowledgeBackground\":\"\",\"educationLevel\":\"\"},\"version\":0}",
+  "byok-credentials-storage": "{\"state\":{\"credentials\":{},\"slotKeysMigrated\":true},\"version\":0}"
+}

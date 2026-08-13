@@ -1,0 +1,287 @@
+div[class*="bg-overlay-modal"], div[class*="bg-black/60"], div[class*="bg-black bg-opacity-50"] { display: none !important; }
+
+/* ---- next ---- */
+
+
+        .markdown-content ul, .markdown-content ol { padding-left: 1.75rem; margin-block: 0.5rem; }
+        .markdown-content ol { list-style-type: decimal; }
+        .markdown-content ul { list-style-type: disc; }
+        .markdown-content li { margin-bottom: 0.25rem; }
+
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3,
+        .markdown-content h4,
+        .markdown-content h5,
+        .markdown-content h6 {
+          font-weight: 600;
+          margin-top: 1em;
+          margin-bottom: 0.5em;
+          line-height: 1.25;
+        }
+        .markdown-content h1 { font-size: 2em; }
+        .markdown-content h2 { font-size: 1.5em; }
+        .markdown-content h3 { font-size: 1.25em; }
+        .markdown-content h4 { font-size: 1em; }
+        .markdown-content h5 { font-size: 0.875em; }
+        .markdown-content h6 { font-size: 0.85em; }
+      
+
+/* ---- next ---- */
+
+
+  .mind-md .markdown-content p { margin: 0 0 0.35em; }
+  .mind-md .markdown-content > *:first-child { margin-top: 0; }
+  .mind-md .markdown-content > *:last-child { margin-bottom: 0; }
+  .mind-md .markdown-content h1,
+  .mind-md .markdown-content h2,
+  .mind-md .markdown-content h3,
+  .mind-md .markdown-content h4,
+  .mind-md .markdown-content h5,
+  .mind-md .markdown-content h6 { font-size: 1em; font-weight: 600; margin: 0.35em 0 0.2em; line-height: 1.3; }
+  .mind-md .markdown-content ul,
+  .mind-md .markdown-content ol { padding-left: 1.2em; margin-block: 0.25em; }
+  .mind-md .markdown-content ul { list-style-type: disc; }
+  .mind-md .markdown-content ol { list-style-type: decimal; }
+  .mind-md .markdown-content li { margin-bottom: 0.1em; }
+  .mind-md .markdown-content pre { margin-block: 0.25em; white-space: pre-wrap; word-break: break-word; }
+  .mind-md .markdown-content a { text-decoration: underline; }
+  .mind-md .markdown-content hr { margin: 0.5em 0; }
+
+
+/* ---- next ---- */
+
+
+        .card-container {
+          position: absolute;
+          /* 过渡名单 = transition: all 减去 width/height（内容重排是最贵的 layout 动画，
+             只在几何变形窗口内由渲染处内联 GEOMETRY_MORPH_TRANSITION_PROPERTY 加入）。
+             left/top 对固定尺寸的绝对定位盒子只是图层挪动，不触发内容重排。
+             z-index 必须在列：卡片深度变化伴随 z-index 变化，动效设计依赖它
+             随 transitionDelay 延迟、按整数阶梯渐进翻上前方；不过渡则 z-index
+             在样式下发瞬间跳变，动画一开始目标卡片就直接压到整个堆栈前方。 */
+          transition: left 350ms ease-in-out, top 350ms ease-in-out, transform 350ms ease-in-out, opacity 350ms ease-in-out, filter 350ms ease-in-out, z-index 350ms ease-in-out;
+        }
+
+        .bp-pill-fade-out { animation: bp-pill-fade-out 350ms forwards ease-in-out; }
+        @keyframes bp-pill-fade-out { from { opacity: 1; } to { opacity: 0; } }
+        
+        .card-container.exiting-dissolve { animation: card-dissolve 350ms forwards ease-in-out; }
+        @keyframes card-dissolve { to { opacity: 0; transform: translate(-50%, -50%) scale(0.95); } }
+
+        .card-container.exiting-fly-right { animation: card-fly-right 350ms forwards ease-in-out; }
+        @keyframes card-fly-right { to { opacity: 0; transform: translate(30%, -50%) scale(1); } }
+        
+        .card-container.exiting-fly-left { animation: card-fly-left 350ms forwards ease-in-out; }
+        @keyframes card-fly-left { to { opacity: 0; transform: translate(-130%, -50%) scale(1); } }
+        
+        .card-container.exiting-fly-up-right { animation: card-fly-up-right 350ms forwards ease-in-out; }
+        @keyframes card-fly-up-right { to { opacity: 0; transform: translate(-40%, -55%) scale(1.04) rotate(5deg); } }
+        
+        .card-container.exiting-fly-through-right-left { animation: card-fly-through-right-left 350ms forwards ease-in-out; }
+        @keyframes card-fly-through-right-left {
+          from { opacity: 0; transform: translate(30%, -50%) scale(1); }
+          50% { opacity: 1; }
+          to { opacity: 0; transform: translate(-130%, -50%) scale(1); }
+        }
+
+        .card-container.exiting-fly-through-left-right { animation: card-fly-through-left-right 350ms forwards ease-in-out; }
+        @keyframes card-fly-through-left-right {
+          from { opacity: 0; transform: translate(-130%, -50%) scale(1); }
+          50% { opacity: 1; }
+          to { opacity: 0; transform: translate(30%, -50%) scale(1); }
+        }
+
+        .card-container.exiting-fly-through-top-bottom { animation: card-fly-through-top-bottom 350ms forwards ease-in-out; }
+        @keyframes card-fly-through-top-bottom {
+          from { opacity: 0; transform: translate(-50%, -150%) scale(1); }
+          50% { opacity: 1; }
+          to { opacity: 0; transform: translate(-50%, 50%) scale(1); }
+        }
+
+        .card-container.exiting-fly-through-bottom-top { animation: card-fly-through-bottom-top 350ms forwards ease-in-out; }
+        @keyframes card-fly-through-bottom-top {
+          from { opacity: 0; transform: translate(-50%, 50%) scale(1); }
+          50% { opacity: 1; }
+          to { opacity: 0; transform: translate(-50%, -150%) scale(1); }
+        }
+
+        .card-container.exiting-fly-down { animation: card-fly-down 350ms forwards ease-in-out; }
+        @keyframes card-fly-down { to { opacity: 0; transform: translate(-50%, 50%) scale(1); } }
+
+        .card-container.entering-from-bottom { animation: card-enter-from-bottom 350ms forwards ease-in-out; }
+        @keyframes card-enter-from-bottom {
+          from { opacity: 0; transform: translate(-50%, 50%) scale(1); }
+          to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .card-container.exiting-fly-up { animation: card-fly-up 350ms forwards ease-in-out; }
+        @keyframes card-fly-up { to { opacity: 0; transform: translate(-50%, -150%) scale(1); } }
+
+        .card-container.exiting-shrink-out { animation: card-shrink-out 350ms forwards ease-in-out; }
+        @keyframes card-shrink-out { from { opacity: 0.8; } to { opacity: 0; transform: translate(-50%, -50%) scale(0.5); } }
+
+        .card-container.exiting-up-and-grow { animation: card-exit-up-and-grow 350ms forwards ease-in-out; }
+        @keyframes card-exit-up-and-grow {
+          to {
+            opacity: 0;
+            transform: translate(-50%, -150%) scale(1.2);
+          }
+        }
+      
+      
+
+/* ---- next ---- */
+
+
+        @property --angle {
+          syntax: '<angle>';
+          initial-value: 0deg;
+          inherits: false;
+        }
+
+        /* 流媒体边框的旋转关键帧必须取独有命名：同名 @keyframes 不合并、文档序后者胜出，
+           若叫 spin 会覆盖 Tailwind animate-spin 的 rotate 关键帧（本 style 标签挂载在 body，
+           晚于 head 样式表），导致卡片挂载期间全页 Loader2 加载图标静止不转 */
+        @keyframes streaming-border-spin {
+          to { --angle: 360deg; }
+        }
+
+        .streaming-border-effect {
+          --color-angle: 0deg;
+          position: relative;
+          border-color: transparent !important;
+        }
+        
+        .markdown-content ul, .markdown-content ol { padding-left: 1.75em; margin-block: 1em; }
+        .markdown-content ol { list-style-type: decimal; }
+        .markdown-content ul { list-style-type: disc; }
+        .markdown-content li { margin-bottom: 0.5rem; }
+
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3,
+        .markdown-content h4,
+        .markdown-content h5,
+        .markdown-content h6 {
+          font-weight: 600;
+          margin-top: 1em;
+          margin-bottom: 0.75em;
+          line-height: 1.25;
+        }
+        .markdown-content h1 { font-size: 1.75em; }
+        .markdown-content h2 { font-size: 1.45em; }
+        .markdown-content h3 { font-size: 1.3em; }
+        .markdown-content h4 { font-size: 1.2em; }
+        .markdown-content h5 { font-size: 1.1em; }
+        .markdown-content h6 { font-size: 1.05em; }
+
+        .markdown-content p {
+          margin-bottom: 1.5em;
+        }
+
+        .markdown-content > *:first-child {
+          margin-top: 0;
+        }
+
+        .markdown-content > *:last-child {
+          margin-bottom: 0;
+        }
+
+        .markdown-content > * {
+          animation: fadeIn 1000ms ease-in-out;
+        }
+
+        .new-word-fade-in {
+          opacity: 0;
+          animation: fadeIn 0.6s ease-in-out forwards;
+        }
+          
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        /* 轮次工具栏挂载淡入（只有 from，to 取元素自身 opacity，自动隐藏时不闪跳） */
+        @keyframes bar-mount-fade {
+          from { opacity: 0; }
+        }
+
+        .is-mobile-card .markdown-content h1 { margin-top: 0.6em; }
+
+        .markdown-content .katex svg path {
+          stroke: currentColor !important;
+          fill: currentColor !important;
+        }
+        
+        .flash-left-effect::after, .flash-right-effect::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          border-radius: inherit; /* Use the parent's border-radius */
+          opacity: 0;
+          z-index: 1; /* Ensure it's above the content but below other UI */
+        }
+
+        @keyframes flash-fade {
+          0% { opacity: 0; }
+          33% { opacity: 1; } /* 100ms peak */
+          100% { opacity: 0; }
+        }
+
+        .card-container.exiting-up-and-grow { animation: card-exit-up-and-grow 350ms forwards ease-in-out; }
+        @keyframes card-exit-up-and-grow {
+          to {
+            opacity: 0;
+            transform: translate(-50%, -150%) scale(1.2);
+          }
+        }
+
+        .flash-border-normal {
+          animation: flash-normal 1000ms ease-out;
+        }
+        .flash-border-turn-favorite {
+          animation: flash-favorite 1000ms ease-out;
+        }
+
+        /* --- 查看&调整分支点模式 / 只读模式（会员到期云端项目） --- */
+        /* 内容锁定：文本不可选中、不可交互（点击穿透到轮次容器，保留快捷跳转） */
+        .bp-locked, .bp-locked *, .ro-locked, .ro-locked * {
+          user-select: none !important;
+          -webkit-user-select: none !important;
+        }
+        .bp-locked *, .ro-locked * {
+          pointer-events: none !important;
+        }
+        /* ToolCallDisplay 特例：锁定模式下仍允许展开/收起与滚动查看思考过程，
+           但内容区（含联网搜索来源链接）与渐变遮罩保持不可交互。
+           依赖 !important 规则间的特异性递增：.toolcall-passive 规则（3类）覆盖 .toolcall-shell 规则（2类）。 */
+        .bp-locked .toolcall-shell, .bp-locked .toolcall-shell *,
+        .ro-locked .toolcall-shell, .ro-locked .toolcall-shell * {
+          pointer-events: auto !important;
+        }
+        .bp-locked .toolcall-shell .toolcall-passive, .bp-locked .toolcall-shell .toolcall-passive *,
+        .ro-locked .toolcall-shell .toolcall-passive, .ro-locked .toolcall-shell .toolcall-passive * {
+          pointer-events: none !important;
+        }
+        /* 分支点以下内容半透明 */
+        .bp-dim-target {
+          transition: opacity 350ms ease-in-out;
+        }
+        .bp-dimmed {
+          opacity: 0.35;
+        }
+
+        /* --- 已有内容的重挂载场景（对照恢复/进入、AI 编辑退出）：
+              内容入场动画以负延迟立即完成，避免看似消失又浮现 --- */
+        .entry-anim-suppressed .markdown-content > * {
+          animation-delay: -1000ms !important;
+        }
+        .entry-anim-suppressed .new-word-fade-in {
+          animation-delay: -600ms !important;
+        }
+      

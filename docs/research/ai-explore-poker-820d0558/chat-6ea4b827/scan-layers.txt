@@ -1,0 +1,20 @@
+AAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAA
+AAAAAAABBBBBBBAAAAAA
+AAAAAAABCCCCCBAAAAAA
+AAAAAAABDDDDDBAAAAAA
+AAAAAAABEEEFFBAAAAAA
+AAAAAAABBBBBBBAAAAAA
+AAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAA
+
+A  fixed inset-0 bg-black/60 z-[100] flex items-cente|bg=rgba(0, 0, 0, 0.6)
+B  flex-1 px-8 pt-8 pb-20 flex flex-col items-center |bg=rgba(0, 0, 0, 0)
+C  text-tertiary mb-6 flex-shrink-0|bg=rgba(0, 0, 0, 0)
+D  space-y-2 text-left|bg=rgba(0, 0, 0, 0)
+E  text-primary font-medium|bg=rgba(0, 0, 0, 0)
+F  flex items-center gap-3 p-3 rounded-xl cursor-poin|bg=rgb(54, 54, 54)
