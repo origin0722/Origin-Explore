@@ -18,6 +18,7 @@ import {
   MoreHorizontal,
   Quote,
   Send,
+  Star,
   X,
 } from "lucide-react";
 import { useApp, streamOpenAICompatible } from "./app-context";
@@ -106,6 +107,8 @@ interface TermCardProps {
   node: TermNode;
   messages: Message[];
   busy: boolean;
+  /** 深挖路径（根 → … → 本卡），头部展示主线 */
+  path: string;
   onClose(): void;
   onTermClick(term: string): void;
   onCollect(): void;
@@ -113,7 +116,7 @@ interface TermCardProps {
   onAsk(question: string): void;
 }
 
-function TermCard({ node, messages, busy, onClose, onTermClick, onCollect, onBranch, onAsk }: TermCardProps) {
+function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect, onBranch, onAsk }: TermCardProps) {
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -158,28 +161,35 @@ function TermCard({ node, messages, busy, onClose, onTermClick, onCollect, onBra
 
   return (
     <div className="flex flex-col h-full overflow-hidden rounded-2xl">
-      {/* header: kind badge + term name + collect + close */}
-      <div className="flex items-center gap-2 px-3 sm:px-4 h-12 border-b border-divider shrink-0">
-        <span className="text-xs text-brand border border-brand/40 rounded-full px-2 py-0.5 whitespace-nowrap shrink-0">
-          {KIND_BADGE[node.kind]}
-        </span>
-        <span className="font-bold text-lg truncate min-w-0 flex-1">{node.term}</span>
-        <button
-          type="button"
-          className="w-8 h-8 bg-btn-std hover:bg-btn-std-hover rounded-full flex items-center justify-center shrink-0 text-brand transition-colors"
-          title="收录进思维宇宙"
-          onClick={onCollect}
-        >
-          <BookmarkPlus size={16} />
-        </button>
-        <button
-          type="button"
-          className="w-8 h-8 bg-btn-std hover:bg-btn-std-hover rounded-full flex items-center justify-center shrink-0 transition-colors"
-          title="关闭"
-          onClick={onClose}
-        >
-          <X size={16} />
-        </button>
+      {/* header: kind badge + term name + collect + close（第二行 = 深挖路径主线） */}
+      <div className="flex flex-col gap-0.5 px-3 sm:px-4 py-2 border-b border-divider shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-brand border border-brand/40 rounded-full px-2 py-0.5 whitespace-nowrap shrink-0">
+            {KIND_BADGE[node.kind]}
+          </span>
+          <span className="font-bold text-lg truncate min-w-0 flex-1">{node.term}</span>
+          <button
+            type="button"
+            className="w-8 h-8 bg-btn-std hover:bg-btn-std-hover rounded-full flex items-center justify-center shrink-0 text-brand transition-colors"
+            title="收录进思维宇宙"
+            onClick={onCollect}
+          >
+            <BookmarkPlus size={16} />
+          </button>
+          <button
+            type="button"
+            className="w-8 h-8 bg-btn-std hover:bg-btn-std-hover rounded-full flex items-center justify-center shrink-0 transition-colors"
+            title="关闭"
+            onClick={onClose}
+          >
+            <X size={16} />
+          </button>
+        </div>
+        {path && path !== node.term && (
+          <div className="text-[11px] text-text-quaternary truncate" title={path}>
+            🧭 {path}
+          </div>
+        )}
       </div>
 
       {/* 卡片对话区：术语摘要 + 卡内问答 */}
@@ -305,6 +315,10 @@ export function ChatCard() {
     settings,
     pendingQuote,
     setPendingQuote,
+    toggleFavorite,
+    setTurnUnread,
+    focusRequest,
+    clearFocusRequest,
   } = useApp();
 
   const [minimized, setMinimized] = useState(false);
@@ -346,7 +360,8 @@ export function ChatCard() {
     };
   }, []);
 
-  // Auto-scroll to the bottom while the reply streams in (content grows).
+  // Auto-scroll to the bottom while the reply streams in (content grows) —
+  // 但只在本就在底部时跟随（用户上滚阅读时不强行拉回，并触发未读标记）。
   const lastMsgLen =
     turns.length > 0
       ? turns[turns.length - 1].messages[turns[turns.length - 1].messages.length - 1]?.content
@@ -354,8 +369,37 @@ export function ChatCard() {
       : 0;
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (nearBottom) el.scrollTop = el.scrollHeight;
   }, [lastMsgLen, turns.length]);
+
+  // 新回复完成时，若目标轮次不在视野内（用户滚上去了）→ 标记未读。
+  const prevBusy = useRef(false);
+  useEffect(() => {
+    if (prevBusy.current && !busy) {
+      const last = turns[turns.length - 1];
+      const el = scrollRef.current;
+      const lastEl = last ? document.getElementById(`chat-turn-${last.id}`) : null;
+      if (el && lastEl) {
+        const r = el.getBoundingClientRect();
+        const tr = lastEl.getBoundingClientRect();
+        const visible = tr.top < r.bottom - 20 && tr.bottom > r.top + 20;
+        if (!visible) setTurnUnread(last.id, true);
+      }
+    }
+    prevBusy.current = busy;
+  }, [busy, turns, setTurnUnread]);
+
+  // 收藏区跳转：滚动定位到目标轮次并清除未读。
+  useEffect(() => {
+    if (!focusRequest) return;
+    document
+      .getElementById(`chat-turn-${focusRequest.turnId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTurnUnread(focusRequest.turnId, false);
+    clearFocusRequest();
+  }, [focusRequest, clearFocusRequest, setTurnUnread]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -672,6 +716,7 @@ export function ChatCard() {
     document
       .getElementById(`chat-turn-${id}`)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTurnUnread(id, false);
   };
 
   return (
@@ -803,7 +848,7 @@ export function ChatCard() {
                   <div
                     key={turn.id}
                     id={`chat-turn-${turn.id}`}
-                    className="flex flex-col gap-4 px-2 pb-2 rounded-lg relative border-2 border-turn-std mb-4 scroll-mt-[52px]"
+                    className="flex flex-col gap-4 px-2 pb-2 rounded-xl relative border border-std/80 mb-4 scroll-mt-[52px]"
                   >
                     {/* turn header: big title only when there are multiple
                         turns (branch conversations need orientation); a single
@@ -814,7 +859,23 @@ export function ChatCard() {
                         <span className="w-full min-w-0 truncate">{turn.title}</span>
                       </div>
                     )}
-                    <div className="flex justify-end pr-1 select-none">
+                    <div className="flex items-center justify-end gap-2 pr-1 select-none">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          toggleFavorite(turn.id);
+                          showToast(turn.favorite ? "已取消收藏" : "✓ 已收藏该轮次");
+                        }}
+                        aria-label={turn.favorite ? "取消收藏" : "收藏"}
+                        title={turn.favorite ? "取消收藏" : "收藏轮次"}
+                        className={`rounded-full p-1 transition-colors ${
+                          turn.favorite
+                            ? "text-brand hover:bg-brand/10"
+                            : "text-text-quaternary hover:bg-item-std-hover hover:text-brand"
+                        }`}
+                      >
+                        <Star size={14} fill={turn.favorite ? "currentColor" : "none"} />
+                      </button>
                       <span className="text-[11px] text-text-quaternary">
                         {fmtTs(turn.createdAt)}
                       </span>
@@ -947,6 +1008,7 @@ export function ChatCard() {
                       node={node}
                       messages={messages}
                       busy={cardBusy}
+                      path={path}
                       onClose={() => closeOne(key, i)}
                       onTermClick={(term) => handleCardTermClick(key, term)}
                       onCollect={() => handleCollect(item)}
@@ -984,8 +1046,11 @@ export function ChatCard() {
 
                 {navOpen && (
                   <div className="absolute right-0 top-0 bottom-0 w-[240px] bg-card-floating border-l border-divider z-[10] flex flex-col">
-                    <div className="px-4 py-3 text-[12px] text-text-tertiary border-b border-divider">
-                      轮次导航
+                    <div className="px-4 py-3 border-b border-divider">
+                      <span className="text-[12px] text-text-tertiary">轮次导航</span>
+                      <span className="block text-[10px] text-text-quaternary mt-0.5">
+                        点击跳转 · 右键切换已读/未读
+                      </span>
                     </div>
                     <div className="flex-1 overflow-y-auto nav-scroll p-2 flex flex-col gap-1">
                       {turns.map((turn) => (
@@ -994,8 +1059,23 @@ export function ChatCard() {
                           type="button"
                           className="text-left px-3 py-2 rounded-lg text-[13px] text-text-secondary hover:bg-item-std-hover bg-item-std transition-colors"
                           onClick={() => jumpToTurn(turn.id)}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setTurnUnread(turn.id, !turn.unread);
+                          }}
                         >
-                          <span className="block truncate">{turn.title}</span>
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            {turn.unread && (
+                              <span
+                                className="w-2 h-2 rounded-full bg-brand shrink-0 shadow-brandtw"
+                                aria-label="未读"
+                              />
+                            )}
+                            <span className="flex-1 min-w-0 truncate">{turn.title}</span>
+                            {turn.favorite && (
+                              <Star size={11} className="text-brand shrink-0" fill="currentColor" />
+                            )}
+                          </span>
                           <span className="block text-[11px] text-text-quaternary mt-0.5">
                             {fmtTs(turn.createdAt)}
                           </span>

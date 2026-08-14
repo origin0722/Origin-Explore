@@ -516,3 +516,9 @@ body {
 .bp-dimmed { opacity: 0.35; }
 
 .is-mobile-card .markdown-content h1 { margin-top: 0.6em; }
+
+/* 文本选中（引用回答）：品牌绿淡染 */
+::selection {
+  background: rgba(19, 228, 37, 0.28);
+  color: #ffffff;
+}

@@ -65,6 +65,8 @@ export interface Turn {
   createdAt: number;
   messages: Message[];
   favorite?: boolean;
+  /** 未读（新回复到达时未在视野内）；轮次导航节点圆点 + 右键手动切换 */
+  unread?: boolean;
   /** 本轮对话中点击过的术语卡片（探索路径），按点击顺序；
       parentTerm = 打开这张卡片时所在的父卡片术语（null = 从主对话点开） */
   explored?: { term: string; kind: TermKind; at: number; parentTerm: string | null }[];

@@ -21,6 +21,7 @@ import {
   Plus,
   Settings,
   Sparkles,
+  Star,
   Upload,
   X,
   type LucideIcon,
@@ -61,6 +62,11 @@ export function Sidebar() {
     profile,
     documents,
     setActiveDocId,
+    toggleFavorite,
+    focusTurn,
+    turnSummaries,
+    summarizingTurnId,
+    summarizeTurn,
   } = useApp();
 
   const [openGroups, setOpenGroups] = useState<{ local: boolean }>({ local: true });
@@ -170,6 +176,11 @@ export function Sidebar() {
   ];
 
   const localProjects = projects.filter((p) => !p.cloud && !p.resident);
+
+  /** 收藏的轮次（跨项目聚合 → 收藏区 + 智能摘要） */
+  const favTurns = projects.flatMap((p) =>
+    p.turns.filter((t) => t.favorite).map((t) => ({ project: p, turn: t }))
+  );
 
   const renderTopButton = (a: TopAction) => (
     <button
@@ -439,6 +450,79 @@ export function Sidebar() {
             </div>
           )}
         </div>
+
+        {/* 收藏区：跨项目收藏的轮次 + 智能摘要 */}
+        {!collapsed && favTurns.length > 0 && (
+          <div className="mt-2">
+            <div className="flex items-center gap-2 py-1.5 px-1">
+              <Star size={14} className="text-text-tertiary shrink-0" />
+              <span className="flex-1 text-left text-sm text-text-tertiary font-medium truncate">
+                收藏
+              </span>
+              <span className="text-[10px] text-text-quaternary">{favTurns.length}</span>
+            </div>
+            {favTurns.map(({ project, turn }) => (
+              <div key={turn.id} className="mb-1">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => focusTurn(project.id, turn.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      focusTurn(project.id, turn.id);
+                    }
+                  }}
+                  title={`${project.title} · ${turn.title}（点击跳转）`}
+                  className="group flex items-center gap-1.5 w-full p-1.5 rounded-lg cursor-pointer transition-colors hover:bg-item-std-hover"
+                >
+                  <Star size={13} className="text-brand shrink-0" fill="currentColor" />
+                  <span className="flex-1 min-w-0">
+                    <span className="block truncate text-sm text-text-secondary">{turn.title}</span>
+                    <span className="block truncate text-[10px] text-text-quaternary">
+                      {project.title}
+                    </span>
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      summarizeTurn(turn.id);
+                    }}
+                    aria-label="智能摘要"
+                    title="智能摘要"
+                    className={`p-1 rounded-md shrink-0 transition-colors ${
+                      summarizingTurnId === turn.id
+                        ? "text-brand"
+                        : "text-text-quaternary hover:text-brand hover:bg-item-std-active"
+                    }`}
+                  >
+                    {summarizingTurnId === turn.id ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={13} />
+                    )}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(turn.id);
+                    }}
+                    aria-label="取消收藏"
+                    title="取消收藏"
+                    className="p-1 rounded-md shrink-0 text-text-quaternary transition-colors hover:text-primary hover:bg-item-std-active"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+                {(turnSummaries[turn.id] !== undefined || summarizingTurnId === turn.id) && (
+                  <div className="ml-3 mt-0.5 rounded-lg bg-item-std px-2.5 py-2 text-[11px] leading-5 text-text-secondary whitespace-pre-wrap break-words">
+                    {summarizingTurnId === turn.id ? "✨ 正在生成摘要…" : turnSummaries[turn.id]}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* 新建文件夹输入 */}
         {!collapsed && creatingFolder && (

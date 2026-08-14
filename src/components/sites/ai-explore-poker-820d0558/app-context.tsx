@@ -24,6 +24,7 @@ import type {
   ModelInfo,
   Profile,
   TermKind,
+  TermNode,
   TermState,
   ThoughtNode,
   Turn,
@@ -31,8 +32,10 @@ import type {
 import {
   DEFAULT_SETTINGS,
   generateReply,
+  GLOSSARY,
   makeDemoProject,
   makeDemoTurn,
+  TERM_TREE,
   themeId,
 } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 
@@ -159,6 +162,21 @@ export interface AppState {
   /** 记录某轮对话里点击过的术语卡片（探索路径，按轮次划分）；
       parentTerm = 打开时所在的父卡片术语（主对话点开为 null） */
   recordExploration(turnId: string, term: string, kind: TermKind, parentTerm?: string | null): void;
+  /** 轮次未读标记（导航节点圆点；右键手动切换，点击节点/跳转清除） */
+  setTurnUnread(turnId: string, unread: boolean): void;
+  /** 收藏/取消收藏轮次（收藏区 + 智能摘要） */
+  toggleFavorite(turnId: string): void;
+  /** 跳转到某个轮次（切换项目 + 滚动定位） */
+  focusTurn(projectId: string, turnId: string): void;
+  /** ChatCard 消费 focusTurn 后的清理 */
+  clearFocusRequest(): void;
+  focusRequest: { turnId: string; seq: number } | null;
+  /** 智能摘要缓存（turnId → markdown 摘要） */
+  turnSummaries: Record<string, string>;
+  /** 正在生成摘要的轮次 id */
+  summarizingTurnId: string | null;
+  /** 收藏区"智能摘要"：BYOK 走真实 API 流式生成，否则本地启发式摘要 */
+  summarizeTurn(turnId: string): void;
   /** mock AI 验证通过 */
   validateThoughtNode(id: string): void;
   removeThoughtNode(id: string): void;
@@ -213,6 +231,44 @@ function loadState(): PersistedState {
   }
 }
 
+/** 离线启发式"智能摘要"：主题/规模/核心问题/涉及术语/时间。 */
+function heuristicSummary(turn: Turn): string {
+  const terms = new Set<string>();
+  const walk = (nodes: TermNode[]) => {
+    for (const n of nodes) {
+      terms.add(n.term);
+      if (n.children) walk(n.children);
+    }
+  };
+  walk(TERM_TREE);
+  for (const g of GLOSSARY) {
+    terms.add(g.zh);
+    terms.add(g.en);
+  }
+  const joined = turn.messages.map((m) => m.content).join(" ");
+  const hits = [...terms]
+    .filter((t) => t.length >= 2 && joined.includes(t))
+    .slice(0, 6);
+  const firstUser =
+    turn.messages
+      .find((m) => m.role === "user")
+      ?.content.replace(/^>\s?/gm, "")
+      .trim()
+      .slice(0, 48) ?? turn.title;
+  const when = new Date(turn.createdAt).toLocaleString("zh-CN", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return [
+    `📌 主题：${turn.title}`,
+    `💬 共 ${turn.messages.length} 条消息 · 核心问题：「${firstUser}」`,
+    hits.length ? `🔑 涉及术语：${hits.join("、")}` : "🔑 涉及术语：无",
+    `🕐 ${when}`,
+  ].join("\n");
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const boot = useMemo(loadState, []);
 
@@ -249,6 +305,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   /** 选中 AI 回复文本 → 引用（InputArea 收到后收进引用列表并清空） */
   const [pendingQuote, setPendingQuote] = useState<string | null>(null);
+  /** 收藏区智能摘要缓存 + 生成中标记 */
+  const [turnSummaries, setTurnSummaries] = useState<Record<string, string>>({});
+  const [summarizingTurnId, setSummarizingTurnId] = useState<string | null>(null);
+  /** 跨组件跳转请求（收藏区 → 聊天轮次滚动定位） */
+  const [focusRequest, setFocusRequest] = useState<{ turnId: string; seq: number } | null>(null);
   const [folders, setFolders] = useState<string[]>(boot.folders ?? []);
   const [smartMode, setSmartModeState] = useState<boolean>(boot.smartMode ?? false);
   const [byokModels, setByokModels] = useState<ByokModel[]>(boot.byokModels ?? []);
@@ -458,6 +519,81 @@ export function AppProvider({ children }: { children: ReactNode }) {
       );
     },
     []
+  );
+
+  /** 轮次未读标记（导航节点圆点；右键手动切换） */
+  const setTurnUnread = useCallback((turnId: string, unread: boolean) => {
+    setProjects((list) =>
+      list.map((p) => ({
+        ...p,
+        turns: p.turns.map((t) => (t.id === turnId ? { ...t, unread } : t)),
+      }))
+    );
+  }, []);
+
+  /** 收藏/取消收藏轮次（收藏区 + 智能摘要） */
+  const toggleFavorite = useCallback((turnId: string) => {
+    setProjects((list) =>
+      list.map((p) => ({
+        ...p,
+        turns: p.turns.map((t) => (t.id === turnId ? { ...t, favorite: !t.favorite } : t)),
+      }))
+    );
+  }, []);
+
+  /** 收藏区跳转：切到目标项目 + 通知 ChatCard 滚动定位该轮次 */
+  const focusTurn = useCallback((projectId: string, turnId: string) => {
+    setActiveProjectId(projectId);
+    setFocusRequest({ turnId, seq: Date.now() });
+  }, []);
+
+  const clearFocusRequest = useCallback(() => setFocusRequest(null), []);
+
+  /** 收藏区"智能摘要"：BYOK 走真实 API 流式生成，否则本地启发式摘要 */
+  const summarizeTurn = useCallback(
+    (turnId: string) => {
+      const turn = projects.flatMap((p) => p.turns).find((t) => t.id === turnId);
+      if (!turn || summarizingTurnId) return;
+      const byok = byokModels.find(
+        (m) => m.id === settings.activeModelId && m.provider === "BYOK"
+      );
+      if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
+        setSummarizingTurnId(turnId);
+        setTurnSummaries((s) => ({ ...s, [turnId]: "" }));
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => controller.abort(), 15000);
+        let acc = "";
+        const transcript = turn.messages
+          .map((m) => `${m.role === "user" ? "我" : "AI"}：${m.content}`)
+          .join("\n")
+          .slice(0, 4000);
+        streamOpenAICompatible(
+          byok,
+          [
+            {
+              role: "user",
+              content: `请用 3-5 条要点概括下面这段对话（含核心问题、涉及术语与结论），中文回答：\n\n${transcript}`,
+            },
+          ],
+          (delta) => {
+            acc += delta;
+            setTurnSummaries((s) => ({ ...s, [turnId]: acc }));
+          },
+          controller.signal,
+          () => window.clearTimeout(timer)
+        )
+          .catch(() => {
+            setTurnSummaries((s) => ({ ...s, [turnId]: heuristicSummary(turn) }));
+          })
+          .finally(() => {
+            window.clearTimeout(timer);
+            setSummarizingTurnId(null);
+          });
+      } else {
+        setTurnSummaries((s) => ({ ...s, [turnId]: heuristicSummary(turn) }));
+      }
+    },
+    [projects, byokModels, settings.activeModelId, summarizingTurnId]
   );
 
   /** 在目标项目最后一个 turn 追加一条空 assistant 消息（打字机/SSE 共用的写入目标）。 */
@@ -810,6 +946,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveDocId,
     pendingQuote,
     setPendingQuote,
+    setTurnUnread,
+    toggleFavorite,
+    focusTurn,
+    clearFocusRequest,
+    focusRequest,
+    turnSummaries,
+    summarizingTurnId,
+    summarizeTurn,
     openDocQuestion,
     universeOpen,
     setUniverseOpen,
