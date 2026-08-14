@@ -101,6 +101,12 @@ Explore 克隆（ai.explore.poker/chat）已从"纯 UI"演进为**可交互的�
 50. **UI 调教**：术语卡头部新增第二行「🧭 深挖路径」面包屑（主线始终清晰）；轮次容器边框 2px 实线 → 1px 柔和（`border border-std/80` + rounded-xl）；导航节点加收藏星标与未读圆点；全局 `::selection` 品牌绿淡染（配合引用回答）；收藏行/摘要/导航 hover 态统一。
 51. 测试：`scripts/verify-fav-unread.mjs`（收藏行/摘要内容/右键切换/收藏跳转清未读/滚动离开时自动未读/卡片路径面包屑）。
 
+### 轮次有向图 + 收藏区常驻 + 探索路径放大（R8 续⁹，2026-08-14，用户反馈）
+52. **轮次导航升级为有向图**：新组件 `turn-graph.tsx`（SVG）——行 = 轮次时间序，列 = 分支深度；边 = `parentTurnId`（分支来源，`Turn.parentTurnId` 新增，`openBranchTurn` 第三参 `sourceTurnId`）?? 顺序上一轮，带箭头 marker。点击节点跳转、右键切换已读/未读、绿点未读、⭐ 收藏、悬停高亮。侧边折叠按钮改为更显眼的「轮次图」竖排文字 + GitBranch 图标 pill；面板 240→300px，标题"轮次导航图 · 有向图 · 点击节点跳转 · 右键切换已读/未读"。
+53. **收藏区常驻可见**：侧边栏「收藏」分组不再只在有收藏时出现——无收藏时显示引导文案（"在轮次右上角点 ⭐ 收藏…"）。
+54. **探索路径放大**：轮次内探索路径从细分割线小字升级为独立卡片块（`rounded-xl border-brand/20 bg-brand/[0.05] p-3.5`，标题行 + 更大 chips（text-[13px] + 悬浮放大）+ 醒目箭头，chip title 显示卡片类型徽章）。
+55. 测试更新：`verify-fav-unread.mjs`（图节点右键/自动未读）、`verify-borrow.mjs` 新增 D4（parentTurnId 持久化 + 图节点 3/边 2 渲染断言）。
+
 ## 三、R8 关键 bug 修复
 
 | bug | 根因 | 修复 |

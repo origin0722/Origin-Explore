@@ -150,8 +150,9 @@ export interface AppState {
   activeTurn: Turn | null;
   sendMessage(text: string): void;
   busy: boolean;
-  /** 分支卡片 → 在当前项目开新 turn（继承上游卡片主题与分支点之前的对话历史，走双通道） */
-  openBranchTurn(title: string, history?: { role: string; content: string }[]): void;
+  /** 分支卡片 → 在当前项目开新 turn（继承上游卡片主题与分支点之前的对话历史，走双通道）；
+      sourceTurnId = 发起分支的轮次（有向图边 + parentTurnId） */
+  openBranchTurn(title: string, history?: { role: string; content: string }[], sourceTurnId?: string): void;
   /** 本地档案（"登录"） */
   profile: Profile | null;
   setProfile(p: Profile | null): void;
@@ -798,7 +799,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** 分支卡片：以术语开新 turn，继承上游卡片主题与分支点之前的对话历史。
       AI 回复走 deliverReply 双通道（BYOK 真实 API / 离线知识库），不再静态贴摘要。 */
   const openBranchTurn = useCallback(
-    (title: string, history: { role: string; content: string }[] = []) => {
+    (title: string, history: { role: string; content: string }[] = [], sourceTurnId?: string) => {
       let targetId = activeProjectId;
       if (!targetId) {
         const p: ChatProject = { ...makeDemoProject(), id: uid(), title: "Untitled" };
@@ -806,6 +807,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         targetId = p.id;
       }
       const turnId = appendTurn(targetId, title, `继续深挖：${title}`);
+      // 分支来源（有向图边）：新 turn 的 parentTurnId 指向发起分支的轮次。
+      if (sourceTurnId) {
+        setProjects((list) =>
+          list.map((p) =>
+            p.id === targetId
+              ? {
+                  ...p,
+                  turns: p.turns.map((t) =>
+                    t.id === turnId ? { ...t, parentTurnId: sourceTurnId } : t
+                  ),
+                }
+              : p
+          )
+        );
+      }
       // 新 turn 的探索路径从该分支术语起算（继承上下文另起炉灶）。
       recordExploration(turnId, title, "branch", null);
       setMindscapeOpen(false);

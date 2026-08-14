@@ -67,6 +67,8 @@ export interface Turn {
   favorite?: boolean;
   /** 未读（新回复到达时未在视野内）；轮次导航节点圆点 + 右键手动切换 */
   unread?: boolean;
+  /** 分支来源轮次 id（另起炉灶的上游）；缺省 = 顺序上一轮。用于轮次有向图 */
+  parentTurnId?: string | null;
   /** 本轮对话中点击过的术语卡片（探索路径），按点击顺序；
       parentTerm = 打开这张卡片时所在的父卡片术语（null = 从主对话点开） */
   explored?: { term: string; kind: TermKind; at: number; parentTerm: string | null }[];

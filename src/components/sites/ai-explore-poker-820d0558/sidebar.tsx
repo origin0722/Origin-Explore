@@ -451,17 +451,24 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* 收藏区：跨项目收藏的轮次 + 智能摘要 */}
-        {!collapsed && favTurns.length > 0 && (
+        {/* 收藏区：跨项目收藏的轮次 + 智能摘要（常驻可见） */}
+        {!collapsed && (
           <div className="mt-2">
             <div className="flex items-center gap-2 py-1.5 px-1">
               <Star size={14} className="text-text-tertiary shrink-0" />
               <span className="flex-1 text-left text-sm text-text-tertiary font-medium truncate">
                 收藏
               </span>
-              <span className="text-[10px] text-text-quaternary">{favTurns.length}</span>
+              {favTurns.length > 0 && (
+                <span className="text-[10px] text-text-quaternary">{favTurns.length}</span>
+              )}
             </div>
-            {favTurns.map(({ project, turn }) => (
+            {favTurns.length === 0 ? (
+              <p className="px-1 pb-1 text-[11px] leading-5 text-text-quaternary">
+                在轮次右上角点 ⭐ 收藏，这里会列出可快速跳转的对话，还能生成智能摘要。
+              </p>
+            ) : (
+              favTurns.map(({ project, turn }) => (
               <div key={turn.id} className="mb-1">
                 <div
                   role="button"
@@ -520,7 +527,8 @@ export function Sidebar() {
                   </div>
                 )}
               </div>
-            ))}
+              ))
+            )}
           </div>
         )}
 

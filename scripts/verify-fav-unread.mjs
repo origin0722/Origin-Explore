@@ -76,16 +76,15 @@ const summary = await page.evaluate(() => document.body.textContent || "");
 log("2. smart summary renders heuristic content:",
   summary.includes("📌 主题") && summary.includes("涉及术语") && summary.includes("机器学习"));
 
-// 3. nav rail right-click toggles unread; favorite-row click (focusTurn) clears
+// 3. turn-graph node: right-click toggles unread; favorite-row click (focusTurn) clears
 await page.evaluate(() => {
   const btn = [...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "轮次导航");
   btn?.click();
 });
 await sleep(400);
 const railItemRect = await page.evaluate(() => {
-  const rail = [...document.querySelectorAll("div")].find((d) => d.textContent?.includes("右键切换已读/未读"));
-  const items = [...(rail?.querySelectorAll("button") ?? [])].filter((b) => b.textContent?.length > 5);
-  const r = items[0]?.getBoundingClientRect();
+  const node = document.querySelector("[data-turn-node]");
+  const r = node?.getBoundingClientRect();
   return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
 });
 const dotCount = () => page.evaluate(() => document.querySelectorAll("[aria-label='未读']").length);
@@ -117,9 +116,8 @@ await page.evaluate(() => {
 });
 await sleep(4000);
 const lastRailUnread = await page.evaluate(() => {
-  const rail = [...document.querySelectorAll("div")].find((d) => d.textContent?.includes("右键切换已读/未读"));
-  const items = [...(rail?.querySelectorAll("button") ?? [])].filter((b) => b.textContent?.length > 5);
-  return !!items.at(-1)?.querySelector("[aria-label='未读']");
+  const nodes = [...document.querySelectorAll("[data-turn-node]")];
+  return !!nodes.at(-1)?.querySelector("[aria-label='未读']");
 });
 log("4. auto-unread dot on the new turn (scrolled away during reply):", lastRailUnread);
 

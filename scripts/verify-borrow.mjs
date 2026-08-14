@@ -199,5 +199,28 @@ const branchTurn = await page.evaluate(() => {
 log("D3. branch turn rendered:", JSON.stringify(branchTurn));
 log("   PASS turn + reply + trail:", branchTurn.userMsg.includes("继续深挖：玻姆诠释") && branchTurn.hasReply && branchTurn.trail.includes("玻姆诠释"));
 
+// D4. turn graph: parentTurnId persisted + directed edges rendered
+await sleep(300);
+const graphState = await page.evaluate(() => {
+  const st = JSON.parse(localStorage.getItem("explore-state-v1") || "{}");
+  const proj = st.projects?.find((p) => p.turns?.some((t) => t.title === "玻姆诠释"));
+  const turns = proj?.turns ?? [];
+  const branch = turns.find((t) => t.title === "玻姆诠释");
+  const source = turns.find((t) => t.title === "什么是 EPR 悖论？");
+  return { branchParent: branch?.parentTurnId, sourceId: source?.id };
+});
+log("D4. branch turn parentTurnId links to source turn:", graphState.branchParent === graphState.sourceId && !!graphState.sourceId);
+await page.evaluate(() => {
+  [...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "轮次导航")?.click();
+});
+await sleep(500);
+const graphUi = await page.evaluate(() => ({
+  nodes: document.querySelectorAll("[data-turn-node]").length,
+  edges: document.querySelectorAll("svg path[marker-end]").length,
+  panel: document.body.textContent?.includes("轮次导航图") ?? false,
+}));
+log("   graph panel rendered:", JSON.stringify(graphUi));
+log("   PASS graph nodes/edges present:", graphUi.panel && graphUi.nodes === 3 && graphUi.edges === 2);
+
 await browser.close();
 console.log("DONE");

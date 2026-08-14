@@ -11,6 +11,7 @@ import {
   BookmarkPlus,
   ChevronLeft,
   Copy,
+  GitBranch,
   HelpCircle,
   Loader2,
   Maximize2,
@@ -22,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { useApp, streamOpenAICompatible } from "./app-context";
+import { TurnGraph } from "./turn-graph";
 import { findTerm, generateReply, GLOSSARY } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 import type { Message, TermNode } from "@/types/sites/ai-explore-poker-820d0558";
 
@@ -646,7 +648,7 @@ export function ChatCard() {
         history.push({ role: m.role, content: m.content });
       }
     }
-    openBranchTurn(item.node.term, history.slice(-16));
+    openBranchTurn(item.node.term, history.slice(-16), item.sourceTurnId);
     setTermStack([]);
   };
 
@@ -929,23 +931,29 @@ export function ChatCard() {
 
                     {/* 本轮探索路径：点开的术语卡片按链条展示（被它们"分割"出深挖脉络） */}
                     {turn.explored && turn.explored.length > 0 && (
-                      <div className="explore-trail mt-1 flex flex-col gap-1.5 border-t border-dashed border-divider pt-2">
-                        <span className="text-[11px] text-text-quaternary select-none">
-                          🧭 本轮探索路径（点击词条可重新打开）
-                        </span>
+                      <div className="explore-trail mt-2 flex flex-col gap-2.5 rounded-xl border border-brand/20 bg-brand/[0.05] p-3.5">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs font-semibold text-brand/90 select-none">
+                            🧭 本轮探索路径
+                          </span>
+                          <span className="text-[10px] text-text-quaternary select-none">
+                            点击词条可重新打开卡片
+                          </span>
+                        </div>
                         {explorationChains(turn.explored).map((chain, ci) => (
-                          <div key={ci} className="flex flex-wrap items-center gap-x-1 gap-y-1.5">
+                          <div key={ci} className="flex flex-wrap items-center gap-x-2 gap-y-2">
                             {chain.map((e, ei) => (
                               <Fragment key={e.term}>
                                 {ei > 0 && (
-                                  <span className="select-none text-xs text-text-quaternary">→</span>
+                                  <span className="select-none text-sm text-text-tertiary">→</span>
                                 )}
                                 <button
                                   type="button"
                                   onClick={() => reopenFromTrail(e.term, turn.id)}
-                                  className="explore-chip inline-flex cursor-pointer items-center gap-1 rounded-full border border-brand/25 bg-brand/10 px-2 py-0.5 text-xs text-brand transition-colors hover:bg-brand/20"
+                                  title={KIND_BADGE[e.kind]}
+                                  className="explore-chip inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-brand/30 bg-card-floating px-3 py-1.5 text-[13px] text-brand shadow-card transition-all hover:bg-brand/15 hover:scale-[1.03]"
                                 >
-                                  {ei > 0 && <span className="text-[10px]">{KIND_ICON[e.kind]}</span>}
+                                  {ei > 0 && <span className="text-xs">{KIND_ICON[e.kind]}</span>}
                                   {e.term}
                                 </button>
                               </Fragment>
@@ -1026,62 +1034,49 @@ export function ChatCard() {
               </>
             )}
 
-            {/* ---------- right turn-navigation rail ---------- */}
+            {/* ---------- right turn-graph navigation rail ---------- */}
             {turns.length > 0 && (
-              <div className="hidden sm:flex absolute right-0 top-[52px] bottom-0 w-[20px] z-[15] flex-col items-end">
+              <div className="hidden sm:flex absolute right-0 top-[52px] bottom-0 w-[30px] z-[15] flex-col items-end">
                 <button
                   type="button"
-                  className="relative z-20 w-5 h-6 rounded-l-lg bg-btn-std/40 hover:bg-btn-std flex items-center justify-center transition-colors"
+                  className={`relative z-20 flex flex-col items-center justify-center gap-1.5 rounded-l-lg bg-btn-std/90 hover:bg-btn-std shadow-card transition-colors ${
+                    navOpen ? "w-6 h-9" : "w-6 py-2.5"
+                  }`}
                   title={navOpen ? "收起轮次导航" : "轮次导航"}
                   aria-label={navOpen ? "收起轮次导航" : "轮次导航"}
                   onClick={() => setNavOpen((v) => !v)}
                 >
-                  <ChevronLeft
-                    size={14}
-                    className={`text-text-tertiary transition-transform duration-300 ${
-                      navOpen ? "rotate-180" : ""
-                    }`}
-                  />
+                  {navOpen ? (
+                    <ChevronLeft size={14} className="rotate-180 text-text-tertiary transition-transform" />
+                  ) : (
+                    <>
+                      <GitBranch size={13} className="text-brand" />
+                      <span className="select-none text-[10px] leading-none tracking-widest text-text-secondary [writing-mode:vertical-rl]">
+                        轮次图
+                      </span>
+                    </>
+                  )}
                 </button>
 
                 {navOpen && (
-                  <div className="absolute right-0 top-0 bottom-0 w-[240px] bg-card-floating border-l border-divider z-[10] flex flex-col">
-                    <div className="px-4 py-3 border-b border-divider">
-                      <span className="text-[12px] text-text-tertiary">轮次导航</span>
-                      <span className="block text-[10px] text-text-quaternary mt-0.5">
-                        点击跳转 · 右键切换已读/未读
+                  <div className="absolute right-0 top-0 bottom-0 w-[300px] bg-card-floating border-l border-divider z-[10] flex flex-col">
+                    <div className="px-4 py-3 border-b border-divider shrink-0">
+                      <div className="flex items-center gap-2">
+                        <GitBranch size={13} className="text-brand shrink-0" />
+                        <span className="text-[12px] text-text-tertiary">轮次导航图</span>
+                      </div>
+                      <span className="block text-[10px] text-text-quaternary mt-1">
+                        有向图 · 点击节点跳转 · 右键切换已读/未读
                       </span>
                     </div>
-                    <div className="flex-1 overflow-y-auto nav-scroll p-2 flex flex-col gap-1">
-                      {turns.map((turn) => (
-                        <button
-                          key={turn.id}
-                          type="button"
-                          className="text-left px-3 py-2 rounded-lg text-[13px] text-text-secondary hover:bg-item-std-hover bg-item-std transition-colors"
-                          onClick={() => jumpToTurn(turn.id)}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setTurnUnread(turn.id, !turn.unread);
-                          }}
-                        >
-                          <span className="flex items-center gap-1.5 min-w-0">
-                            {turn.unread && (
-                              <span
-                                className="w-2 h-2 rounded-full bg-brand shrink-0 shadow-brandtw"
-                                aria-label="未读"
-                              />
-                            )}
-                            <span className="flex-1 min-w-0 truncate">{turn.title}</span>
-                            {turn.favorite && (
-                              <Star size={11} className="text-brand shrink-0" fill="currentColor" />
-                            )}
-                          </span>
-                          <span className="block text-[11px] text-text-quaternary mt-0.5">
-                            {fmtTs(turn.createdAt)}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
+                    <TurnGraph
+                      turns={turns}
+                      onJump={jumpToTurn}
+                      onToggleUnread={(id) => {
+                        const t = turns.find((x) => x.id === id);
+                        if (t) setTurnUnread(id, !t.unread);
+                      }}
+                    />
                   </div>
                 )}
               </div>
