@@ -17,7 +17,6 @@ import { useApp } from "./app-context";
 import { Sidebar } from "./sidebar";
 import { ChatCard } from "./chat-card";
 import { WelcomeView } from "./welcome-view";
-import { TurnGraphPanel } from "./turn-graph";
 import { InputArea } from "./input-area";
 import { MindscapePanel } from "./mindscape-panel";
 import { DocLibrary, DocReader } from "./doc-reader";
@@ -156,11 +155,6 @@ export function AppShell() {
           沪ICP备2025147118号 · 沪公网安备31010102008430号
         </div>
       </main>
-
-      {/* ---- Desktop: always-visible turn-graph panel (轮次导航有向图，右侧常驻) ---- */}
-      <aside className="hidden lg:flex w-[270px] shrink-0 border-l border-divider bg-bg/70 backdrop-blur-sm relative z-10">
-        <TurnGraphPanel />
-      </aside>
 
       {/* ---- Fullscreen 3D mind universe (covers everything) ---- */}
       {universeOpen && <MindUniverse onClose={() => setUniverseOpen(false)} />}

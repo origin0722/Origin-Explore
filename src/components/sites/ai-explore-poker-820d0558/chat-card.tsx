@@ -21,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { useApp, streamOpenAICompatible } from "./app-context";
-import { explorationChains, type ExploreEntry } from "./turn-graph";
+import { explorationChains, TurnGraphPanel, type ExploreEntry } from "./turn-graph";
 import { findTerm, generateReply, GLOSSARY } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 import type { Message, TermNode } from "@/types/sites/ai-explore-poker-820d0558";
 
@@ -783,7 +783,9 @@ export function ChatCard() {
             {/* ---------- scrollable turn list ---------- */}
             <div
               ref={scrollRef}
-              className="absolute inset-0 overflow-y-auto scrollbar-card-std pt-[52px] px-4 pb-6"
+              className={`absolute inset-0 overflow-y-auto scrollbar-card-std pt-[52px] pl-4 pb-6 pr-4 ${
+                turns.length > 0 ? "lg:pr-[248px]" : ""
+              }`}
             >
               {turns.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center gap-12 -translate-y-[30px]">
@@ -1005,8 +1007,12 @@ export function ChatCard() {
               </>
             )}
 
-            {/* ---------- right turn-graph navigation rail ---------- */}
-            {/* 轮次导航图已移到 shell 右侧常驻面板（TurnGraphPanel） */}
+            {/* ---------- 轮次导航图（卡片树样式，停靠在思维宇宙与对话框之间） ---------- */}
+            {!minimized && turns.length > 0 && (
+              <div className="hidden lg:flex absolute right-0 top-[52px] bottom-4 w-[232px] z-[14] rounded-xl border border-std bg-card-floating/95 shadow-card overflow-hidden">
+                <TurnGraphPanel />
+              </div>
+            )}
           </>
         )}
       </div>

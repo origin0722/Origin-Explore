@@ -9,6 +9,7 @@
  *  - 点击轮次节点跳转对话；点击卡片节点重新打开该卡片；右键轮次切换未读。
  */
 import { useMemo } from "react";
+import { GitBranch } from "lucide-react";
 import type { Turn } from "@/types/sites/ai-explore-poker-820d0558";
 import { useApp } from "./app-context";
 
@@ -253,46 +254,49 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnGra
 /* ------------------------------------------------------------------ */
 
 export function TurnGraphPanel() {
-  const { projects, activeProjectId, activeDocId, focusTurn, setTurnUnread, requestCardOpen } =
-    useApp();
+  const { projects, activeProjectId, focusTurn, setTurnUnread, requestCardOpen } = useApp();
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const turns = activeProject?.turns ?? [];
 
   return (
-    <div className="flex h-full w-full flex-col">
-      <div className="px-4 py-3 border-b border-divider shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] font-medium text-text-tertiary">轮次导航图</span>
+    <div className="flex h-full w-full flex-col overflow-hidden">
+      <header className="shrink-0 border-b border-divider px-3.5 py-2.5">
+        <div className="flex items-center gap-1.5">
+          <GitBranch size={13} className="text-brand shrink-0" />
+          <span className="text-xs font-semibold text-text-secondary">轮次导航图</span>
         </div>
-        <span className="mt-1 block text-[10px] leading-4 text-text-quaternary">
-          有向图 · 点击跳转 · 右键切换未读
-          <br />
-          ↗️ 子卡片 · ➡️ 关联卡片 · ⬇️ 分支
-        </span>
+        <p className="mt-1 text-[10px] leading-4 text-text-quaternary">
+          有向图 · 点击节点跳转 · 右键切换未读
+        </p>
+      </header>
+
+      <div className="flex-1 min-h-0">
+        {turns.length === 0 ? (
+          <p className="flex h-full items-center justify-center px-4 text-center text-[11px] leading-5 text-text-quaternary">
+            发起对话后，这里会长出轮次与术语卡片的知识树。
+          </p>
+        ) : (
+          <TurnGraph
+            turns={turns}
+            onJump={(id) => {
+              if (activeProjectId) focusTurn(activeProjectId, id);
+            }}
+            onToggleUnread={(id) => {
+              const t = turns.find((x) => x.id === id);
+              if (t) setTurnUnread(id, !t.unread);
+            }}
+            onOpenCard={(turnId, term) => requestCardOpen(turnId, term)}
+          />
+        )}
       </div>
-      {activeDocId != null ? (
-        <p className="flex-1 flex items-center justify-center px-4 text-center text-[11px] leading-5 text-text-quaternary">
-          文档阅读模式
-          <br />
-          回到对话查看轮次导航图
-        </p>
-      ) : turns.length === 0 ? (
-        <p className="flex-1 flex items-center justify-center px-4 text-center text-[11px] leading-5 text-text-quaternary">
-          发起对话后，这里会展示轮次与术语卡片的有向图。
-        </p>
-      ) : (
-        <TurnGraph
-          turns={turns}
-          onJump={(id) => {
-            if (activeProjectId) focusTurn(activeProjectId, id);
-          }}
-          onToggleUnread={(id) => {
-            const t = turns.find((x) => x.id === id);
-            if (t) setTurnUnread(id, !t.unread);
-          }}
-          onOpenCard={(turnId, term) => requestCardOpen(turnId, term)}
-        />
-      )}
+
+      <footer className="shrink-0 border-t border-divider px-3.5 py-1.5">
+        <div className="flex items-center gap-3 text-[10px] text-text-quaternary">
+          <span>↗️ 子卡片</span>
+          <span>➡️ 关联卡片</span>
+          <span>⬇️ 分支</span>
+        </div>
+      </footer>
     </div>
   );
 }

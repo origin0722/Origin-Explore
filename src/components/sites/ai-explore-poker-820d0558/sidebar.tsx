@@ -536,13 +536,11 @@ export function Sidebar() {
                 收藏
               </span>
             )}
-            {!collapsed && (
+            {!collapsed && favTurns.length > 0 && (
               <span className="flex items-center gap-1.5">
-                {favTurns.length > 0 && (
-                  <span className="rounded-full bg-brand/15 px-1.5 text-[10px] leading-4 text-brand">
-                    {favTurns.length}
-                  </span>
-                )}
+                <span className="rounded-full bg-brand/15 px-1.5 text-[10px] leading-4 text-brand">
+                  {favTurns.length}
+                </span>
                 <ChevronRight
                   size={14}
                   className={`mr-2 text-text-tertiary transition-transform duration-200 ${
@@ -552,14 +550,9 @@ export function Sidebar() {
               </span>
             )}
           </button>
-          {favOpen && !collapsed && (
+          {favOpen && !collapsed && favTurns.length > 0 && (
             <div className="mt-1 max-h-[168px] overflow-y-auto scrollbar-card-std space-y-0.5 pl-2 pr-1">
-              {favTurns.length === 0 ? (
-                <p className="px-2 py-1 text-[11px] leading-5 text-text-quaternary">
-                  在轮次右上角点 ⭐ 收藏，这里会列出可快速跳转的对话，还能生成智能摘要。
-                </p>
-              ) : (
-                favTurns.map(({ project, turn }) => (
+              {favTurns.map(({ project, turn }) => (
                   <div key={turn.id}>
                     <div
                       role="button"
@@ -619,7 +612,7 @@ export function Sidebar() {
                     )}
                   </div>
                 ))
-              )}
+              }
             </div>
           )}
         </div>
