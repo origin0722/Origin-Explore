@@ -9,13 +9,13 @@
 import { useEffect, useState } from "react";
 import {
   BookOpen,
+  Compass,
   HelpCircle,
   Highlighter,
   Monitor,
   Network,
   Orbit,
   SlidersHorizontal,
-  Sparkles,
   User,
   X,
 } from "lucide-react";
@@ -28,13 +28,13 @@ interface Feature {
 }
 
 const FEATURES: Feature[] = [
-  { icon: Highlighter, label: "智能标注", desc: "标记重点，构建关联" },
-  { icon: Network, label: "层级对话", desc: "一棵树，无限追问" },
-  { icon: BookOpen, label: "文档阅读", desc: "长文拆解，一读就懂" },
-  { icon: Orbit, label: "思维宇宙", desc: "俯瞰你的知识星球" },
-  { icon: SlidersHorizontal, label: "上下文管理", desc: "自由设定对话范围" },
+  { icon: Highlighter, label: "智能标注", desc: "点击带下划线的术语，展开解释卡片" },
+  { icon: Network, label: "层级对话", desc: "子卡读上游主题，层层深入" },
+  { icon: BookOpen, label: "文档阅读", desc: "长文拆解，划词即问" },
+  { icon: Orbit, label: "思维宇宙", desc: "自己的理解，AI 点亮成星球" },
+  { icon: SlidersHorizontal, label: "引用回答", desc: "选中 AI 回复文本，多条引用" },
   { icon: Monitor, label: "沉浸界面", desc: "极简专注的阅读体验" },
-  { icon: Sparkles, label: "智能总结", desc: "一键提炼核心要点" },
+  { icon: Compass, label: "探索路径", desc: "每轮深挖链条清晰可见" },
   { icon: User, label: "个性化", desc: "主题与偏好随心配" },
 ];
 
@@ -88,6 +88,9 @@ export function WelcomeView() {
       {/* Tagline */}
       <p className="mt-4 max-w-md px-6 text-center text-base text-text-secondary">
         AI 结构化思维与知识探索工具 —— 哪里不懂点哪里，一棵属于你的知识树。
+      </p>
+      <p className="mt-2 max-w-md px-6 text-center text-sm text-text-tertiary">
+        摆脱线性聊天框的限制，实现多层级对话——复杂讨论在这里完全展开。
       </p>
 
       {/* Actions */}
@@ -146,7 +149,7 @@ export function WelcomeView() {
           </ol>
           <button
             type="button"
-            onClick={() => openModal("onboarding")}
+            onClick={() => openModal("guide")}
             className="mt-4 cursor-pointer rounded-full bg-btn-std px-4 py-1.5 text-xs text-primary transition-colors hover:bg-btn-std-hover"
           >
             查看完整引导
@@ -199,7 +202,7 @@ export function WelcomeView() {
               type="button"
               onClick={() => {
                 setHelpOpen(false);
-                openModal("onboarding");
+                openModal("guide");
               }}
               className="mt-6 w-full cursor-pointer rounded-full bg-btn-std px-6 py-2.5 text-sm text-primary transition-colors hover:bg-btn-std-hover"
             >

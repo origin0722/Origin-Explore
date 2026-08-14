@@ -87,6 +87,13 @@ Explore 克隆（ai.explore.poker/chat）已从"纯 UI"演进为**可交互的�
 41. **思维宇宙只连真实关系**（`mind-universe.tsx`）：`buildRelationEdges` 替换原贪心最近邻连线——只有 `parentSubject` 真实父子关系才画线，父术语不在可见节点里则不连（不再误导用户）；线透明度 0.15→0.3（线少了更醒目）。详情浮层新增**连接链**（根 → … → 本节点，可沿链跳转）；思维宇宙面板节点卡显示"🔗 深挖自「父术语」"；卡内收录时 `addThoughtNode(..., parentSubject)` 传父卡术语（`chat-card.tsx` handleCollect 改收整个 StackItem）。
 42. Canvas 加 `gl={{ preserveDrawingBuffer: true }}`（供像素级验证 + 未来截图功能）。测试：`scripts/verify-exploration.mjs`（路径记录/链条箭头/收录父术语/重开不重复/分支继承/面板深挖自）、`scripts/verify-universe.mjs`（种子 3 节点 → 读 GL 帧缓冲：3 节点定位 + 沿节点对连线采样——仅 A–B 有连线像素 + 点击节点弹连接链且不含无关节点）。
 
+### 借鉴原站「应用介绍」（R8 续⁷，2026-08-14，用户指定）
+原站 /chat 的 How to Use 介绍（已用 puppeteer 抓取）核心要点：摆脱线性聊天框/多层级对话、智能标注（点击**带下划线**文字）、层级对话 ↗→↓ 语义（下游卡片读取上游卡片标题）、分支卡片继承"主题 + 分支点之前的对话历史"、文档阅读、思维宇宙、**选中 AI 回复文本引用（支持多条）**、个性化。本轮落地：
+43. **智能标注**：可点击术语从"仅加粗"改为**加粗 + 下划线**（`underline decoration-brand/50`，主对话与卡内两处 `term-chip`）。
+44. **全局「使用指南」弹窗**：`modals.guide` 新增 `GuideModal`（`modals.tsx`，中文版 9 条核心特性 + 原站开篇定位语）；欢迎页/聊天空态"使用指南"按钮、欢迎页"查看完整引导"全部改开指南（原开设置向导）；欢迎页 tagline 加"摆脱线性聊天框…"；FEATURES 文案改为与实际功能一致的准确描述（智能总结→探索路径）。
+45. **引用回答（上下文管理）**：AI 回复区可选中文本（去掉 `select-none`）→ 浮动"引用"按钮 → `pendingQuote`（AppContext）→ 输入框上方引用 chips（多条、可删）→ 发送时以 `> …` 引用行并入消息；自动标题剥掉引用行。
+46. **分支卡片继承上游历史**：`openBranchTurn(title, history)` 不再静态贴摘要——继承上游卡片主题 + 分支点之前卡内对话历史（含深挖路径节点），AI 回复走 `deliverReply` 双通道（BYOK 真实 API / 离线回退）。测试：`scripts/verify-borrow.mjs`（欢迎文案/指南弹窗/下划线/引用全流程/BYOK 拦截断言分支请求体含上游卡内历史）。
+
 ## 三、R8 关键 bug 修复
 
 | bug | 根因 | 修复 |
@@ -121,6 +128,7 @@ Explore 克隆（ai.explore.poker/chat）已从"纯 UI"演进为**可交互的�
 | `verify-library.mjs` | 库返回按钮/侧边栏加号上传/字体统一 |
 | `verify-exploration.mjs` | 轮次探索路径（记录/链条/收录父术语/重开不重复/分支继承） |
 | `verify-universe.mjs` | 思维宇宙真实连线（GL 像素分析 + 连接链浮层） |
+| `verify-borrow.mjs` | 借鉴原站介绍（指南弹窗/术语下划线/引用回答/分支继承历史） |
 
 **所有脚本运行需 `danger-full-access`**（puppeteer 启动 Edge 会触发文件沙箱的 spawn EPERM）。
 

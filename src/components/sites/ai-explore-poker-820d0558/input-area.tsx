@@ -14,14 +14,25 @@ import {
   Loader2,
   Paperclip,
   Send,
+  X,
   Zap,
 } from "lucide-react";
 import { OFFLINE_MODEL } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 import { useApp } from "./app-context";
 
 export function InputArea() {
-  const { settings, setSettings, sendMessage, busy, setActiveDocId, byokModels } = useApp();
+  const {
+    settings,
+    setSettings,
+    sendMessage,
+    busy,
+    setActiveDocId,
+    byokModels,
+    pendingQuote,
+    setPendingQuote,
+  } = useApp();
   const [text, setText] = useState("");
+  const [quotes, setQuotes] = useState<string[]>([]);
   const [modelOpen, setModelOpen] = useState(false);
   const [hint, setHint] = useState<number | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -31,6 +42,13 @@ export function InputArea() {
   const allModels = useMemo(() => [OFFLINE_MODEL, ...byokModels], [byokModels]);
   const activeModel = allModels.find((m) => m.id === settings.activeModelId);
   const modelName = activeModel?.name ?? settings.activeModelId;
+
+  // 收到"引用"（来自聊天区选中文本）→ 收进引用列表（支持多条）。
+  useEffect(() => {
+    if (!pendingQuote) return;
+    setQuotes((qs) => [...qs, pendingQuote]);
+    setPendingQuote(null);
+  }, [pendingQuote, setPendingQuote]);
 
   // Click outside the input area closes the model list.
   useEffect(() => {
@@ -53,10 +71,13 @@ export function InputArea() {
   useEffect(() => () => window.clearTimeout(hintTimer.current), []);
 
   const handleSend = useCallback(() => {
-    const content = text.trim();
-    if (!content || busy) return;
+    const body = text.trim();
+    if ((!body && quotes.length === 0) || busy) return;
+    const content =
+      (quotes.length ? quotes.map((q) => `> ${q}`).join("\n") + "\n\n" : "") + body;
     sendMessage(content);
     setText("");
+    setQuotes([]);
     setModelOpen(false);
     requestAnimationFrame(() => {
       const el = taRef.current;
@@ -65,7 +86,7 @@ export function InputArea() {
         el.style.height = el.scrollHeight + "px";
       }
     });
-  }, [text, busy, sendMessage]);
+  }, [text, quotes, busy, sendMessage]);
 
   // Ctrl+Enter (default) or plain Enter when settings.sendShortcut === "enter".
   // Shift+Enter always inserts a newline.
@@ -100,6 +121,29 @@ export function InputArea() {
             className="inputarea-hint absolute -top-9 left-1/2 z-30 pointer-events-none select-none whitespace-nowrap rounded-full border border-std bg-modal-floating px-3 py-1 text-xs text-text-secondary shadow-card"
           >
             已打开本地文档库
+          </div>
+        )}
+
+        {/* 引用列表（选中 AI 回复文本添加；可删除、多条） */}
+        {quotes.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {quotes.map((q, i) => (
+              <span
+                key={`${i}-${q.slice(0, 8)}`}
+                className="quote-chip inline-flex max-w-full items-center gap-1.5 rounded-lg border border-brand/25 bg-brand/10 px-2 py-1 text-xs text-text-secondary"
+              >
+                <span className="max-w-[260px] truncate">❝ {q}</span>
+                <button
+                  type="button"
+                  onClick={() => setQuotes((qs) => qs.filter((_, j) => j !== i))}
+                  aria-label="移除引用"
+                  title="移除引用"
+                  className="shrink-0 rounded-full p-0.5 text-text-quaternary transition-colors hover:bg-item-std-hover hover:text-primary"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
           </div>
         )}
 
@@ -207,7 +251,7 @@ export function InputArea() {
           <button
             type="button"
             onClick={handleSend}
-            disabled={!text.trim() || busy}
+            disabled={(!text.trim() && quotes.length === 0) || busy}
             aria-label="发送"
             className="h-8 w-8 sm:h-[34px] sm:w-[34px] rounded-full bg-btn-inputarea text-black flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >

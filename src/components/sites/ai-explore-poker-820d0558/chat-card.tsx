@@ -16,6 +16,7 @@ import {
   Maximize2,
   Minimize2,
   MoreHorizontal,
+  Quote,
   Send,
   X,
 } from "lucide-react";
@@ -146,7 +147,7 @@ function TermCard({ node, messages, busy, onClose, onTermClick, onCollect, onBra
       return (
         <button
           type="button"
-          className="term-chip font-semibold cursor-pointer text-brand hover:underline transition-colors duration-300"
+          className="term-chip font-semibold cursor-pointer text-brand underline decoration-brand/50 decoration-[1.5px] underline-offset-2 hover:decoration-brand transition-colors duration-300"
           onClick={() => onTermClick(text)}
         >
           {children}
@@ -302,6 +303,8 @@ export function ChatCard() {
     loadSampleProject,
     byokModels,
     settings,
+    pendingQuote,
+    setPendingQuote,
   } = useApp();
 
   const [minimized, setMinimized] = useState(false);
@@ -319,6 +322,8 @@ export function ChatCard() {
   const scrollRef = useRef<HTMLDivElement>(null);
   /** term card closing animation state (exit class applied, then unmount) */
   const [termClosing, setTermClosing] = useState<string | null>(null);
+  /** 选中 AI 回复文本 → 引用：浮动"引用"按钮的位置与内容 */
+  const [quoteSel, setQuoteSel] = useState<{ text: string; x: number; y: number } | null>(null);
 
   /** Empty-state "Explore" title size: 128px desktop / 72px mobile (matches original). */
   const [titleSize, setTitleSize] = useState(128);
@@ -587,10 +592,65 @@ export function ChatCard() {
     showToast(`✓ 已收录「${item.node.term}」，待验证`);
   };
 
-  /** Branch card → start a brand-new turn with this term as context. */
-  const handleBranch = (node: TermNode) => {
-    openBranchTurn(node.term, node.summary);
+  /** Branch card → start a brand-new turn with this term as context,
+      继承上游卡片主题 + 分支点之前的对话历史（原站语义）。 */
+  const handleBranch = (item: StackItem) => {
+    const history: { role: string; content: string }[] = [];
+    for (const s of termStack) {
+      history.push({ role: "user", content: `深挖路径节点：「${s.path}」` });
+      for (const m of s.messages.slice(-6)) {
+        history.push({ role: m.role, content: m.content });
+      }
+    }
+    openBranchTurn(item.node.term, history.slice(-16));
     setTermStack([]);
+  };
+
+  /* --- 引用回答（上下文管理）：选中 AI 回复文本 → 浮动"引用"按钮 --- */
+  const handleQuoteMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) {
+      setQuoteSel(null);
+      return;
+    }
+    const range = sel.getRangeAt(0);
+    const text = sel.toString().trim();
+    if (!text || !(e.currentTarget as Node).contains(range.commonAncestorContainer)) {
+      setQuoteSel(null);
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    const x = Math.min(Math.max(rect.left + rect.width / 2, 70), window.innerWidth - 70);
+    const y = Math.max(rect.top - 46, 8);
+    setQuoteSel({ text: text.slice(0, 300), x, y });
+  };
+
+  // 点击别处 / Escape / 滚动消息区 → 收起引用按钮
+  useEffect(() => {
+    if (!quoteSel) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (!target?.closest?.("[data-quote-btn]")) setQuoteSel(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setQuoteSel(null);
+    };
+    const onScroll = () => setQuoteSel(null);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    scrollRef.current?.addEventListener("scroll", onScroll);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      scrollRef.current?.removeEventListener("scroll", onScroll);
+    };
+  }, [quoteSel]);
+
+  const confirmQuote = () => {
+    setPendingQuote(quoteSel?.text ?? "");
+    setQuoteSel(null);
+    window.getSelection()?.removeAllRanges();
+    showToast("✓ 已引用，可在输入框继续编辑");
   };
 
   /**
@@ -722,7 +782,7 @@ export function ChatCard() {
                   <div className="flex items-center gap-4">
                     <button
                       type="button"
-                      onClick={() => openModal("onboarding")}
+                      onClick={() => openModal("guide")}
                       className="cursor-pointer rounded-full bg-btn-std px-6 py-2 font-medium text-primary transition-colors hover:bg-btn-std-hover"
                     >
                       使用指南
@@ -770,7 +830,11 @@ export function ChatCard() {
                           </div>
                         </div>
                       ) : (
-                        <div key={msg.id} className="ai-message-content relative select-none w-full">
+                        <div
+                          key={msg.id}
+                          className="ai-message-content relative w-full select-text"
+                          onMouseUp={handleQuoteMouseUp}
+                        >
                           <div className="markdown-content w-full">
                             <ReactMarkdown
                               components={{
@@ -782,7 +846,7 @@ export function ChatCard() {
                                   return (
                                     <button
                                       type="button"
-                                      className={`term-chip font-semibold cursor-pointer hover:underline transition-colors duration-300 ${
+                                      className={`term-chip font-semibold cursor-pointer underline decoration-brand/50 decoration-[1.5px] underline-offset-2 hover:decoration-brand transition-colors duration-300 ${
                                         asked ? "text-text-secondary" : "text-brand"
                                       } ${
                                         hlTerm === text ? "bg-brand/15 shadow-brandtw rounded" : ""
@@ -840,6 +904,21 @@ export function ChatCard() {
               )}
             </div>
 
+            {/* floating "引用" button over the selection (上下文管理) */}
+            {quoteSel && (
+              <button
+                type="button"
+                data-quote-btn
+                className="fixed z-[70] flex items-center gap-1.5 rounded-full border border-brand/40 bg-modal-floating px-3 py-1.5 text-xs text-brand shadow-card transition-colors hover:bg-item-std-hover"
+                style={{ left: quoteSel.x, top: quoteSel.y, transform: "translate(-50%, 0)" }}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={confirmQuote}
+              >
+                <Quote size={13} />
+                引用
+              </button>
+            )}
+
             {/* ---------- recursive term cards (centered cascade stack) ----------
                 Cards sit centered on the canvas; each deeper layer is nudged
                 down-right so the previous card's top edge peeks out, like
@@ -871,7 +950,7 @@ export function ChatCard() {
                       onClose={() => closeOne(key, i)}
                       onTermClick={(term) => handleCardTermClick(key, term)}
                       onCollect={() => handleCollect(item)}
-                      onBranch={() => handleBranch(node)}
+                      onBranch={() => handleBranch(item)}
                       onAsk={(q) => askInCard(key, q, { node, path, messages, busy: cardBusy })}
                     />
                   </div>

@@ -137,15 +137,18 @@ export interface AppState {
   toggleSidebar(): void;
   mindscapeOpen: boolean;
   setMindscapeOpen(v: boolean): void;
-  modals: { settings: boolean; onboarding: boolean; login: boolean };
+  modals: { settings: boolean; onboarding: boolean; login: boolean; guide: boolean };
   openModal(k: keyof AppState["modals"]): void;
   closeModal(k: keyof AppState["modals"]): void;
+  /** 选中 AI 回复文本 → 引用（InputArea 消费后清空） */
+  pendingQuote: string | null;
+  setPendingQuote(q: string | null): void;
   turns: Turn[];
   activeTurn: Turn | null;
   sendMessage(text: string): void;
   busy: boolean;
-  /** 分支卡片 → 在当前项目开新 turn（继承上下文另起炉灶） */
-  openBranchTurn(title: string, aiContent?: string): void;
+  /** 分支卡片 → 在当前项目开新 turn（继承上游卡片主题与分支点之前的对话历史，走双通道） */
+  openBranchTurn(title: string, history?: { role: string; content: string }[]): void;
   /** 本地档案（"登录"） */
   profile: Profile | null;
   setProfile(p: Profile | null): void;
@@ -234,6 +237,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     settings: false,
     onboarding: false,
     login: false,
+    guide: false,
   });
   const [busy, setBusy] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(boot.profile ?? null);
@@ -243,6 +247,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
   const [documents, setDocuments] = useState<DocumentItem[]>(boot.documents ?? []);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
+  /** 选中 AI 回复文本 → 引用（InputArea 收到后收进引用列表并清空） */
+  const [pendingQuote, setPendingQuote] = useState<string | null>(null);
   const [folders, setFolders] = useState<string[]>(boot.folders ?? []);
   const [smartMode, setSmartModeState] = useState<boolean>(boot.smartMode ?? false);
   const [byokModels, setByokModels] = useState<ByokModel[]>(boot.byokModels ?? []);
@@ -616,7 +622,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       setActiveProjectId(targetId);
 
-      const title = content.length > 18 ? content.slice(0, 18) + "…" : content;
+      // 标题取消息正文（去掉引用行 `> …`，避免标题变成引用片段）。
+      const plain = content
+        .split("\n")
+        .filter((l) => !l.trim().startsWith(">"))
+        .join(" ")
+        .trim();
+      const titleSource =
+        plain || content.replace(/^>\s?/gm, "").trim().slice(0, 40) || "引用对话";
+      const title = titleSource.length > 18 ? titleSource.slice(0, 18) + "…" : titleSource;
       appendTurn(targetId, title, content);
       // 自动标题：给"Untitled"项目用首条消息命名（设置可关）。
       if (settings.autoTitleEnabled) {
@@ -645,21 +659,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [activeProjectId, busy, appendTurn, settings.autoTitleEnabled, turns, deliverReply]
   );
 
-  /** 分支卡片：以术语开新 turn，AI 直接给出术语内容（继承上下文） */
+  /** 分支卡片：以术语开新 turn，继承上游卡片主题与分支点之前的对话历史。
+      AI 回复走 deliverReply 双通道（BYOK 真实 API / 离线知识库），不再静态贴摘要。 */
   const openBranchTurn = useCallback(
-    (title: string, aiContent?: string) => {
+    (title: string, history: { role: string; content: string }[] = []) => {
       let targetId = activeProjectId;
       if (!targetId) {
         const p: ChatProject = { ...makeDemoProject(), id: uid(), title: "Untitled" };
         setProjects((list) => [p, ...list]);
         targetId = p.id;
       }
-      const turnId = appendTurn(targetId, title, `继续深挖：${title}`, aiContent ?? generateReply(title));
+      const turnId = appendTurn(targetId, title, `继续深挖：${title}`);
       // 新 turn 的探索路径从该分支术语起算（继承上下文另起炉灶）。
       recordExploration(turnId, title, "branch", null);
       setMindscapeOpen(false);
+      setBusy(true);
+      const ctx = [
+        {
+          role: "user",
+          content: `分支卡片：以「${title}」为主题另起炉灶，继承上游卡片主题与分支点之前的对话历史。请结合历史继续深挖，用中文回答，重要术语用 **加粗** 标记。`,
+        },
+        ...history.slice(-16),
+      ];
+      deliverReply(`继续深挖：${title}`, ctx, targetId);
     },
-    [activeProjectId, appendTurn, recordExploration]
+    [activeProjectId, appendTurn, recordExploration, deliverReply]
   );
 
   /** 文档问答：同名项目（论文: xxx）不存在则创建，然后开新 turn。
@@ -784,6 +808,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     removeDocument,
     activeDocId,
     setActiveDocId,
+    pendingQuote,
+    setPendingQuote,
     openDocQuestion,
     universeOpen,
     setUniverseOpen,

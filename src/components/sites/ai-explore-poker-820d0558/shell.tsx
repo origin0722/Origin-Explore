@@ -21,7 +21,7 @@ import { InputArea } from "./input-area";
 import { MindscapePanel } from "./mindscape-panel";
 import { DocLibrary, DocReader } from "./doc-reader";
 import { MindUniverse } from "./mind-universe";
-import { OnboardingWizard, ProfileModal, SettingsModal } from "./modals";
+import { OnboardingWizard, ProfileModal, SettingsModal, GuideModal } from "./modals";
 
 export function AppShell() {
   const {
@@ -162,6 +162,7 @@ export function AppShell() {
       {/* ---- Modals (self-contained; each manages its own close via useApp) ---- */}
       {modals.settings && <SettingsModal />}
       {modals.onboarding && <OnboardingWizard />}
+      {modals.guide && <GuideModal />}
       {modals.login && <ProfileModal />}
     </div>
   );
