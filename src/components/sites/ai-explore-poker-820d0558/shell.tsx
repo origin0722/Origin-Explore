@@ -101,10 +101,26 @@ export function AppShell() {
             <Menu size={18} />
           </button>
 
-          {/* Main canvas column: content area + bottom input bar */}
-          <div className="relative z-10 flex h-full flex-col">
-            <div className="mx-auto min-h-0 w-full max-w-[990px] flex-1">
+          {/* Main canvas column: content area + bottom input bar。
+              右侧预留空间给卡片树；侧边栏折叠时把释放宽度的一半留给右侧（484.5px），
+              对话框与卡片树一起向左平滑滑动（transition-[padding-right] 同步） */}
+          <div
+            className={`relative z-10 flex h-full flex-col transition-[padding-right] duration-200 lg:pr-[400px] ${
+              collapsed ? "lg:pr-[484.5px]" : ""
+            }`}
+          >
+            <div className="relative mx-auto min-h-0 w-full max-w-[990px] flex-1">
               {content}
+
+              {/* 轮次导航卡片树：贴着对话框右缘，跟随对话框一起滑动 */}
+              <div className="absolute bottom-0 left-full top-0 ml-5 hidden w-[380px] flex-col pr-5 lg:flex">
+                <div
+                  className="my-auto max-h-[70%] overflow-y-auto overflow-x-hidden pt-[8vh]"
+                  title="轮次导航图：点击跳转 · 右键切换已读/未读"
+                >
+                  <TurnGraphPanel />
+                </div>
+              </div>
             </div>
             <div
               className={`mx-auto w-full max-w-[990px] flex-shrink-0 ${
@@ -128,16 +144,6 @@ export function AppShell() {
           {/* ICP footer strip */}
           <div className="pointer-events-none absolute inset-x-0 bottom-1 z-0 select-none text-center text-xs text-text-quaternary">
             沪ICP备2025147118号 · 沪公网安备31010102008430号
-          </div>
-        </div>
-
-        {/* 轮次导航卡片树：对话框与思维宇宙之间的独立区域 */}
-        <div className="relative z-10 mr-5 hidden w-[340px] shrink-0 flex-col lg:flex xl:w-[380px]">
-          <div
-            className="my-auto max-h-[70%] overflow-y-auto overflow-x-hidden pt-[8vh]"
-            title="轮次导航图：点击跳转 · 右键切换已读/未读"
-          >
-            <TurnGraphPanel />
           </div>
         </div>
 
