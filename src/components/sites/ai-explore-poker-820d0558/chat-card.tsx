@@ -1007,9 +1007,12 @@ export function ChatCard() {
               </>
             )}
 
-            {/* ---------- 轮次导航图（卡片树样式，停靠在思维宇宙与对话框之间） ---------- */}
+            {/* ---------- 轮次导航有向图（无框架，直接浮在页面背景上） ---------- */}
             {!minimized && turns.length > 0 && (
-              <div className="hidden lg:flex absolute right-0 top-[52px] bottom-4 w-[232px] z-[14] rounded-xl border border-std bg-card-floating/95 shadow-card overflow-hidden">
+              <div
+                className="hidden lg:block absolute right-0 top-[52px] bottom-4 w-[232px] z-[14]"
+                title="轮次导航图：点击节点跳转 · 右键切换已读/未读"
+              >
                 <TurnGraphPanel />
               </div>
             )}

@@ -41,10 +41,9 @@ await page.keyboard.down("Control"); await page.keyboard.press("Enter"); await p
 await sleep(2500);
 
 const graph = await page.evaluate(() => ({
-  panel: document.body.textContent?.includes("轮次导航图") ?? false,
   nodes: document.querySelectorAll("[data-turn-node]").length,
 }));
-log("1a. turn-graph panel visible without any toggle:", graph.panel && graph.nodes === 1);
+log("1a. turn-graph visible without any toggle:", graph.nodes === 1);
 const legacyToggle = await page.evaluate(() =>
   [...document.querySelectorAll("button")].some((b) => (b.getAttribute("aria-label") ?? "").includes("收起轮次导航"))
 );

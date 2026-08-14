@@ -9,7 +9,6 @@
  *  - 点击轮次节点跳转对话；点击卡片节点重新打开该卡片；右键轮次切换未读。
  */
 import { useMemo } from "react";
-import { GitBranch } from "lucide-react";
 import type { Turn } from "@/types/sites/ai-explore-poker-820d0558";
 import { useApp } from "./app-context";
 
@@ -258,45 +257,18 @@ export function TurnGraphPanel() {
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const turns = activeProject?.turns ?? [];
 
+  if (turns.length === 0) return null;
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden">
-      <header className="shrink-0 border-b border-divider px-3.5 py-2.5">
-        <div className="flex items-center gap-1.5">
-          <GitBranch size={13} className="text-brand shrink-0" />
-          <span className="text-xs font-semibold text-text-secondary">轮次导航图</span>
-        </div>
-        <p className="mt-1 text-[10px] leading-4 text-text-quaternary">
-          有向图 · 点击节点跳转 · 右键切换未读
-        </p>
-      </header>
-
-      <div className="flex-1 min-h-0">
-        {turns.length === 0 ? (
-          <p className="flex h-full items-center justify-center px-4 text-center text-[11px] leading-5 text-text-quaternary">
-            发起对话后，这里会长出轮次与术语卡片的知识树。
-          </p>
-        ) : (
-          <TurnGraph
-            turns={turns}
-            onJump={(id) => {
-              if (activeProjectId) focusTurn(activeProjectId, id);
-            }}
-            onToggleUnread={(id) => {
-              const t = turns.find((x) => x.id === id);
-              if (t) setTurnUnread(id, !t.unread);
-            }}
-            onOpenCard={(turnId, term) => requestCardOpen(turnId, term)}
-          />
-        )}
-      </div>
-
-      <footer className="shrink-0 border-t border-divider px-3.5 py-1.5">
-        <div className="flex items-center gap-3 text-[10px] text-text-quaternary">
-          <span>↗️ 子卡片</span>
-          <span>➡️ 关联卡片</span>
-          <span>⬇️ 分支</span>
-        </div>
-      </footer>
-    </div>
+    <TurnGraph
+      turns={turns}
+      onJump={(id) => {
+        if (activeProjectId) focusTurn(activeProjectId, id);
+      }}
+      onToggleUnread={(id) => {
+        const t = turns.find((x) => x.id === id);
+        if (t) setTurnUnread(id, !t.unread);
+      }}
+      onOpenCard={(turnId, term) => requestCardOpen(turnId, term)}
+    />
   );
 }

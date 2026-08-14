@@ -51,10 +51,9 @@ await sleep(400);
 await sendMain("什么是机器学习？");
 await sleep(4500);
 const panelVisible = await page.evaluate(() => ({
-  hasPanel: document.body.textContent?.includes("轮次导航图") ?? false,
   hasNode: !!document.querySelector("[data-turn-node]"),
 }));
-log("0. turn-graph panel always visible on the right:", panelVisible.hasPanel && panelVisible.hasNode);
+log("0. turn-graph nodes visible on the right:", panelVisible.hasNode);
 await sendMain("什么是监督学习？");
 await sleep(4500);
 await expandSidebar();

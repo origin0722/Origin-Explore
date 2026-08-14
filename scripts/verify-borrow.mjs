@@ -215,11 +215,10 @@ const graphUi = await page.evaluate(() => ({
   cardNodes: document.querySelectorAll("[data-card-node]").length,
   cardTerms: [...document.querySelectorAll("[data-card-node]")].map((n) => n.getAttribute("data-card-node")),
   edges: document.querySelectorAll("svg path[marker-end]").length,
-  panel: document.body.textContent?.includes("轮次导航图") ?? false,
 }));
-log("   graph panel rendered:", JSON.stringify(graphUi));
-log("   PASS graph: panel + 3 turn nodes + branch card node + edges:",
-  graphUi.panel && graphUi.turnNodes === 3 && graphUi.cardTerms.includes("玻姆诠释") && graphUi.edges >= 3);
+log("   graph rendered:", JSON.stringify(graphUi));
+log("   PASS graph: 3 turn nodes + branch card node + edges:",
+  graphUi.turnNodes === 3 && graphUi.cardTerms.includes("玻姆诠释") && graphUi.edges >= 3);
 
 await browser.close();
 console.log("DONE");
