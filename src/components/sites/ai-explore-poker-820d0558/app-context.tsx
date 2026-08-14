@@ -506,6 +506,70 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [appendAssistantMessage, setLastAssistantContent]
   );
 
+  /**
+   * 双通道回复：BYOK 走真实流式 API（失败回退离线），否则离线知识库。
+   * 回复写入 targetId 的最后一个 turn；`history` 为之前的消息（不含当前问题）。
+   */
+  const deliverReply = useCallback(
+    (
+      question: string,
+      history: { role: string; content: string }[],
+      targetId: string,
+      onDone?: () => void
+    ) => {
+      const byok = byokModels.find(
+        (m) => m.id === settings.activeModelId && m.provider === "BYOK"
+      );
+      if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
+        const controller = new AbortController();
+        // 15s 内没有任何增量 -> 放弃回退；开始出字后不再限时（流可能很长）。
+        const timer = window.setTimeout(() => controller.abort(), 15000);
+        appendAssistantMessage(targetId); // SSE 直接往这条消息里流
+        let acc = "";
+        streamOpenAICompatible(
+          byok,
+          [...history, { role: "user", content: question }],
+          (delta) => {
+            acc += delta;
+            setLastAssistantContent(targetId, acc);
+          },
+          controller.signal,
+          () => window.clearTimeout(timer)
+        )
+          .then(() => {
+            window.clearTimeout(timer);
+            setBusy(false);
+            onDone?.();
+          })
+          .catch((err: unknown) => {
+            window.clearTimeout(timer);
+            const why =
+              err instanceof Error && err.name === "AbortError"
+                ? "请求超时"
+                : err instanceof Error && err.message
+                  ? err.message
+                  : "网络错误";
+            if (acc) {
+              // 流中断：保留已收到的部分，接着补一段离线回复。
+              streamReply(generateReply(question, history), targetId, onDone, {
+                append: false,
+                prefix: `${acc}\n\n> ⚠️ BYOK 流式中断（${why}），以下为离线知识库补充：\n\n`,
+              });
+            } else {
+              const fallback = `> ⚠️ BYOK 请求失败（${why}），已回退到离线知识库。\n\n${generateReply(question, history)}`;
+              streamReply(fallback, targetId, onDone, { append: false });
+            }
+          });
+      } else {
+        // 离线 mock 路径：短暂延迟后按知识库生成回复（带上下文记忆）。
+        window.setTimeout(() => {
+          streamReply(generateReply(question, history), targetId, onDone);
+        }, 500);
+      }
+    },
+    [byokModels, settings.activeModelId, appendAssistantMessage, setLastAssistantContent, streamReply]
+  );
+
   const sendMessage = useCallback(
     (text: string) => {
       const content = text.trim();
@@ -544,69 +608,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .slice(-12)
         .map((m) => ({ role: m.role, content: m.content }));
 
-      // 当前激活的是 BYOK 模型且有完整配置 → 走真实流式 API（失败回退离线）。
-      const byok = byokModels.find(
-        (m) => m.id === settings.activeModelId && m.provider === "BYOK"
-      );
-      if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
-        const controller = new AbortController();
-        // 15s 内没有任何增量 -> 放弃回退；开始出字后不再限时（流可能很长）。
-        const timer = window.setTimeout(() => controller.abort(), 15000);
-        appendAssistantMessage(targetId); // SSE 直接往这条消息里流
-        let acc = "";
-        streamOpenAICompatible(
-          byok,
-          [...history, { role: "user", content }],
-          (delta) => {
-            acc += delta;
-            setLastAssistantContent(targetId, acc);
-          },
-          controller.signal,
-          () => window.clearTimeout(timer)
-        )
-          .then(() => {
-            window.clearTimeout(timer);
-            setBusy(false);
-            done();
-          })
-          .catch((err: unknown) => {
-            window.clearTimeout(timer);
-            const why =
-              err instanceof Error && err.name === "AbortError"
-                ? "请求超时"
-                : err instanceof Error && err.message
-                  ? err.message
-                  : "网络错误";
-            if (acc) {
-              // 流中断：保留已收到的部分，接着补一段离线回复。
-              streamReply(generateReply(content, history), targetId, done, {
-                append: false,
-                prefix: `${acc}\n\n> ⚠️ BYOK 流式中断（${why}），以下为离线知识库补充：\n\n`,
-              });
-            } else {
-              const fallback = `> ⚠️ BYOK 请求失败（${why}），已回退到离线知识库。\n\n${generateReply(content, history)}`;
-              streamReply(fallback, targetId, done, { append: false });
-            }
-          });
-      } else {
-        // 离线 mock 路径：短暂延迟后按知识库生成回复（带上下文记忆）。
-        window.setTimeout(() => {
-          streamReply(generateReply(content, history), targetId, done);
-        }, 500);
-      }
+      deliverReply(content, history, targetId, done);
     },
-    [
-      activeProjectId,
-      busy,
-      appendTurn,
-      settings.autoTitleEnabled,
-      settings.activeModelId,
-      byokModels,
-      turns,
-      streamReply,
-      appendAssistantMessage,
-      setLastAssistantContent,
-    ]
+    [activeProjectId, busy, appendTurn, settings.autoTitleEnabled, turns, deliverReply]
   );
 
   /** 分支卡片：以术语开新 turn，AI 直接给出术语内容（继承上下文） */
@@ -624,37 +628,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [activeProjectId, appendTurn]
   );
 
-  /** 文档问答：同名项目（论文: xxx）不存在则创建，然后开新 turn */
+  /** 文档问答：同名项目（论文: xxx）不存在则创建，然后开新 turn。
+      回复走 deliverReply 双通道：BYOK 用真实 API，否则离线知识库。 */
   const openDocQuestion = useCallback(
     (term: string, docName: string) => {
       const projectTitle = `论文：${docName}`;
-      const ai = generateReply(term);
-      let pid: string | null = null;
-      setProjects((list) => {
-        const existing = list.find((p) => p.title === projectTitle);
-        if (existing) {
-          pid = existing.id;
-          return list;
-        }
+      const question = `什么是「${term}」？\n\n> 来自论文《${docName}》`;
+      // 同步决定项目 id——不能在 updater 里写副作用（React 可能多次/延迟调用 updater，
+      // 曾导致 activeProjectId 指向不存在的 id）。
+      const existing = projects.find((p) => p.title === projectTitle);
+      const pid = existing ? existing.id : uid();
+      if (!existing) {
         const p: ChatProject = {
           ...makeDemoProject(),
-          id: uid(),
+          id: pid,
           title: projectTitle,
           folder: "doc",
         };
-        pid = p.id;
-        return [p, ...list];
-      });
-      // setProjects updater runs async — schedule the turn after state commit.
-      window.setTimeout(() => {
-        if (!pid) return;
-        appendTurn(pid, term, `什么是「${term}」？\n\n> 来自论文《${docName}》`, ai);
-        setActiveDocId(null); // 回到对话视图看回答
-      }, 0);
+        setProjects((list) => [p, ...list]);
+      }
+      appendTurn(pid, term, question);
+      setActiveDocId(null); // 回到对话视图看回答
+      setBusy(true);
+      const history = [
+        {
+          role: "user",
+          content: `用户正在阅读论文《${docName}》，遇到了术语「${term}」。请用中文详细解释，重要术语用 **加粗** 标记，方便继续深挖。`,
+        },
+      ];
+      deliverReply(`什么是「${term}」？`, history, pid);
       // Mark term as asked (personalization).
       setTermStates((s) => ({ ...s, [term]: "asked" }));
     },
-    [appendTurn]
+    [projects, appendTurn, deliverReply]
   );
 
   const addThoughtNode = useCallback(
