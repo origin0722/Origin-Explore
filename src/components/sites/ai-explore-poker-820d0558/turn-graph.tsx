@@ -150,7 +150,7 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnGra
     return {
       nodes,
       edges,
-      width: Math.max(232, maxX - minX + 130),
+      width: Math.max(232, maxX - minX + 150),
       height: Math.max(turns.length * ROW_H + 20, 80),
     };
   }, [turns]);
@@ -223,7 +223,7 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnGra
               data-turn-node={isTurn ? n.turnId : undefined}
               data-card-node={isTurn ? undefined : n.term}
               transform={`translate(${n.x}, ${n.y})`}
-              className="cursor-pointer transition-opacity hover:opacity-70"
+              className="group cursor-pointer"
               onClick={() => (isTurn ? onJump(n.turnId) : onOpenCard(n.turnId, n.term))}
               onContextMenu={
                 isTurn
@@ -234,11 +234,12 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnGra
                   : undefined
               }
             >
+              {/* 点击热区（轮次整行 / 卡片局部） */}
               <rect
-                x={-18}
-                y={-ROW_H / 2 + 8}
-                width={width - n.x + 18}
-                height={ROW_H - 16}
+                x={isTurn ? -12 : -10}
+                y={isTurn ? -20 : -12}
+                width={isTurn ? width - n.x + 12 : 96}
+                height={isTurn ? 40 : 24}
                 fill="transparent"
               />
               <circle
@@ -247,6 +248,7 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnGra
                 stroke="#13e425"
                 strokeOpacity={isTurn ? 0.95 : 0.6}
                 strokeWidth="1.5"
+                className="transition-all duration-150 group-hover:fill-[rgba(19,228,37,0.3)] group-hover:stroke-opacity-100"
               />
               {n.unread && <circle r="3.5" fill="#13e425" aria-label="未读" />}
               {n.cardKind && (
@@ -254,20 +256,18 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnGra
                   {KIND_EMOJI[n.cardKind]}
                 </text>
               )}
+              {/* 文字只在悬停时浮现 */}
               <text
                 x={isTurn ? 16 : 13}
                 y={isTurn ? 4 : 3.5}
                 fontSize={isTurn ? 12 : 10}
-                fill={isTurn ? "rgba(226,232,240,0.92)" : "rgba(19,228,37,0.9)"}
+                fill={isTurn ? "rgba(226,232,240,0.95)" : "rgba(19,228,37,0.95)"}
+                className="pointer-events-none opacity-0 transition-opacity duration-150 group-hover:opacity-100"
                 style={{ userSelect: "none" }}
               >
+                {n.favorite ? "⭐ " : ""}
                 {n.label}
               </text>
-              {n.favorite && (
-                <text x={16 + n.label.length * 12 + 6} y={5} fontSize="10" style={{ userSelect: "none" }}>
-                  ⭐
-                </text>
-              )}
             </g>
           );
         })}
