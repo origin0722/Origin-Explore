@@ -69,9 +69,9 @@ export function AppShell() {
 
   return (
     <div className="fixed inset-0 flex overflow-hidden overscroll-none bg-bg">
-      {/* ---- Sidebar: 桌面端为真实占位列（不遮挡对话框）；移动端 off-canvas 抽屉 ---- */}
+      {/* ---- Sidebar: 悬浮式（桌面端 overlay，不占流，不挤压对话框；移动端抽屉） ---- */}
       <div
-        className={`fixed inset-y-0 left-0 z-40 h-full shrink-0 overflow-hidden bg-bg transition-all duration-200 sm:static sm:z-auto sm:translate-x-0 sm:bg-transparent ${
+        className={`fixed inset-y-0 left-0 z-40 h-full shrink-0 overflow-hidden bg-bg transition-all duration-200 sm:absolute sm:translate-x-0 sm:bg-transparent ${
           collapsed ? "w-[56px]" : "w-[225px]"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
@@ -87,8 +87,9 @@ export function AppShell() {
         />
       )}
 
-      {/* ---- Main row: 对话区 | 轮次导航卡片树 | 思维宇宙（贴最右） ---- */}
-      <main className="relative flex min-w-0 flex-1 overflow-hidden">
+      {/* ---- Main row：固定让出侧边栏宽度（lg:pl-[225px]），对话框+卡片树
+            保持页面居中，不随侧边栏折叠移动 ---- */}
+      <main className="relative flex min-w-0 flex-1 overflow-hidden lg:pl-[225px]">
         {/* 对话区（聊天卡片在其中居中，最大 990px） */}
         <div className="relative z-10 flex h-full min-w-0 flex-1 flex-col">
           {/* Mobile hamburger — opens the sidebar drawer */}
@@ -102,17 +103,12 @@ export function AppShell() {
           </button>
 
           {/* Main canvas column: content area + bottom input bar。
-              右侧预留空间给卡片树；侧边栏折叠时把释放宽度的一半留给右侧（484.5px），
-              对话框与卡片树一起向左平滑滑动（transition-[padding-right] 同步） */}
-          <div
-            className={`relative z-10 flex h-full flex-col transition-[padding-right] duration-200 lg:pr-[400px] ${
-              collapsed ? "lg:pr-[484.5px]" : ""
-            }`}
-          >
+              右侧预留 400px 给卡片树（锚定对话框右缘） */}
+          <div className="relative z-10 flex h-full flex-col lg:pr-[400px]">
             <div className="relative mx-auto min-h-0 w-full max-w-[990px] flex-1">
               {content}
 
-              {/* 轮次导航卡片树：贴着对话框右缘，跟随对话框一起滑动 */}
+              {/* 轮次导航卡片树：贴着对话框右缘 */}
               <div className="absolute bottom-0 left-full top-0 ml-5 hidden w-[380px] flex-col pr-5 lg:flex">
                 <div
                   className="my-auto max-h-[70%] overflow-y-auto overflow-x-hidden pt-[8vh]"
