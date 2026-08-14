@@ -36,15 +36,12 @@ const replyText = await page.evaluate(() => document.querySelector(".markdown-co
 log("1. reply mentions 梯度下降:", replyText.includes("梯度下降"));
 log("   reply mentions 量子纠缠 (should be false):", replyText.includes("量子纠缠"));
 
-// 2. Open a term card, then open nav rail, then close the card.
+// 2. Open a term card (turn-graph panel is always visible on the right),
+//    then close the card.
 await page.evaluate(() => {
   document.querySelector("button.term-chip")?.click();
 });
 await sleep(600);
-await page.evaluate(() => {
-  [...document.querySelectorAll("button")].find((b) => b.title === "轮次导航")?.click();
-});
-await sleep(300);
 // Try to click the close button via coordinates (click through the panel).
 const closeClick = await page.evaluate(() => {
   const card = document.querySelector(".card-container");

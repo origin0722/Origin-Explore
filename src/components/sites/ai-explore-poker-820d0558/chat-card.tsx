@@ -9,9 +9,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "
 import ReactMarkdown from "react-markdown";
 import {
   BookmarkPlus,
-  ChevronLeft,
   Copy,
-  GitBranch,
   HelpCircle,
   Loader2,
   Maximize2,
@@ -23,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { useApp, streamOpenAICompatible } from "./app-context";
-import { TurnGraph } from "./turn-graph";
+import { explorationChains, type ExploreEntry } from "./turn-graph";
 import { findTerm, generateReply, GLOSSARY } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 import type { Message, TermNode } from "@/types/sites/ai-explore-poker-820d0558";
 
@@ -70,35 +68,6 @@ function toTerm(children: ReactNode): string {
   if (typeof children === "string" || typeof children === "number") return String(children);
   if (Array.isArray(children)) return children.map(toTerm).join("");
   return String(children);
-}
-
-/** One recorded exploration entry in a turn's trail. */
-type ExploreEntry = { term: string; kind: TermNode["kind"]; at: number; parentTerm: string | null };
-
-/**
- * Reconstruct exploration chains from a turn's flat explored list:
- * each entry's parentTerm links back to the card it was opened from, so a
- * chain reads 根术语 → ➡️ 关联 → ↗️ 子卡片. Entries whose parent is missing
- * (or a term not in the trail) start a new chain; chains are ordered by the
- * time their root was clicked. Every term belongs to exactly one chain.
- */
-function explorationChains(explored: ExploreEntry[]): ExploreEntry[][] {
-  const ordered = [...explored].sort((a, b) => a.at - b.at);
-  const owner = new Map<string, ExploreEntry[]>();
-  const chains: ExploreEntry[][] = [];
-  for (const e of ordered) {
-    let chain = e.parentTerm ? owner.get(e.parentTerm) : undefined;
-    if (!chain) {
-      chain = [];
-      chains.push(chain);
-    } else if (chain.some((c) => c.term === e.term)) {
-      owner.set(e.term, chain);
-      continue; // cycle-safe: never add the same term twice to one chain
-    }
-    chain.push(e);
-    owner.set(e.term, chain);
-  }
-  return chains;
 }
 
 /* ------------------------------------------------------------------ */
@@ -321,11 +290,12 @@ export function ChatCard() {
     setTurnUnread,
     focusRequest,
     clearFocusRequest,
+    cardOpenRequest,
+    clearCardOpenRequest,
   } = useApp();
 
   const [minimized, setMinimized] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [navOpen, setNavOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState("");
   const [hlTerm, setHlTerm] = useState<string | null>(null);
@@ -402,6 +372,13 @@ export function ChatCard() {
     setTurnUnread(focusRequest.turnId, false);
     clearFocusRequest();
   }, [focusRequest, clearFocusRequest, setTurnUnread]);
+
+  // 轮次导航图点击卡片节点 → 重新打开该术语卡片（不重复记录探索路径）。
+  useEffect(() => {
+    if (!cardOpenRequest) return;
+    reopenFromTrail(cardOpenRequest.term, cardOpenRequest.turnId);
+    clearCardOpenRequest();
+  }, [cardOpenRequest, clearCardOpenRequest]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -714,12 +691,6 @@ export function ChatCard() {
   };
 
   /* --- turn navigation --- */
-  const jumpToTurn = (id: string) => {
-    document
-      .getElementById(`chat-turn-${id}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    setTurnUnread(id, false);
-  };
 
   return (
     <div
@@ -870,10 +841,10 @@ export function ChatCard() {
                         }}
                         aria-label={turn.favorite ? "取消收藏" : "收藏"}
                         title={turn.favorite ? "取消收藏" : "收藏轮次"}
-                        className={`rounded-full p-1 transition-colors ${
+                        className={`flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${
                           turn.favorite
-                            ? "text-brand hover:bg-brand/10"
-                            : "text-text-quaternary hover:bg-item-std-hover hover:text-brand"
+                            ? "border-brand/50 bg-brand/10 text-brand"
+                            : "border-std bg-btn-std text-text-tertiary hover:border-brand/40 hover:text-brand"
                         }`}
                       >
                         <Star size={14} fill={turn.favorite ? "currentColor" : "none"} />
@@ -1035,52 +1006,7 @@ export function ChatCard() {
             )}
 
             {/* ---------- right turn-graph navigation rail ---------- */}
-            {turns.length > 0 && (
-              <div className="hidden sm:flex absolute right-0 top-[52px] bottom-0 w-[30px] z-[15] flex-col items-end">
-                <button
-                  type="button"
-                  className={`relative z-20 flex flex-col items-center justify-center gap-1.5 rounded-l-lg bg-btn-std/90 hover:bg-btn-std shadow-card transition-colors ${
-                    navOpen ? "w-6 h-9" : "w-6 py-2.5"
-                  }`}
-                  title={navOpen ? "收起轮次导航" : "轮次导航"}
-                  aria-label={navOpen ? "收起轮次导航" : "轮次导航"}
-                  onClick={() => setNavOpen((v) => !v)}
-                >
-                  {navOpen ? (
-                    <ChevronLeft size={14} className="rotate-180 text-text-tertiary transition-transform" />
-                  ) : (
-                    <>
-                      <GitBranch size={13} className="text-brand" />
-                      <span className="select-none text-[10px] leading-none tracking-widest text-text-secondary [writing-mode:vertical-rl]">
-                        轮次图
-                      </span>
-                    </>
-                  )}
-                </button>
-
-                {navOpen && (
-                  <div className="absolute right-0 top-0 bottom-0 w-[300px] bg-card-floating border-l border-divider z-[10] flex flex-col">
-                    <div className="px-4 py-3 border-b border-divider shrink-0">
-                      <div className="flex items-center gap-2">
-                        <GitBranch size={13} className="text-brand shrink-0" />
-                        <span className="text-[12px] text-text-tertiary">轮次导航图</span>
-                      </div>
-                      <span className="block text-[10px] text-text-quaternary mt-1">
-                        有向图 · 点击节点跳转 · 右键切换已读/未读
-                      </span>
-                    </div>
-                    <TurnGraph
-                      turns={turns}
-                      onJump={jumpToTurn}
-                      onToggleUnread={(id) => {
-                        const t = turns.find((x) => x.id === id);
-                        if (t) setTurnUnread(id, !t.unread);
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+            {/* 轮次导航图已移到 shell 右侧常驻面板（TurnGraphPanel） */}
           </>
         )}
       </div>

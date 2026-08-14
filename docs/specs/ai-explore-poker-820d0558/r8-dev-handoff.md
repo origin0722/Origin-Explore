@@ -107,6 +107,13 @@ Explore 克隆（ai.explore.poker/chat）已从"纯 UI"演进为**可交互的�
 54. **探索路径放大**：轮次内探索路径从细分割线小字升级为独立卡片块（`rounded-xl border-brand/20 bg-brand/[0.05] p-3.5`，标题行 + 更大 chips（text-[13px] + 悬浮放大）+ 醒目箭头，chip title 显示卡片类型徽章）。
 55. 测试更新：`verify-fav-unread.mjs`（图节点右键/自动未读）、`verify-borrow.mjs` 新增 D4（parentTurnId 持久化 + 图节点 3/边 2 渲染断言）。
 
+### 轮次图常驻 + 卡片入图 + 收藏区挪底 + 侧边栏换序（R8 续¹⁰，2026-08-14，用户反馈）
+56. **轮次导航图右侧常驻**：从"折叠条 + 开关"改为 shell 右侧**常驻面板**（flex 布局列 `hidden lg:flex w-[270px]`，`TurnGraphPanel`，不再需要点击展开；文档阅读模式显示提示）。旧 rail 开关与 `navOpen` 移除；面板提示保留"点击跳转 · 右键切换未读"。
+57. **术语卡片入图（重点借鉴原站卡片树）**：`TurnGraph` 在轮次节点之外渲染**卡片节点**——来自 `Turn.explored` 探索链条：↗️ 子卡片向右分支、➡️ 关联卡片向左分支、⬇️ 分支卡片向右（每条链从所属轮次出发、沿 parentTerm 连续分支）；点击卡片节点经 `cardOpenRequest`（AppContext 新增）重新打开该卡片（不重复记录）；`explorationChains` 上移到 `turn-graph.tsx` 供 chat-card 与图共用。
+58. **收藏区挪到侧边栏底部**：与设置同款大按钮格式（Star 图标块 + 「收藏」+ 计数徽章 + 展开箭头，`favOpen` 默认展开），列表在设置之上；空态引导文案保留。轮次 ⭐ 按钮加大为带边框圆钮（更易发现）。
+59. **侧边栏换序**：常驻聊天移到本地文档之上（折叠态同样：常驻图标 → 文档图标），符合"先聊天后资料"的逻辑。
+60. 测试：`verify-ui-fixes.mjs` 重写 1a/1b（常驻面板可见 + 无旧开关）+ 侧边栏顺序断言；`verify-features.mjs` 移除旧开关步骤；`verify-borrow.mjs` D4 断言卡片节点（玻姆诠释）入图；`verify-fav-unread.mjs` 面板免开关 + 0 号面板可见断言。
+
 ## 三、R8 关键 bug 修复
 
 | bug | 根因 | 修复 |

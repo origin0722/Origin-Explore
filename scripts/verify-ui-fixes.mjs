@@ -28,8 +28,10 @@ await sleep(700);
 const bodyText = await page.evaluate(() => document.body.textContent || "");
 log("0. no 云端项目:", !bodyText.includes("云端项目"));
 log("   no 仅会员:", !bodyText.includes("仅会员"));
+const orderOk = bodyText.indexOf("常驻聊天") >= 0 && bodyText.indexOf("本地文档") > bodyText.indexOf("常驻聊天");
+log("   sidebar order 常驻聊天 above 本地文档:", orderOk);
 
-// 1. Create project + send message, then nav rail toggle open/close.
+// 1. Create project + send message → the turn-graph panel is always visible on the right.
 await page.evaluate(() => {
   [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("新建项目"))?.click();
 });
@@ -38,23 +40,15 @@ await page.type("textarea", "什么是量子纠缠？");
 await page.keyboard.down("Control"); await page.keyboard.press("Enter"); await page.keyboard.up("Control");
 await sleep(2500);
 
-// open nav
-await page.evaluate(() => {
-  [...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "轮次导航")?.click();
-});
-await sleep(300);
-const navOpened = await page.evaluate(() => document.body.textContent?.includes("轮次导航"));
-log("1a. nav opened:", navOpened);
-// close nav (click the same toggle again — it must still be clickable)
-await page.evaluate(() => {
-  [...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "收起轮次导航")?.click();
-});
-await sleep(300);
-const navClosed = await page.evaluate(() => {
-  const btn = [...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "轮次导航");
-  return !!btn; // toggle back to "轮次导航" label means it closed
-});
-log("1b. nav closed (toggle label restored):", navClosed);
+const graph = await page.evaluate(() => ({
+  panel: document.body.textContent?.includes("轮次导航图") ?? false,
+  nodes: document.querySelectorAll("[data-turn-node]").length,
+}));
+log("1a. turn-graph panel visible without any toggle:", graph.panel && graph.nodes === 1);
+const legacyToggle = await page.evaluate(() =>
+  [...document.querySelectorAll("button")].some((b) => (b.getAttribute("aria-label") ?? "").includes("收起轮次导航"))
+);
+log("1b. no legacy rail toggle button:", !legacyToggle);
 
 // 2. Mindscape FAB toggles.
 const fabLabel = await page.evaluate(() => document.querySelector("button[aria-label='打开思维宇宙']")?.getAttribute("aria-label"));

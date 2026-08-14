@@ -50,6 +50,11 @@ await page.evaluate(() => {
 await sleep(400);
 await sendMain("什么是机器学习？");
 await sleep(4500);
+const panelVisible = await page.evaluate(() => ({
+  hasPanel: document.body.textContent?.includes("轮次导航图") ?? false,
+  hasNode: !!document.querySelector("[data-turn-node]"),
+}));
+log("0. turn-graph panel always visible on the right:", panelVisible.hasPanel && panelVisible.hasNode);
 await sendMain("什么是监督学习？");
 await sleep(4500);
 await expandSidebar();
@@ -76,11 +81,8 @@ const summary = await page.evaluate(() => document.body.textContent || "");
 log("2. smart summary renders heuristic content:",
   summary.includes("📌 主题") && summary.includes("涉及术语") && summary.includes("机器学习"));
 
-// 3. turn-graph node: right-click toggles unread; favorite-row click (focusTurn) clears
-await page.evaluate(() => {
-  const btn = [...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "轮次导航");
-  btn?.click();
-});
+// 3. turn-graph node (always-visible right panel): right-click toggles unread;
+//    favorite-row click (focusTurn) clears
 await sleep(400);
 const railItemRect = await page.evaluate(() => {
   const node = document.querySelector("[data-turn-node]");

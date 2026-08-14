@@ -172,6 +172,10 @@ export interface AppState {
   /** ChatCard 消费 focusTurn 后的清理 */
   clearFocusRequest(): void;
   focusRequest: { turnId: string; seq: number } | null;
+  /** 轮次导航图点击卡片节点 → 重新打开该术语卡片（不重复记录探索路径） */
+  cardOpenRequest: { turnId: string; term: string; seq: number } | null;
+  requestCardOpen(turnId: string, term: string): void;
+  clearCardOpenRequest(): void;
   /** 智能摘要缓存（turnId → markdown 摘要） */
   turnSummaries: Record<string, string>;
   /** 正在生成摘要的轮次 id */
@@ -311,6 +315,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [summarizingTurnId, setSummarizingTurnId] = useState<string | null>(null);
   /** 跨组件跳转请求（收藏区 → 聊天轮次滚动定位） */
   const [focusRequest, setFocusRequest] = useState<{ turnId: string; seq: number } | null>(null);
+  /** 轮次导航图卡片节点 → 重新打开术语卡片请求 */
+  const [cardOpenRequest, setCardOpenRequest] = useState<{
+    turnId: string;
+    term: string;
+    seq: number;
+  } | null>(null);
   const [folders, setFolders] = useState<string[]>(boot.folders ?? []);
   const [smartMode, setSmartModeState] = useState<boolean>(boot.smartMode ?? false);
   const [byokModels, setByokModels] = useState<ByokModel[]>(boot.byokModels ?? []);
@@ -549,6 +559,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearFocusRequest = useCallback(() => setFocusRequest(null), []);
+
+  /** 轮次导航图点击卡片节点 → 请求重新打开术语卡片 */
+  const requestCardOpen = useCallback((turnId: string, term: string) => {
+    setCardOpenRequest({ turnId, term, seq: Date.now() });
+  }, []);
+
+  const clearCardOpenRequest = useCallback(() => setCardOpenRequest(null), []);
 
   /** 收藏区"智能摘要"：BYOK 走真实 API 流式生成，否则本地启发式摘要 */
   const summarizeTurn = useCallback(
@@ -967,6 +984,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     focusTurn,
     clearFocusRequest,
     focusRequest,
+    cardOpenRequest,
+    requestCardOpen,
+    clearCardOpenRequest,
     turnSummaries,
     summarizingTurnId,
     summarizeTurn,

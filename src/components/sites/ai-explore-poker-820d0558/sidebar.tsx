@@ -70,6 +70,7 @@ export function Sidebar() {
   } = useApp();
 
   const [openGroups, setOpenGroups] = useState<{ local: boolean }>({ local: true });
+  const [favOpen, setFavOpen] = useState(true);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -350,7 +351,66 @@ export function Sidebar() {
       {/* 顶部功能按钮区 */}
       <div className="p-4 space-y-2">{topActions.map(renderTopButton)}</div>
 
-      {/* 本地文档分组（常驻） */}
+      {/* 常驻聊天：固定的跨项目会话（逻辑上排在本地文档之上） */}
+      {collapsed ? (
+        <button
+          onClick={() => selectResident()}
+          title="常驻聊天"
+          className="flex items-center w-full justify-center py-1.5"
+        >
+          <MessageSquare size={15} className="text-text-tertiary shrink-0" />
+        </button>
+      ) : (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => selectResident()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              selectResident();
+            }
+          }}
+          title="常驻聊天（跨项目保留）"
+          className={`mx-2 flex items-center gap-2 rounded-xl px-2 pt-3 pb-1 cursor-pointer transition-colors ${
+            activeProjectId === "resident" ? "bg-item-std" : "hover:bg-item-std"
+          }`}
+        >
+          <MessageSquare size={18} className="text-text-icon-secondary shrink-0" />
+          <span className="flex-1 min-w-0 truncate text-sm font-medium text-primary">常驻聊天</span>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              aria-label="聊天模式"
+              title="聊天模式"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (smartMode) toggleSmartMode();
+              }}
+              className={`p-1 rounded-md transition-colors ${
+                smartMode ? "text-text-tertiary hover:text-primary hover:bg-item-std-hover" : "bg-card-floating text-primary"
+              }`}
+            >
+              <MessageSquare size={13} />
+            </button>
+            <button
+              aria-label="智能模式"
+              title="AI 智能模式"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!smartMode) toggleSmartMode();
+                showToast(smartMode ? "已切回普通聊天" : "已开启 AI 智能模式");
+              }}
+              className={`p-1 rounded-md transition-colors ${
+                smartMode ? "bg-card-floating text-brand" : "text-text-tertiary hover:text-primary hover:bg-item-std-hover"
+              }`}
+            >
+              <Sparkles size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 本地文档分组（常驻聊天之下） */}
       {collapsed ? (
         <button
           onClick={() => setActiveDocId("__library__")}
@@ -400,138 +460,6 @@ export function Sidebar() {
 
       {/* 项目滚动区 */}
       <div className="flex-1 overflow-y-auto scrollbar-card-std w-full max-w-xs self-center px-2">
-        {/* 常驻聊天：固定的跨项目会话，点击进入（不可删除） */}
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => selectResident()}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              selectResident();
-            }
-          }}
-          title="常驻聊天（跨项目保留）"
-          className={`flex items-center w-full gap-2 rounded-xl p-2 cursor-pointer transition-colors ${
-            activeProjectId === "resident" ? "bg-item-std" : "hover:bg-item-std"
-          } ${collapsed ? "justify-center" : ""}`}
-        >
-          <MessageSquare size={18} className="text-text-icon-secondary shrink-0" />
-          {!collapsed && <span className="flex-1 min-w-0 truncate text-sm font-medium text-primary">常驻聊天</span>}
-          {!collapsed && (
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                aria-label="聊天模式"
-                title="聊天模式"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (smartMode) toggleSmartMode();
-                }}
-                className={`p-1 rounded-md transition-colors ${
-                  smartMode ? "text-text-tertiary hover:text-primary hover:bg-item-std-hover" : "bg-card-floating text-primary"
-                }`}
-              >
-                <MessageSquare size={13} />
-              </button>
-              <button
-                aria-label="智能模式"
-                title="AI 智能模式"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!smartMode) toggleSmartMode();
-                  showToast(smartMode ? "已切回普通聊天" : "已开启 AI 智能模式");
-                }}
-                className={`p-1 rounded-md transition-colors ${
-                  smartMode ? "bg-card-floating text-brand" : "text-text-tertiary hover:text-primary hover:bg-item-std-hover"
-                }`}
-              >
-                <Sparkles size={13} />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* 收藏区：跨项目收藏的轮次 + 智能摘要（常驻可见） */}
-        {!collapsed && (
-          <div className="mt-2">
-            <div className="flex items-center gap-2 py-1.5 px-1">
-              <Star size={14} className="text-text-tertiary shrink-0" />
-              <span className="flex-1 text-left text-sm text-text-tertiary font-medium truncate">
-                收藏
-              </span>
-              {favTurns.length > 0 && (
-                <span className="text-[10px] text-text-quaternary">{favTurns.length}</span>
-              )}
-            </div>
-            {favTurns.length === 0 ? (
-              <p className="px-1 pb-1 text-[11px] leading-5 text-text-quaternary">
-                在轮次右上角点 ⭐ 收藏，这里会列出可快速跳转的对话，还能生成智能摘要。
-              </p>
-            ) : (
-              favTurns.map(({ project, turn }) => (
-              <div key={turn.id} className="mb-1">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => focusTurn(project.id, turn.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      focusTurn(project.id, turn.id);
-                    }
-                  }}
-                  title={`${project.title} · ${turn.title}（点击跳转）`}
-                  className="group flex items-center gap-1.5 w-full p-1.5 rounded-lg cursor-pointer transition-colors hover:bg-item-std-hover"
-                >
-                  <Star size={13} className="text-brand shrink-0" fill="currentColor" />
-                  <span className="flex-1 min-w-0">
-                    <span className="block truncate text-sm text-text-secondary">{turn.title}</span>
-                    <span className="block truncate text-[10px] text-text-quaternary">
-                      {project.title}
-                    </span>
-                  </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      summarizeTurn(turn.id);
-                    }}
-                    aria-label="智能摘要"
-                    title="智能摘要"
-                    className={`p-1 rounded-md shrink-0 transition-colors ${
-                      summarizingTurnId === turn.id
-                        ? "text-brand"
-                        : "text-text-quaternary hover:text-brand hover:bg-item-std-active"
-                    }`}
-                  >
-                    {summarizingTurnId === turn.id ? (
-                      <Loader2 size={13} className="animate-spin" />
-                    ) : (
-                      <Sparkles size={13} />
-                    )}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFavorite(turn.id);
-                    }}
-                    aria-label="取消收藏"
-                    title="取消收藏"
-                    className="p-1 rounded-md shrink-0 text-text-quaternary transition-colors hover:text-primary hover:bg-item-std-active"
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-                {(turnSummaries[turn.id] !== undefined || summarizingTurnId === turn.id) && (
-                  <div className="ml-3 mt-0.5 rounded-lg bg-item-std px-2.5 py-2 text-[11px] leading-5 text-text-secondary whitespace-pre-wrap break-words">
-                    {summarizingTurnId === turn.id ? "✨ 正在生成摘要…" : turnSummaries[turn.id]}
-                  </div>
-                )}
-              </div>
-              ))
-            )}
-          </div>
-        )}
-
         {/* 新建文件夹输入 */}
         {!collapsed && creatingFolder && (
           <div className="flex items-center gap-1 px-2 py-1 mt-1">
@@ -591,6 +519,111 @@ export function Sidebar() {
 
       {/* 底部固定区 */}
       <div className="mt-auto p-4 py-6 space-y-2">
+        {/* 收藏区：与设置同款的入口 + 展开的收藏列表（常驻可见） */}
+        <div>
+          <button
+            onClick={() => setFavOpen((v) => !v)}
+            title={collapsed ? "收藏" : undefined}
+            className={`group relative flex items-center w-full rounded-lg shadow-card overflow-hidden transition-all duration-200 ${
+              collapsed ? "justify-center" : ""
+            }`}
+          >
+            <span className="relative p-2.5 bg-btn-control group-hover:bg-btn-control-hover rounded-lg shadow">
+              <Star size={24} className={favTurns.length > 0 ? "text-brand" : ""} fill={favTurns.length > 0 ? "currentColor" : "none"} />
+            </span>
+            {!collapsed && (
+              <span className="text-base font-normal text-primary whitespace-nowrap transition-all duration-300 ml-3 flex-1 text-left">
+                收藏
+              </span>
+            )}
+            {!collapsed && (
+              <span className="flex items-center gap-1.5">
+                {favTurns.length > 0 && (
+                  <span className="rounded-full bg-brand/15 px-1.5 text-[10px] leading-4 text-brand">
+                    {favTurns.length}
+                  </span>
+                )}
+                <ChevronRight
+                  size={14}
+                  className={`mr-2 text-text-tertiary transition-transform duration-200 ${
+                    favOpen ? "rotate-90" : ""
+                  }`}
+                />
+              </span>
+            )}
+          </button>
+          {favOpen && !collapsed && (
+            <div className="mt-1 max-h-[168px] overflow-y-auto scrollbar-card-std space-y-0.5 pl-2 pr-1">
+              {favTurns.length === 0 ? (
+                <p className="px-2 py-1 text-[11px] leading-5 text-text-quaternary">
+                  在轮次右上角点 ⭐ 收藏，这里会列出可快速跳转的对话，还能生成智能摘要。
+                </p>
+              ) : (
+                favTurns.map(({ project, turn }) => (
+                  <div key={turn.id}>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => focusTurn(project.id, turn.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          focusTurn(project.id, turn.id);
+                        }
+                      }}
+                      title={`${project.title} · ${turn.title}（点击跳转）`}
+                      className="group flex items-center gap-1.5 w-full p-1.5 rounded-lg cursor-pointer transition-colors hover:bg-item-std-hover"
+                    >
+                      <Star size={13} className="text-brand shrink-0" fill="currentColor" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block truncate text-sm text-text-secondary">{turn.title}</span>
+                        <span className="block truncate text-[10px] text-text-quaternary">
+                          {project.title}
+                        </span>
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          summarizeTurn(turn.id);
+                        }}
+                        aria-label="智能摘要"
+                        title="智能摘要"
+                        className={`p-1 rounded-md shrink-0 transition-colors ${
+                          summarizingTurnId === turn.id
+                            ? "text-brand"
+                            : "text-text-quaternary hover:text-brand hover:bg-item-std-active"
+                        }`}
+                      >
+                        {summarizingTurnId === turn.id ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Sparkles size={13} />
+                        )}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite(turn.id);
+                        }}
+                        aria-label="取消收藏"
+                        title="取消收藏"
+                        className="p-1 rounded-md shrink-0 text-text-quaternary transition-colors hover:text-primary hover:bg-item-std-active"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                    {(turnSummaries[turn.id] !== undefined || summarizingTurnId === turn.id) && (
+                      <div className="ml-3 mt-0.5 rounded-lg bg-item-std px-2.5 py-2 text-[11px] leading-5 text-text-secondary whitespace-pre-wrap break-words">
+                        {summarizingTurnId === turn.id ? "✨ 正在生成摘要…" : turnSummaries[turn.id]}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
         <button
           onClick={() => openModal("settings")}
           title={collapsed ? "设置" : undefined}
