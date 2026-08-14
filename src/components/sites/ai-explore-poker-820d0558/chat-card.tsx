@@ -403,7 +403,8 @@ export function ChatCard() {
         askInCard(
           key,
           `请详细解释「${node.term}」这个概念，重要术语用 **加粗** 标记。`,
-          { node, path, messages: [], busy: false }
+          { node, path, messages: [], busy: false },
+          { silent: true }
         );
       }, 150);
     }
@@ -424,19 +425,25 @@ export function ChatCard() {
     openCard(node, parent ? `${parent.path} → ${term}` : term);
   };
 
-  /** 在卡片内提问：BYOK 走真实流式 API，否则离线知识库；回复写进该卡片。 */
+  /** 在卡片内提问：BYOK 走真实流式 API，否则离线知识库；回复写进该卡片。
+      `opts.silent`：静默提问（自动问 AI 用）——问题只发给 API，不渲染成对话里的用户消息。 */
   const askInCard = (
     key: string,
     question: string,
-    item: Pick<StackItem, "node" | "path" | "messages" | "busy">
+    item: Pick<StackItem, "node" | "path" | "messages" | "busy">,
+    opts?: { silent?: boolean }
   ) => {
     if (item.busy) return;
 
     const patch = (k: string, fn: (i: StackItem) => StackItem) =>
       setTermStack((s) => s.map((i) => (i.key === k ? fn(i) : i)));
 
-    const userMsg: Message = { id: uid(), role: "user", content: question, createdAt: Date.now() };
-    patch(key, (i) => ({ ...i, messages: [...i.messages, userMsg], busy: true }));
+    if (opts?.silent) {
+      patch(key, (i) => ({ ...i, busy: true }));
+    } else {
+      const userMsg: Message = { id: uid(), role: "user", content: question, createdAt: Date.now() };
+      patch(key, (i) => ({ ...i, messages: [...i.messages, userMsg], busy: true }));
+    }
 
     const byok = byokModels.find(
       (m) => m.id === settings.activeModelId && m.provider === "BYOK"

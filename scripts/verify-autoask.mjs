@@ -109,6 +109,7 @@ const info = await page.evaluate(() => {
   return {
     cards: cards.length,
     cardText: top?.textContent ?? "",
+    hasPromptBubble: [...(top?.querySelectorAll("span") ?? [])].some((s) => s.textContent?.includes("请详细解释")),
     apiPosts: null,
   };
 });
@@ -116,6 +117,7 @@ info.apiPosts = apiPosts;
 log("1. card opened:", info.cards >= 1);
 log("2. auto-ask fired (2 API posts):", apiPosts === 2, `(apiPosts=${apiPosts})`);
 log("3. card shows the AI explanation:", info.cardText.includes("模板继承") && info.cardText.includes("模板引擎"));
+log("4. auto prompt NOT exposed as a user bubble:", !info.hasPromptBubble);
 
 await browser.close();
 console.log("DONE");
