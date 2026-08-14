@@ -12,8 +12,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Eye,
-  KeyRound,
   Keyboard,
   Layers,
   Palette,
@@ -246,9 +244,7 @@ function AvatarColorPicker({
 const NAV_ITEMS: { id: string; label: string; icon: typeof Bot }[] = [
   { id: "models", label: "AI 模型", icon: Bot },
   { id: "allocation", label: "模型分配", icon: Layers },
-  { id: "api", label: "API 密钥", icon: KeyRound },
   { id: "theme", label: "颜色主题", icon: Palette },
-  { id: "permissions", label: "编辑权限", icon: Eye },
   { id: "shortcuts", label: "快捷键", icon: Keyboard },
   { id: "auto", label: "自动行为", icon: Zap },
 ];
@@ -294,28 +290,27 @@ function ModelRow({
             {model.provider} · {model.description}
           </p>
         </div>
-        <div className="flex gap-1.5 flex-shrink-0">
-          <span className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5">
-            {model.tier.toUpperCase()}
+        {model.provider === "BYOK" && (
+          <span className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0 self-center">
+            BYOK
           </span>
-          {model.multiplier && (
-            <span className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5">
-              {model.multiplier}
-            </span>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
 export function SettingsModal() {
-  const { settings, setSettings, closeModal, openModal } = useApp();
+  const { settings, setSettings, closeModal, openModal, byokModels, addByokModel } = useApp();
   const [draft, setDraft] = useState<ChatSettings>(settings);
   const [section, setSection] = useState("models");
-  // 无 settings 字段支撑的面板项（演示用本地状态）
-  const [perm, setPerm] = useState("owner");
   const [toast, showToast] = useToast();
+  // BYOK 表单
+  const [byokOpen, setByokOpen] = useState(false);
+  const [byokName, setByokName] = useState("");
+  const [byokBaseUrl, setByokBaseUrl] = useState("");
+  const [byokModelId, setByokModelId] = useState("");
+  const [byokKey, setByokKey] = useState("");
 
   const update = (p: Partial<ChatSettings>) =>
     setDraft((d) => ({ ...d, ...p }));
@@ -398,17 +393,96 @@ export function SettingsModal() {
                   可用模型
                 </h4>
                 <button
-                  onClick={() => showToast("BYOK（演示）")}
+                  onClick={() => setByokOpen((v) => !v)}
                   className="flex items-center gap-2 text-sm text-brand mb-1 hover:opacity-80 transition-opacity"
                 >
                   <Plus size={15} />
                   添加 BYOK 模型
                 </button>
                 <p className="text-xs text-text-tertiary mb-4">
-                  免费档可添加 1 个 BYOK 模型
+                  添加你自己的模型（密钥仅存本机）
                 </p>
 
+                {byokOpen && (
+                  <div className="mb-4 p-3 bg-modal-floating border border-std rounded-xl space-y-2">
+                    <input
+                      autoFocus
+                      value={byokName}
+                      onChange={(e) => setByokName(e.target.value)}
+                      placeholder="模型名称，如 my-gpt-4o"
+                      className="w-full bg-inputarea border border-std rounded-lg px-3 py-2 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
+                    />
+                    <input
+                      value={byokBaseUrl}
+                      onChange={(e) => setByokBaseUrl(e.target.value)}
+                      placeholder="API 地址，如 https://api.deepseek.com/v1（OpenAI 兼容）"
+                      className="w-full bg-inputarea border border-std rounded-lg px-3 py-2 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
+                    />
+                    <input
+                      value={byokModelId}
+                      onChange={(e) => setByokModelId(e.target.value)}
+                      placeholder="模型 ID，如 deepseek-chat（留空则用名称）"
+                      className="w-full bg-inputarea border border-std rounded-lg px-3 py-2 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
+                    />
+                    <input
+                      type="password"
+                      value={byokKey}
+                      onChange={(e) => setByokKey(e.target.value)}
+                      placeholder="API Key（sk-…，仅存本机）"
+                      className="w-full bg-inputarea border border-std rounded-lg px-3 py-2 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
+                    />
+                    <p className="text-[10px] text-text-quaternary leading-4">
+                      请求发往你填的地址（浏览器直连，密钥不出本机）；失败时自动回退离线知识库。
+                    </p>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          setByokOpen(false);
+                          setByokName("");
+                          setByokBaseUrl("");
+                          setByokModelId("");
+                          setByokKey("");
+                        }}
+                        className="text-xs text-text-tertiary hover:text-primary px-3 py-1.5 transition-colors"
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!byokName.trim()) {
+                            showToast("请填写模型名称");
+                            return;
+                          }
+                          addByokModel({
+                            name: byokName,
+                            baseUrl: byokBaseUrl,
+                            modelId: byokModelId,
+                            apiKey: byokKey,
+                          });
+                          setByokName("");
+                          setByokBaseUrl("");
+                          setByokModelId("");
+                          setByokKey("");
+                          setByokOpen(false);
+                          showToast("已添加 BYOK 模型");
+                        }}
+                        className="text-xs text-black bg-brand hover:opacity-90 rounded-full px-4 py-1.5 font-medium transition-opacity"
+                      >
+                        添加
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {MODELS.map((m) => (
+                  <ModelRow
+                    key={m.id}
+                    model={m}
+                    selected={draft.activeModelId === m.id}
+                    onSelect={() => update({ activeModelId: m.id })}
+                  />
+                ))}
+                {byokModels.map((m) => (
                   <ModelRow
                     key={m.id}
                     model={m}
@@ -431,7 +505,7 @@ export function SettingsModal() {
                   <div className="flex items-center gap-2 min-w-0">
                     <Star size={12} className="text-brand flex-shrink-0" />
                     <span className="text-sm text-primary truncate">
-                      {MODELS.find((m) => m.id === draft.activeModelId)?.name ??
+                      {[...MODELS, ...byokModels].find((m) => m.id === draft.activeModelId)?.name ??
                         draft.activeModelId}
                     </span>
                   </div>
@@ -441,23 +515,6 @@ export function SettingsModal() {
                 </div>
                 <p className="text-xs text-text-tertiary mt-3">
                   在「AI 模型」中点击模型可切换默认分配；对话框内亦可随时切换。
-                </p>
-              </div>
-            )}
-
-            {section === "api" && (
-              <div>
-                <h4 className="text-sm font-semibold text-text-header-secondary mb-3">
-                  API 密钥
-                </h4>
-                <label className="text-xs text-text-tertiary">BYOK 密钥</label>
-                <input
-                  type="password"
-                  placeholder="sk-…"
-                  className="mt-2 w-full bg-inputarea border border-std rounded-xl px-4 py-2.5 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
-                />
-                <p className="text-xs text-text-tertiary mt-3">
-                  密钥仅保存在本地（演示环境）。免费档可添加 1 个 BYOK 模型。
                 </p>
               </div>
             )}
@@ -475,32 +532,6 @@ export function SettingsModal() {
                       theme={t}
                       checked={draft.theme === t.name}
                       onSelect={() => update({ theme: t.name })}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {section === "permissions" && (
-              <div>
-                <h4 className="text-sm font-semibold text-text-header-secondary mb-3">
-                  编辑权限
-                </h4>
-                <p className="text-xs text-text-tertiary mb-4">
-                  控制谁能查看与编辑你的项目。
-                </p>
-                <div className="space-y-1">
-                  {[
-                    { id: "owner", label: "仅自己（私有）" },
-                    { id: "comment", label: "可评论" },
-                    { id: "view", label: "可查看" },
-                  ].map((p) => (
-                    <RadioRow
-                      key={p.id}
-                      name="settings_permission"
-                      label={p.label}
-                      checked={perm === p.id}
-                      onSelect={() => setPerm(p.id)}
                     />
                   ))}
                 </div>

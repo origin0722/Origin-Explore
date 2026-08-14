@@ -73,7 +73,7 @@ export function AppShell() {
              original), off-canvas drawer on mobile. Width tracks `collapsed`
              on every breakpoint (225px / 56px). ---- */}
       <div
-        className={`fixed bottom-0 left-0 top-0 z-40 h-full overflow-hidden bg-bg transition-all duration-200 sm:absolute sm:z-auto sm:translate-x-0 sm:bg-transparent ${
+        className={`fixed bottom-0 left-0 top-0 z-40 h-full overflow-hidden bg-bg transition-all duration-200 sm:absolute sm:translate-x-0 sm:bg-transparent ${
           collapsed ? "w-[56px]" : "w-[225px]"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
@@ -138,15 +138,16 @@ export function AppShell() {
           </button>
         </div>
 
-        {/* Mobile-only FAB — opens Mindscape; original places it bottom-center
-            (32x32, 90px from the bottom) with a brand-green glyph */}
+        {/* Centered Mind Universe toggle — original places it bottom-center above
+            the input (32x32 @90px on mobile / 36x36 @120px on desktop) with a
+            brand-green glyph. Click again to close the Mindscape panel. */}
         <button
           type="button"
-          aria-label="打开思维宇宙"
-          onClick={() => setMindscapeOpen(true)}
-          className="absolute bottom-[90px] left-1/2 z-20 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full bg-btn-std text-brand shadow-card transition-colors hover:bg-btn-std-hover sm:hidden"
+          aria-label={mindscapeOpen ? "关闭思维宇宙" : "打开思维宇宙"}
+          onClick={() => setMindscapeOpen(!mindscapeOpen)}
+          className="absolute bottom-[90px] left-1/2 z-20 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full bg-btn-std text-brand shadow-card transition-colors hover:bg-btn-std-hover sm:bottom-[120px] sm:h-9 sm:w-9"
         >
-          <BrainCircuit size={18} />
+          <BrainCircuit className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
         </button>
 
         {/* ICP footer strip */}

@@ -1,11 +1,17 @@
 # Clone Progress — https://ai.explore.poker/chat
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14（BYOK 流式 SSE + 相关概念同域修复）
 
-## 目标（2026-08-13 更新）
-克隆 Explore（AI 结构化思维/层级对话工具）界面。**视觉要求已放宽**：结构与交互一致，颜色/文案/图形可自由更换（用户明确）。
-- 路由 `/`、mock 数据、无后端
+## 目标
+克隆 Explore（AI 结构化思维/层级对话工具）界面。定位为**个人工具**：路由 `/`、mock 数据、无后端、数据仅存 localStorage、仅中文文案。
 - site-key: `ai-explore-poker-820d0558` / page-key: `chat-6ea4b827`
+
+## 阶段总览
+- Phase 1 侦察 — ✅ 完成（下方）
+- Phase 2 基础建设 — ✅ 完成（设计令牌/字体/类型/组件规格）
+- Phase 3 组件构建 — ✅ 完成（9 个组件：Shell/Sidebar/Welcome/ChatCard/InputArea/Mindscape/Modals/DocReader/MindUniverse）
+- R7 像素级 QA — ✅ 完成（见 `docs/specs/.../r7-qa-handoff.md`）
+- **R8 功能开发 — ✅ 完成**（见 `docs/specs/.../r8-dev-handoff.md`）
 
 ## Phase 1 侦察 — ✅ 已完成（2026-08-13）
 
@@ -28,11 +34,9 @@ Last updated: 2026-08-13
 1. `probe-ai-explore-poker-820d0558.mjs` — 交互探测（--actions= 链、--vp=WxH、hideov/ov/ls/radio/ctrlenter 动作）
 2. `extract-layout-ai-explore-poker-820d0558.mjs` — 布局+计算样式提取（内置 hideov）
 3. `inspect-ai-explore-poker-820d0558.mjs` — 全量初检
+4. `qa-pixel.mjs` / `qa-local.mjs` / `analyze-diff.mjs` / `row-profile.mjs` / `font-check.cjs` — QA 与分析
+5. `verify-*.mjs` — 功能回归测试（R8 新增，共 5 个）
 
-## 下一步（Phase 2 基础建设）
-1. **设计令牌** → globals.css（用提取的色值做基础，可自定配色；参考 PAGE_TOPOLOGY §0）
-2. **字体** → next/font: Inter + Noto Sans SC + Bruno Ace（logo 用）
-3. **图标** → lucide-react 已有依赖确认（zap/brain/sparkles/help-circle/plus/lock/chevron-right/eye/quote/copy/settings 等）
-4. **类型** → src/types/sites/ai-explore-poker-820d0558.ts（Project/Turn/Message/ChatSettings）
-5. **favicon/资源** → 下载站点 favicon 或自定
-6. Phase 3: 组件规格（Sidebar/Canvas/ChatCard/InputArea/Mindscape/Modals/OnboardingWizard）→ 并行构建者
+## 下一步
+见 `docs/specs/ai-explore-poker-820d0558/r8-dev-handoff.md` 第六节「剩余已知差距」。
+

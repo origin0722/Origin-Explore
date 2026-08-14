@@ -3,18 +3,25 @@
  * Mock-data driven clone; no real backend.
  */
 
-export type ModelTier = "free" | "pro" | "max";
-
 export interface ModelInfo {
   id: string;
   name: string;
   provider: string;
   description: string;
-  tier: ModelTier;
-  /** usage multiplier badge, e.g. "×0.3" */
-  multiplier?: string;
   vision?: boolean;
-  locked?: boolean;
+}
+
+/**
+ * User-added BYOK model (bring-your-own-key). Extends ModelInfo with the
+ * connection details; the API key never leaves the local machine (the browser
+ * calls the provider endpoint directly).
+ */
+export interface ByokModel extends ModelInfo {
+  /** OpenAI-compatible base URL, e.g. "https://api.deepseek.com/v1" */
+  baseUrl: string;
+  /** provider model id, e.g. "deepseek-chat" */
+  modelId: string;
+  apiKey: string;
 }
 
 export interface Project {
@@ -53,6 +60,8 @@ export interface Turn {
 
 export interface ChatProject extends Project {
   turns: Turn[];
+  /** 常驻聊天标记：固定的跨项目会话，不可删除、不进项目列表 */
+  resident?: boolean;
 }
 
 export interface ChatSettings {

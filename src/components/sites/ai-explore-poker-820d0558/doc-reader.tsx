@@ -129,7 +129,17 @@ export function DocLibrary() {
     <div className="h-full w-full flex flex-col">
       {/* 工具栏 */}
       <div className="px-6 py-4 border-b border-divider flex items-center justify-between shrink-0">
-        <h2 className="text-lg font-bold">本地文档</h2>
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            onClick={() => setActiveDocId(null)}
+            className="text-text-secondary hover:text-text-primary transition-colors shrink-0"
+            title="返回聊天"
+            aria-label="返回聊天"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <h2 className="text-lg font-bold truncate">本地文档</h2>
+        </div>
         <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-btn-std hover:bg-btn-std-hover rounded-full text-sm transition-colors">
           {parsing ? (
             <Loader2 size={15} className="animate-spin" />
@@ -169,7 +179,9 @@ export function DocLibrary() {
               <div className="flex items-start justify-between gap-2">
                 <KindBadge kind={doc.kind} />
                 <button
-                  className="text-text-quaternary hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="text-text-quaternary hover:text-destructive transition-colors"
+                  aria-label="删除文档"
+                  title="删除文档"
                   onClick={(e) => {
                     e.stopPropagation();
                     removeDocument(doc.id);
@@ -368,7 +380,7 @@ function HighlightedText({
    ============================================================ */
 
 export function DocReader() {
-  const { documents, activeDocId, setActiveDocId, termStates, openDocQuestion } =
+  const { documents, activeDocId, setActiveDocId, termStates, openDocQuestion, removeDocument } =
     useApp();
   const doc = documents.find((d) => d.id === activeDocId) ?? null;
 
@@ -432,6 +444,17 @@ export function DocReader() {
         <span className="text-xs text-text-quaternary ml-auto shrink-0">
           已识别 {terms.length} 个术语
         </span>
+        <button
+          onClick={() => {
+            removeDocument(doc.id);
+            setActiveDocId("__library__");
+          }}
+          aria-label="删除文档"
+          title="删除文档"
+          className="text-text-quaternary hover:text-destructive transition-colors shrink-0"
+        >
+          <Trash2 size={15} />
+        </button>
       </div>
 
       {/* 正文 + 桌面问答列 */}

@@ -6,15 +6,15 @@
  * 状态全部来自 useApp()（无 props）；折叠态仅显示 44×44 图标块。
  * 视觉自由发挥，结构按 02-sidebar.md。
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   BookOpen,
   ChevronRight,
-  Cloud,
   FileText,
   Folder,
   FolderPlus,
   FolderTree,
+  Loader2,
   MessageSquare,
   MoreHorizontal,
   PanelLeftClose,
@@ -22,9 +22,14 @@ import {
   Settings,
   Sparkles,
   Upload,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { useApp } from "./app-context";
+import {
+  extractTextFromFile,
+  isParseable,
+} from "@/lib/sites/ai-explore-poker-820d0558/doc-parser";
 
 interface TopAction {
   key: string;
@@ -38,8 +43,18 @@ export function Sidebar() {
     projects,
     activeProjectId,
     selectProject,
+    selectResident,
     deleteProject,
     createProject,
+    renameProject,
+    folders,
+    createFolder,
+    removeFolder,
+    moveProjectToFolder,
+    smartMode,
+    toggleSmartMode,
+    importProject,
+    addDocument,
     collapsed,
     toggleSidebar,
     openModal,
@@ -48,10 +63,17 @@ export function Sidebar() {
     setActiveDocId,
   } = useApp();
 
-  const [openGroups, setOpenGroups] = useState({ local: true, cloud: true });
+  const [openGroups, setOpenGroups] = useState<{ local: boolean }>({ local: true });
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [folderDraft, setFolderDraft] = useState("");
+  const importRef = useRef<HTMLInputElement>(null);
+  const docUploadRef = useRef<HTMLInputElement>(null);
+  const [docUploading, setDocUploading] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -66,15 +88,88 @@ export function Sidebar() {
     []
   );
 
+  const startRename = (id: string, current: string) => {
+    setMenuFor(null);
+    setRenamingId(id);
+    setRenameDraft(current);
+  };
+  const confirmRename = (id: string) => {
+    renameProject(id, renameDraft);
+    setRenamingId(null);
+  };
+  const confirmFolder = () => {
+    createFolder(folderDraft);
+    setFolderDraft("");
+    setCreatingFolder(false);
+  };
+
+  const downloadProject = (p: (typeof projects)[number]) => {
+    const data = { title: p.title, turns: p.turns };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${p.title || "project"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setMenuFor(null);
+    showToast("已导出项目");
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        importProject({ title: data?.title, turns: data?.turns });
+        showToast("已导入项目");
+      } catch {
+        showToast("导入失败：无效的 JSON 文件");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  /** 侧边栏"+"：直接上传文档并进入文档库。 */
+  const handleDocFiles = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length === 0 || docUploading) return;
+    setDocUploading(true);
+    for (const file of files) {
+      try {
+        const { kind, content } = await extractTextFromFile(file);
+        if (!isParseable(content)) {
+          showToast(`「${file.name}」解析为空`);
+          continue;
+        }
+        addDocument({
+          id: "doc-" + Math.random().toString(36).slice(2, 10),
+          name: file.name,
+          kind,
+          content,
+          addedAt: Date.now(),
+        });
+      } catch {
+        showToast(`「${file.name}」解析失败`);
+      }
+    }
+    setDocUploading(false);
+    setActiveDocId("__library__");
+    showToast("已上传文档");
+  };
+
   const topActions: TopAction[] = [
     { key: "toggle", icon: PanelLeftClose, label: "收起侧边栏", onClick: toggleSidebar },
-    { key: "folder", icon: FolderPlus, label: "新建文件夹", onClick: () => showToast("文件夹分组（演示功能）") },
+    { key: "folder", icon: FolderPlus, label: "新建文件夹", onClick: () => setCreatingFolder(true) },
     { key: "new", icon: Plus, label: "新建项目", onClick: createProject },
-    { key: "import", icon: Upload, label: "导入项目", onClick: () => showToast("导入项目（演示功能）") },
+    { key: "import", icon: Upload, label: "导入项目", onClick: () => importRef.current?.click() },
   ];
 
-  const localProjects = projects.filter((p) => !p.cloud);
-  const cloudProjects = projects.filter((p) => p.cloud);
+  const localProjects = projects.filter((p) => !p.cloud && !p.resident);
 
   const renderTopButton = (a: TopAction) => (
     <button
@@ -96,13 +191,7 @@ export function Sidebar() {
     </button>
   );
 
-  const renderGroupHeader = (
-    key: "local" | "cloud",
-    icon: LucideIcon,
-    label: string,
-    open: boolean,
-    pill?: string
-  ) => {
+  const renderGroupHeader = (key: "local", icon: LucideIcon, label: string, open: boolean) => {
     const GroupIcon = icon;
     return (
     <button
@@ -120,12 +209,7 @@ export function Sidebar() {
       )}
       <GroupIcon size={14} className="text-text-tertiary shrink-0" />
       {!collapsed && (
-        <span className="flex-1 text-left text-xs text-text-tertiary font-medium truncate">{label}</span>
-      )}
-      {!collapsed && pill && (
-        <span className="text-xs text-text-tertiary border border-std rounded px-1.5 py-0.5 whitespace-nowrap">
-          {pill}
-        </span>
+        <span className="flex-1 text-left text-sm text-text-tertiary font-medium truncate">{label}</span>
       )}
     </button>
     );
@@ -133,6 +217,7 @@ export function Sidebar() {
 
   const renderProjectRow = (p: (typeof projects)[number]) => {
     const isActive = p.id === activeProjectId;
+    const isRenaming = renamingId === p.id;
     return (
       <div
         key={p.id}
@@ -161,7 +246,24 @@ export function Sidebar() {
             <ChevronRight size={14} className={`transition-transform duration-200 ${isActive ? "rotate-90" : ""}`} />
           )}
         </span>
-        {!collapsed && <span className="block flex-1 min-w-0 truncate text-sm text-primary ml-1">{p.title}</span>}
+        {!collapsed &&
+          (isRenaming ? (
+            <input
+              autoFocus
+              value={renameDraft}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") confirmRename(p.id);
+                else if (e.key === "Escape") setRenamingId(null);
+              }}
+              onBlur={() => confirmRename(p.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 min-w-0 rounded bg-item-std px-1.5 py-0.5 text-sm text-primary outline-none ring-1 ring-brand/50 ml-1"
+            />
+          ) : (
+            <span className="block flex-1 min-w-0 truncate text-sm text-primary ml-1">{p.title}</span>
+          ))}
         {!collapsed && (
           <button
             onClick={(e) => {
@@ -180,23 +282,48 @@ export function Sidebar() {
             onClick={(e) => e.stopPropagation()}
           >
             <button
+              onClick={() => startRename(p.id, p.title)}
+              className="w-full text-left px-2 py-1.5 rounded-md text-sm text-primary hover:bg-item-std-active"
+            >
+              重命名
+            </button>
+            <button
+              onClick={() => downloadProject(p)}
+              className="w-full text-left px-2 py-1.5 rounded-md text-sm text-primary hover:bg-item-std-active"
+            >
+              导出为 JSON
+            </button>
+            <div className="px-2 pt-1.5 pb-0.5 text-[10px] text-text-quaternary">移动到文件夹</div>
+            {folders.map((f) => (
+              <button
+                key={f}
+                onClick={() => {
+                  moveProjectToFolder(p.id, f);
+                  setMenuFor(null);
+                }}
+                className="w-full text-left pl-4 pr-2 py-1 rounded-md text-sm text-text-secondary hover:bg-item-std-active"
+              >
+                {f}
+              </button>
+            ))}
+            <button
+              onClick={() => {
+                moveProjectToFolder(p.id, null);
+                setMenuFor(null);
+              }}
+              className="w-full text-left pl-4 pr-2 py-1 rounded-md text-sm text-text-secondary hover:bg-item-std-active"
+            >
+              无文件夹
+            </button>
+            <button
               onClick={() => {
                 deleteProject(p.id);
                 setMenuFor(null);
                 showToast("已删除项目");
               }}
-              className="w-full text-left px-2 py-1.5 rounded-md text-sm text-primary hover:bg-item-std-active"
+              className="w-full text-left px-2 py-1.5 rounded-md text-sm text-destructive hover:bg-item-std-active"
             >
               删除
-            </button>
-            <button
-              onClick={() => {
-                setMenuFor(null);
-                showToast("重命名（演示功能）");
-              }}
-              className="w-full text-left px-2 py-1.5 rounded-md text-sm text-primary hover:bg-item-std-active"
-            >
-              重命名
             </button>
           </div>
         )}
@@ -226,19 +353,24 @@ export function Sidebar() {
           onClick={() => setActiveDocId("__library__")}
           className="flex items-center justify-between px-4 pt-4 pb-1 cursor-pointer"
         >
-          <span className="flex items-center gap-2 text-xs text-text-tertiary font-medium min-w-0">
+          <span className="flex items-center gap-2 text-sm font-medium text-text-tertiary min-w-0">
             <BookOpen size={14} className="shrink-0" />
             <span className="truncate">本地文档</span>
           </span>
           <button
-            aria-label="打开文档库"
+            aria-label="上传文档"
+            title="上传文档"
             onClick={(e) => {
               e.stopPropagation();
-              setActiveDocId("__library__");
+              docUploadRef.current?.click();
             }}
             className="w-6 h-6 rounded-full bg-btn-control hover:bg-btn-control-hover flex items-center justify-center text-text-tertiary hover:text-primary transition-colors shrink-0"
           >
-            <Plus size={14} />
+            {docUploading ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Plus size={14} />
+            )}
           </button>
         </div>
       )}
@@ -257,23 +389,50 @@ export function Sidebar() {
 
       {/* 项目滚动区 */}
       <div className="flex-1 overflow-y-auto scrollbar-card-std w-full max-w-xs self-center px-2">
-        {/* 常驻聊天 */}
+        {/* 常驻聊天：固定的跨项目会话，点击进入（不可删除） */}
         <div
-          className={`flex items-center w-full gap-2 rounded-xl p-2 hover:bg-item-std transition-colors ${
-            collapsed ? "justify-center" : ""
-          }`}
+          role="button"
+          tabIndex={0}
+          onClick={() => selectResident()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              selectResident();
+            }
+          }}
+          title="常驻聊天（跨项目保留）"
+          className={`flex items-center w-full gap-2 rounded-xl p-2 cursor-pointer transition-colors ${
+            activeProjectId === "resident" ? "bg-item-std" : "hover:bg-item-std"
+          } ${collapsed ? "justify-center" : ""}`}
         >
           <MessageSquare size={18} className="text-text-icon-secondary shrink-0" />
-          {!collapsed && <span className="flex-1 min-w-0 truncate text-sm text-primary">常驻聊天</span>}
+          {!collapsed && <span className="flex-1 min-w-0 truncate text-sm font-medium text-primary">常驻聊天</span>}
           {!collapsed && (
             <div className="flex items-center gap-1 shrink-0">
-              <button aria-label="聊天模式" className="p-1 rounded-md bg-card-floating text-primary">
+              <button
+                aria-label="聊天模式"
+                title="聊天模式"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (smartMode) toggleSmartMode();
+                }}
+                className={`p-1 rounded-md transition-colors ${
+                  smartMode ? "text-text-tertiary hover:text-primary hover:bg-item-std-hover" : "bg-card-floating text-primary"
+                }`}
+              >
                 <MessageSquare size={13} />
               </button>
               <button
                 aria-label="智能模式"
-                onClick={() => showToast("AI 智能模式（演示功能）")}
-                className="p-1 rounded-md text-text-tertiary hover:text-primary hover:bg-item-std-hover"
+                title="AI 智能模式"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!smartMode) toggleSmartMode();
+                  showToast(smartMode ? "已切回普通聊天" : "已开启 AI 智能模式");
+                }}
+                className={`p-1 rounded-md transition-colors ${
+                  smartMode ? "bg-card-floating text-brand" : "text-text-tertiary hover:text-primary hover:bg-item-std-hover"
+                }`}
               >
                 <Sparkles size={13} />
               </button>
@@ -281,16 +440,60 @@ export function Sidebar() {
           )}
         </div>
 
+        {/* 新建文件夹输入 */}
+        {!collapsed && creatingFolder && (
+          <div className="flex items-center gap-1 px-2 py-1 mt-1">
+            <input
+              autoFocus
+              value={folderDraft}
+              onChange={(e) => setFolderDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmFolder();
+                else if (e.key === "Escape") {
+                  setCreatingFolder(false);
+                  setFolderDraft("");
+                }
+              }}
+              onBlur={confirmFolder}
+              placeholder="文件夹名称，回车确认"
+              className="flex-1 min-w-0 rounded bg-item-std px-2 py-1 text-sm text-primary outline-none ring-1 ring-brand/50 placeholder:text-text-quaternary"
+            />
+          </div>
+        )}
+
+        {/* 用户文件夹分组 */}
+        {!collapsed &&
+          folders.map((folderName) => (
+            <div key={folderName} className="mt-1">
+              <div className="group flex items-center gap-1">
+                <span className="flex items-center flex-1 min-w-0 gap-2 py-1.5 px-1">
+                  <Folder size={14} className="text-text-tertiary shrink-0" />
+                  <span className="flex-1 text-left text-sm text-text-tertiary font-medium truncate">
+                    {folderName}
+                  </span>
+                </span>
+                <button
+                  onClick={() => {
+                    removeFolder(folderName);
+                    showToast("已删除文件夹");
+                  }}
+                  aria-label="删除文件夹"
+                  className="w-5 h-5 rounded flex items-center justify-center text-text-tertiary hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              {localProjects.filter((p) => p.folder === folderName).map(renderProjectRow)}
+            </div>
+          ))}
+
         {/* 本地项目 */}
         <div className="mt-1">
           {renderGroupHeader("local", Folder, "本地项目", openGroups.local)}
-          {openGroups.local && localProjects.map(renderProjectRow)}
-        </div>
-
-        {/* 云端项目 */}
-        <div className="mt-1">
-          {renderGroupHeader("cloud", Cloud, "云端项目", openGroups.cloud, "仅会员")}
-          {openGroups.cloud && cloudProjects.map(renderProjectRow)}
+          {openGroups.local &&
+            localProjects
+              .filter((p) => !p.folder || !folders.includes(p.folder))
+              .map(renderProjectRow)}
         </div>
       </div>
 
@@ -344,6 +547,25 @@ export function Sidebar() {
 
       {/* 菜单点击外部关闭 */}
       {menuFor && <div className="fixed inset-0 z-20" onClick={() => setMenuFor(null)} />}
+
+      {/* 导入项目的隐藏文件输入 */}
+      <input
+        ref={importRef}
+        type="file"
+        accept=".json,application/json"
+        onChange={handleImportFile}
+        className="hidden"
+      />
+
+      {/* 侧边栏"+"上传文档的隐藏文件输入 */}
+      <input
+        ref={docUploadRef}
+        type="file"
+        accept=".pdf,.docx,.md,.markdown,.txt,.html,.htm"
+        multiple
+        onChange={handleDocFiles}
+        className="hidden"
+      />
 
       {/* 演示提示 */}
       {toast && (

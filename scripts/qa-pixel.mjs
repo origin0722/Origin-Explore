@@ -116,8 +116,11 @@ const SCENES = [
     viewport: { width: 390, height: 844 },
     setup: async () => {},
     seed: async (page) => {
+      // The archived reference (state-mobfab.png) shows the mobile welcome
+      // with the Mindscape panel open via the bottom-center FAB — open it
+      // the same way instead of creating a project.
       await page.evaluate(() => {
-        [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("新建项目"))?.click();
+        document.querySelector("button[aria-label='打开思维宇宙']")?.click();
       });
       await sleep(500);
     },

@@ -137,6 +137,9 @@
    ============================================================ */
 @theme inline {
   --color-bg: var(--bg);
+  /* `text-primary` is the clone's main (white) text color — override the
+     shadcn token that would otherwise resolve to --primary (brand green). */
+  --color-primary: var(--text-primary);
   --color-brand: var(--brand);
   --color-brandtw: var(--brandtw);
   --color-card-std: var(--card-std);
@@ -414,6 +417,47 @@ body {
 @keyframes card-enter-from-bottom {
   from { opacity: 0; transform: translate(-50%, 50%) scale(1); }
   to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+/* Right-anchored card entrance (clone's term cards sit at right-2, not centered).
+   The centered variants above bake translate(-50%,-50%) in; using them on an
+   anchored card shifts it off-screen. */
+.card-container.entering-from-right { animation: card-enter-from-right 300ms ease-out; }
+@keyframes card-enter-from-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+/* Right-anchored card exit (mirrors the entrance). */
+.card-container.exiting-to-right { animation: card-exit-to-right 280ms ease-in forwards; }
+@keyframes card-exit-to-right {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(32px); }
+}
+/* Centered cascade term cards — exit (pure fade keeps the per-layer inline
+   transform so the cascade offsets stay intact while closing). */
+.card-container.exiting-cascade { animation: card-exit-cascade 280ms ease-in forwards; }
+@keyframes card-exit-cascade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+/* Centered cascade term cards — entrance: fade + rise + settle. The per-layer
+   cascade offset rides on --cx/--cy so the transform never fights the stack. */
+.card-container.entering-cascade {
+  animation: card-enter-cascade 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes card-enter-cascade {
+  from {
+    opacity: 0;
+    transform: translate(
+        calc(-50% + var(--cx, 0px)),
+        calc(-50% + var(--cy, 0px) + 26px)
+      )
+      scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--cx, 0px)), calc(-50% + var(--cy, 0px)))
+      scale(1);
+  }
 }
 .card-container.exiting-fly-up { animation: card-fly-up 350ms forwards ease-in-out; }
 @keyframes card-fly-up { to { opacity: 0; transform: translate(-50%, -150%) scale(1); } }

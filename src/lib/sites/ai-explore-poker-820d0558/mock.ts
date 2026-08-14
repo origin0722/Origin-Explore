@@ -15,15 +15,15 @@ import type {
 } from "@/types/sites/ai-explore-poker-820d0558";
 
 export const MODELS: ModelInfo[] = [
-  { id: "builtin:aiping/deepseek-v4-flash-0731/chat", name: "deepseek-v4-flash-0731", provider: "AIPing", description: "Built-in model", tier: "free", multiplier: "×0.3" },
-  { id: "builtin:aiping/deepseek-v4-flash-0731/reasoner", name: "deepseek-v4-flash-0731", provider: "AIPing", description: "Built-in reasoning model", tier: "free", multiplier: "×0.3" },
-  { id: "builtin:aiping/Step-3.5-Flash", name: "Step-3.5-Flash", provider: "AIPing", description: "Enough for simple tasks", tier: "free", multiplier: "×0.2" },
-  { id: "builtin:tencent-tokenhub/qwen3.5-flash/chat", name: "qwen3.5-flash", provider: "Tencent TokenHub", description: "Vision-capable chat model", tier: "free", multiplier: "×0.2", vision: true },
-  { id: "builtin:tencent-tokenhub/qwen3.5-flash/reasoner", name: "qwen3.5-flash", provider: "Tencent TokenHub", description: "Vision-capable reasoning model", tier: "free", multiplier: "×0.2", vision: true },
-  { id: "builtin:grok/grok-4.5", name: "grok-4.5", provider: "Grok / xAI", description: "Good for most STEM tasks & coding", tier: "pro", multiplier: "×4.7" },
-  { id: "builtin:grok/grok-4.6", name: "grok-4.6", provider: "Grok / xAI", description: "Good for most STEM tasks", tier: "pro", multiplier: "×4.7" },
-  { id: "builtin:tencent-tokenhub/kimi-k3", name: "kimi-k3", provider: "Tencent TokenHub", description: "Just a little less knowledgeable than Gemini, but better at coding", tier: "max", multiplier: "×10.0", vision: true },
-  { id: "builtin:zenmux/openai-gpt-5.6-sol", name: "openai/gpt-5.6-sol", provider: "ZenMux", description: "Frontier solver model", tier: "max", multiplier: "×20.4", vision: true },
+  { id: "builtin:aiping/deepseek-v4-flash-0731/chat", name: "deepseek-v4-flash-0731", provider: "AIPing", description: "Built-in model" },
+  { id: "builtin:aiping/deepseek-v4-flash-0731/reasoner", name: "deepseek-v4-flash-0731", provider: "AIPing", description: "Built-in reasoning model" },
+  { id: "builtin:aiping/Step-3.5-Flash", name: "Step-3.5-Flash", provider: "AIPing", description: "Enough for simple tasks" },
+  { id: "builtin:tencent-tokenhub/qwen3.5-flash/chat", name: "qwen3.5-flash", provider: "Tencent TokenHub", description: "Vision-capable chat model", vision: true },
+  { id: "builtin:tencent-tokenhub/qwen3.5-flash/reasoner", name: "qwen3.5-flash", provider: "Tencent TokenHub", description: "Vision-capable reasoning model", vision: true },
+  { id: "builtin:grok/grok-4.5", name: "grok-4.5", provider: "Grok / xAI", description: "Good for most STEM tasks & coding" },
+  { id: "builtin:grok/grok-4.6", name: "grok-4.6", provider: "Grok / xAI", description: "Good for most STEM tasks" },
+  { id: "builtin:tencent-tokenhub/kimi-k3", name: "kimi-k3", provider: "Tencent TokenHub", description: "Just a little less knowledgeable than Gemini, but better at coding", vision: true },
+  { id: "builtin:zenmux/openai-gpt-5.6-sol", name: "openai/gpt-5.6-sol", provider: "ZenMux", description: "Frontier solver model", vision: true },
 ];
 
 export const THEMES: ThemeOption[] = [
@@ -313,6 +313,332 @@ CHSH 是量子通信与量子密钥分发安全性的理论基石。`,
       },
     ],
   },
+  {
+    id: "machine-learning",
+    term: "机器学习",
+    kind: "child",
+    summary: `**机器学习**（Machine Learning）是让程序从数据中自动学习规律、而不需要显式编程的技术。
+
+它把"找规律"变成"优化"：定义一个损失函数度量预测与真实的差距，再用数据驱动地调整参数把损失降到最低。
+
+> 机器学习的三大范式：**监督学习**、**无监督学习**、**强化学习**。`,
+    children: [
+      {
+        id: "supervised-learning",
+        term: "监督学习",
+        kind: "child",
+        summary: `**监督学习**（Supervised Learning）使用带标签的数据训练模型：每条样本都有输入 \`x\` 和期望输出 \`y\`。
+
+- **回归**：预测连续值（房价、温度）
+- **分类**：预测离散类别（垃圾邮件、图片里是猫还是狗）
+
+模型学到的本质是"输入 → 输出"的映射 \`f(x) ≈ y\`。`,
+        children: [
+          {
+            id: "regression",
+            term: "回归",
+            kind: "child",
+            summary: `**回归**（Regression）预测连续数值：输出是实数。
+
+最简单的线性回归：\`y = w·x + b\`，训练就是找最合适的权重 \`w\` 与偏置 \`b\`，让预测与真实值的均方误差最小。`,
+          },
+          {
+            id: "overfitting-ml",
+            term: "过拟合",
+            kind: "child",
+            summary: `**过拟合**（Overfitting）是模型在训练数据上表现完美、在新数据上表现糟糕——它把噪声也"背"下来了。
+
+- 信号：训练误差很低、验证误差高
+- 对策：正则化、更多数据、早停、Dropout
+
+> 类比：死记硬背的学生，换一道题就不会了。`,
+          },
+        ],
+      },
+      {
+        id: "neural-network",
+        term: "神经网络",
+        kind: "child",
+        summary: `**神经网络**（Neural Network）由大量简单的"神经元"分层连接而成，每层对输入做加权求和 + 非线性变换。
+
+- 输入层 → 隐藏层（可多层）→ 输出层
+- 训练 = 调整每条连线的权重
+- 非线性激活函数让网络能逼近任意复杂函数
+
+> 灵感来自生物神经元，但今天的网络更像"可微分的参数化函数"。`,
+        children: [
+          {
+            id: "perceptron",
+            term: "感知机",
+            kind: "child",
+            summary: `**感知机**（Perceptron）是 1958 年提出的最简神经网络：单层神经元，加权求和后过阶跃函数。
+
+它只能解决**线性可分**的问题（如 AND/OR），解不了异或（XOR）——这个局限让神经网络研究沉寂近 20 年，直到多层网络 + 反向传播出现。`,
+          },
+          {
+            id: "backpropagation",
+            term: "反向传播",
+            kind: "child",
+            summary: `**反向传播**（Backpropagation）是训练神经网络的核心算法：用链式法则从输出层向输入层逐层计算损失对每个权重的梯度。
+
+- 前向：算预测
+- 反向：算梯度
+- 更新：\`w ← w - η·∂L/∂w\`（η 是学习率）
+
+> 本质是"把错误从输出端倒着传回去，告诉每个权重该往哪调"。`,
+            children: [
+              {
+                id: "vanishing-gradient",
+                term: "梯度消失",
+                kind: "related",
+                summary: `**梯度消失**（Vanishing Gradient）是深层网络训练困难的原因：反向传播时梯度逐层相乘，越靠前的层梯度指数级变小，几乎学不动。
+
+对策：ReLU 激活、残差连接（ResNet）、批归一化——深度学习能"深"起来全靠这些技巧。`,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "deep-learning",
+        term: "深度学习",
+        kind: "child",
+        summary: `**深度学习**（Deep Learning）是"深"神经网络的统称：层数多到能自动从原始数据学习从低层到高级的抽象特征。
+
+- 卷积网络：图像（局部特征）
+- Transformer：语言与序列
+- 数据 + 算力 + 算法改进是它的三根支柱
+
+> 它让"手工特征工程"成为历史——模型自己学特征。`,
+        children: [
+          {
+            id: "cnn",
+            term: "卷积神经网络",
+            kind: "child",
+            summary: `**卷积神经网络**（CNN）用卷积核在图像上滑动，提取局部特征（边缘 → 纹理 → 形状）。
+
+三个关键思想：
+- **局部连接**：只看感受野内
+- **权值共享**：同一卷积核扫描全图
+- **池化**：下采样压缩，增强平移不变性
+
+2012 年 AlexNet 在 ImageNet 夺冠后统治了计算机视觉。`,
+          },
+          {
+            id: "transformer",
+            term: "Transformer",
+            kind: "child",
+            summary: `**Transformer**（2017）是当前大语言模型的基石架构，核心是**自注意力**：每个 token 都能直接"看到"序列里所有其他 token，并按相关性加权。
+
+相比 RNN 的串行处理，它完全并行、可以训练得很深，还自带长程依赖能力。
+
+> 它最初为翻译设计，后来统治了 NLP——GPT 系列就是"只有解码器的 Transformer"。`,
+            children: [
+              {
+                id: "attention",
+                term: "注意力机制",
+                kind: "child",
+                summary: `**注意力机制**（Attention）让模型动态聚焦输入中最相关的部分：对每个位置与其他位置算相关性分数，加权汇总。
+
+公式：\`Attention(Q,K,V) = softmax(QKᵀ/√d)·V\`——Q 查询、K 键、V 值都来自输入本身。
+
+> 类比：读论文时你会把注意力集中在关键段落，而不是逐字等权。`,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "algorithms",
+    term: "算法与数据结构",
+    kind: "child",
+    summary: `**算法与数据结构**是计算机科学的"语法与词汇"：算法解决"怎么做"，数据结构决定"怎么存"——两者共同决定程序效率。
+
+评价算法的核心指标是**时间复杂度**；常见设计范式有分治、贪心、动态规划。
+
+> 好的程序 = 合适的数据结构 + 高效的算法。`,
+    children: [
+      {
+        id: "time-complexity",
+        term: "时间复杂度",
+        kind: "child",
+        summary: `**时间复杂度**描述算法运行时间随输入规模 \`n\` 增长的趋势，用大 O 记号表示。
+
+常见量级（快 → 慢）：\`O(1) < O(log n) < O(n) < O(n log n) < O(n²) < O(2ⁿ)\`
+
+> 它忽略常数与低阶项，只关心"规模翻倍时时间怎么变"。`,
+        children: [
+          {
+            id: "big-o",
+            term: "大 O 记号",
+            kind: "child",
+            summary: `**大 O 记号**（Big-O）给出复杂度的渐进上界：\`f(n) = O(g(n))\` 表示存在常数 \`c, n₀\`，当 \`n > n₀\` 时 \`f(n) ≤ c·g(n)\`。
+
+- \`O(1)\`：哈希表查找
+- \`O(n)\`：线性扫描
+- \`O(n log n)\`：归并/快排平均
+- \`O(n²)\`：冒泡排序
+- \`O(2ⁿ)\`：暴力枚举子集`,
+          },
+          {
+            id: "p-vs-np",
+            term: "P 与 NP",
+            kind: "related",
+            summary: `**P 与 NP** 是理论计算机科学最重要的未解问题之一：
+
+- **P**：能在多项式时间 \`O(nᵏ)\` 内求解的问题
+- **NP**：能在多项式时间内验证解的问题（不要求能快速求解）
+
+显然 \`P ⊆ NP\`。\`P = NP?\` 至今未决——若成立，现代加密体系将崩溃。`,
+          },
+        ],
+      },
+      {
+        id: "sorting",
+        term: "排序算法",
+        kind: "child",
+        summary: `**排序算法**把一组元素按序排列，是算法入门必修，也是各种复杂算法的构件。
+
+- 比较排序的信息论下界：\`Ω(n log n)\`
+- 快速排序：分治、平均 \`O(n log n)\`、工程首选
+- 归并排序：稳定、最坏 \`O(n log n)\`
+- 计数/基数排序：非比较，可到 \`O(n)\``,
+        children: [
+          {
+            id: "quicksort",
+            term: "快速排序",
+            kind: "child",
+            summary: `**快速排序**（Quicksort）：选一个基准（pivot），小于它的放左边、大于的放右边，再递归两边。
+
+平均 \`O(n log n)\`、原地排序、常数小，是实际使用最多的排序；最坏退化为 \`O(n²)\`（已排序输入 + 固定基准），用随机化或三数取中规避。`,
+          },
+          {
+            id: "mergesort",
+            term: "归并排序",
+            kind: "related",
+            summary: `**归并排序**（Mergesort）：先把数组对半拆分到底，再两两合并有序子数组。
+
+- 稳定、最坏 \`O(n log n)\`
+- 需要 \`O(n)\` 额外空间
+- 典型分治：分 → 治 → 合
+
+> 常用于外部排序（数据太大放不进内存）。`,
+          },
+        ],
+      },
+      {
+        id: "hash-table",
+        term: "哈希表",
+        kind: "child",
+        summary: `**哈希表**（Hash Table）通过哈希函数把键映射到数组下标，实现平均 \`O(1)\` 的插入、查找、删除。
+
+- 哈希函数：\`key → index\`
+- 冲突处理：链地址法 / 开放寻址
+- 负载因子过高 → 扩容重哈希
+
+> JavaScript 的对象、Python 的 dict、数据库索引底层都有它的身影。`,
+        children: [
+          {
+            id: "hash-collision",
+            term: "哈希冲突",
+            kind: "child",
+            summary: `**哈希冲突**：不同键映射到同一个下标。两种经典解法：
+
+- **链地址法**：同一桶里挂链表（如 Java HashMap）
+- **开放寻址法**：冲突后探测下一个空位（线性探测等）
+
+设计良好的哈希函数让冲突概率足够低，摊还复杂度保持 \`O(1)\`。`,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "math-foundations",
+    term: "数学基础",
+    kind: "child",
+    summary: `**数学基础**是理解机器学习与算法的语言：线性代数描述高维空间，概率论刻画不确定性，微积分提供优化工具。
+
+> 深度学习里的每一个公式，拆到底都是这三门课的组合。`,
+    children: [
+      {
+        id: "linear-algebra",
+        term: "线性代数",
+        kind: "child",
+        summary: `**线性代数**研究向量与线性变换：神经网络的一次前向传播 \`h = Wx + b\` 就是矩阵乘法。
+
+- 向量：数据点、特征
+- 矩阵：线性变换、权重
+- 特征值：变换的"不动轴"与伸缩比`,
+        children: [
+          {
+            id: "eigenvector",
+            term: "特征向量",
+            kind: "child",
+            summary: `**特征向量**（Eigenvector）：矩阵 \`A\` 作用后方向不变的向量，只被缩放：\`Av = λv\`，\`λ\` 是特征值。
+
+- 主成分分析（PCA）找的就是协方差矩阵的特征向量
+- 谱聚类、PageRank、量子力学都围绕特征分解展开
+
+> 可以理解为"这个变换最本质的方向"。`,
+          },
+        ],
+      },
+      {
+        id: "probability",
+        term: "概率论",
+        kind: "child",
+        summary: `**概率论**度量不确定性：\`P(A)\` 表示事件 A 发生的可能性。
+
+机器学习本质是概率推断——模型输出 \`P(答案 | 问题)\`；**贝叶斯定理**则是"看到数据后更新信念"的规则。`,
+        children: [
+          {
+            id: "bayes-theorem",
+            term: "贝叶斯定理",
+            kind: "child",
+            summary: `**贝叶斯定理**（Bayes' Theorem）：\`P(A|B) = P(B|A)·P(A) / P(B)\`。
+
+- \`P(A)\`：先验（看到数据前的信念）
+- \`P(A|B)\`：后验（看到数据后的信念）
+- 垃圾邮件过滤、医学诊断、模型推断都在用它
+
+> 一句话：用新证据更新旧信念。`,
+          },
+          {
+            id: "law-of-large-numbers",
+            term: "大数定律",
+            kind: "related",
+            summary: `**大数定律**（Law of Large Numbers）：试验次数越多，样本均值越趋近期望值：\`(X₁+…+Xₙ)/n → E[X]\`。
+
+它是统计学的基石——为什么抽样调查能代表整体，为什么训练数据越多模型越稳。`,
+          },
+        ],
+      },
+      {
+        id: "calculus",
+        term: "微积分",
+        kind: "child",
+        summary: `**微积分**提供"变化"的语言：导数描述瞬时变化率，积分描述累积量。
+
+机器学习只用其中一小部分——**求导**：因为"训练 = 沿梯度下山"，梯度就是损失函数对参数的导数向量。`,
+        children: [
+          {
+            id: "gradient",
+            term: "梯度",
+            kind: "child",
+            summary: `**梯度**（Gradient）是多元函数对每个变量求偏导组成的向量，指向函数**增长最快**的方向。
+
+- 梯度下降：\`θ ← θ - η·∇L(θ)\`，沿负梯度"下山"
+- 深度学习训练 = 反复计算损失对千万个参数的梯度
+
+> 类比：浓雾里下山，每一步都朝最陡的方向迈。`,
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 /** Look up a term anywhere in the tree (by display name). */
@@ -331,6 +657,80 @@ export function findTerm(name: string): TermNode | null {
 /** Generic fallback explanation for terms not in the tree (doc reader etc.). */
 export function genericTermSummary(term: string): string {
   return `关于 **${term}**\n\n这是你在阅读中遇到的一个概念。当前处于离线演示模式，内置词典还没有收录它的详细解释。\n\n> 接入 BYOK 模型后，我可以为你生成针对这个概念的完整讲解卡片。你也可以先在对话里追问它，或用自己的话描述你的理解，把它收录进思维宇宙。`;
+}
+
+/**
+ * Generate a contextual mock reply for a user question.
+ * Matches known terms (TERM_TREE + GLOSSARY) inside the question and returns a
+ * detailed card with clickable related terms; falls back to a sample guide.
+ */
+export function generateReply(question: string): string {
+  const q = question.trim();
+
+  // Flatten the term tree so we can match any node by name.
+  const flat: { term: string; summary: string; children: TermNode[]; siblings: string[] }[] = [];
+  const walk = (nodes: TermNode[]) => {
+    for (const n of nodes) {
+      flat.push({
+        term: n.term,
+        summary: n.summary,
+        children: n.children ?? [],
+        siblings: nodes.filter((o) => o !== n).map((o) => o.term),
+      });
+      if (n.children) walk(n.children);
+    }
+  };
+  walk(TERM_TREE);
+
+  const list = (items: { term: string; hint?: string }[]) =>
+    items.map((t, i) => `${i + 1}. **${t.term}**${t.hint ? `（${t.hint}）` : ""}`).join("\n");
+
+  // Longest tree-term match wins ("波函数坍缩" over "坍缩").
+  const treeHit = flat
+    .filter((t) => q.includes(t.term))
+    .sort((a, b) => b.term.length - a.term.length)[0];
+
+  // Glossary match (zh or en form).
+  const glossaryHit = GLOSSARY.find(
+    (g) => q.includes(g.zh) || q.toLowerCase().includes(g.en.toLowerCase())
+  );
+
+  if (treeHit) {
+    const childrenBlock = treeHit.children.length
+      ? `\n### 可以继续深挖\n\n${list(
+          treeHit.children.map((c) => ({
+            term: c.term,
+            hint: c.kind === "child" ? "深挖背景" : c.kind === "related" ? "横向对比" : "分支另起",
+          }))
+        )}\n`
+      : "";
+    // 相关概念优先同领域：术语在词典里取邻近词（同域聚类），否则取树内兄弟节点。
+    const gi = GLOSSARY.findIndex((g) => g.zh === treeHit.term);
+    const relatedTerms =
+      gi >= 0
+        ? [gi + 1, gi + 2, gi - 1]
+            .filter((i) => i >= 0 && i < GLOSSARY.length)
+            .slice(0, 3)
+            .map((i) => GLOSSARY[i].zh)
+        : treeHit.siblings.slice(0, 3);
+    const relatedBlock = relatedTerms.length
+      ? `\n### 相关概念\n\n${list(relatedTerms.map((t) => ({ term: t })))}\n`
+      : "";
+    return `好的，我们来拆解 **${treeHit.term}**。\n\n${treeHit.summary}${childrenBlock}${relatedBlock}> 点击任意加粗术语，我可以展开更详细的解释卡片。`;
+  }
+
+  if (glossaryHit) {
+    // Neighbors in the glossary are same-domain terms (physics ↔ ML clusters).
+    const idx = GLOSSARY.indexOf(glossaryHit);
+    const neighbors = [idx + 1, idx + 2, idx - 1]
+      .filter((i) => i >= 0 && i < GLOSSARY.length)
+      .slice(0, 3)
+      .map((i) => GLOSSARY[i].zh);
+    return `好的，我们来聊聊 **${glossaryHit.zh}**。\n\n${glossaryHit.explain}\n\n### 相关概念\n\n${list(neighbors.map((t) => ({ term: t })))}\n\n> 点击任意加粗术语，我可以展开更详细的解释卡片。`;
+  }
+
+  const samples = ["量子纠缠", "叠加态", "波函数坍缩", "贝尔不等式", "梯度下降", "注意力机制", "Transformer"];
+  return `关于「${q}」，这是个好问题。\n\n在离线演示模式下，我内置了一个 **量子计算 + 机器学习** 的知识树。你可以直接问我下面这些概念，我会给出带可点击术语的讲解：\n\n${list(samples.map((s) => ({ term: s })))}\n\n> 点击任意加粗术语即可展开卡片，一路深挖下去。`;
 }
 
 /**
@@ -379,6 +779,30 @@ export const GLOSSARY: GlossaryEntry[] = [
   { en: "Tokenization", zh: "分词", explain: "把文本切分为模型处理的最小单元（token）的过程。" },
   { en: "Fine-tuning", zh: "微调", explain: "在预训练模型基础上用特定任务数据继续训练以适应目标任务。" },
   { en: "Semantic Segmentation", zh: "语义分割", explain: "对图像每个像素标注类别标签的计算机视觉任务。" },
+  { en: "Supervised Learning", zh: "监督学习", explain: "用带标签数据（输入-期望输出对）训练模型的学习范式。" },
+  { en: "Unsupervised Learning", zh: "无监督学习", explain: "在无标签数据中发现结构的学习范式，如聚类、降维。" },
+  { en: "Classification", zh: "分类", explain: "把输入分到离散类别的监督学习任务，如垃圾邮件识别。" },
+  { en: "Decision Tree", zh: "决策树", explain: "用一系列特征判断规则（if-else 树）做预测的可解释模型。" },
+  { en: "Random Forest", zh: "随机森林", explain: "训练多棵决策树并投票集成，降低单棵树的过拟合与方差。" },
+  { en: "K-Means", zh: "K均值聚类", explain: "把样本分成 K 簇的无监督算法：迭代地把每个点归到最近的簇中心。" },
+  { en: "Loss Function", zh: "损失函数", explain: "度量模型预测与真实值的差距，训练就是最小化它。" },
+  { en: "Learning Rate", zh: "学习率", explain: "梯度下降每次更新的步长 η；太大震荡不收敛，太小收敛极慢。" },
+  { en: "Inference", zh: "推理", explain: "用训练好的模型对新输入做预测的过程（区别于训练）。" },
+  { en: "Hallucination", zh: "幻觉", explain: "大模型生成看似合理但事实错误/虚构内容的现象。" },
+  { en: "Prompt Engineering", zh: "提示词工程", explain: "设计输入提示词以引导大模型输出更准确结果的技巧。" },
+  { en: "Chain of Thought", zh: "思维链", explain: "引导模型分步推理再作答的提示技巧，显著提升复杂推理表现。" },
+  { en: "RAG", zh: "检索增强生成", explain: "先从外部知识库检索相关内容，再拼进提示让模型作答的架构。" },
+  { en: "Derivative", zh: "导数", explain: "函数在某点的瞬时变化率，梯度下降的核心工具。" },
+  { en: "Vector", zh: "向量", explain: "有大小和方向的对象；在 ML 中一个样本通常表示为一个向量。" },
+  { en: "Matrix", zh: "矩阵", explain: "二维数组；神经网络的权重 W 就是矩阵，前向传播是矩阵乘法。" },
+  { en: "Variance", zh: "方差", explain: "度量数据离散程度：与均值的平方偏差的平均。" },
+  { en: "Central Limit Theorem", zh: "中心极限定理", explain: "大量独立随机变量的均值近似正态分布，与原始分布无关。" },
+  { en: "Recursion", zh: "递归", explain: "函数调用自身解决问题的编程范式，配合基准条件终止。" },
+  { en: "Dynamic Programming", zh: "动态规划", explain: "把问题拆成重叠子问题并缓存结果，避免重复计算的优化方法。" },
+  { en: "Stack", zh: "栈", explain: "后进先出（LIFO）的数据结构；函数调用栈、撤销操作都靠它。" },
+  { en: "Binary Tree", zh: "二叉树", explain: "每个节点最多两个子节点的树结构；二叉搜索树的查找为 O(log n)。" },
+  { en: "Quicksort", zh: "快速排序", explain: "选基准分治排序，平均 O(n log n)，工程上最常用的排序算法。" },
+  { en: "Hash Table", zh: "哈希表", explain: "键经哈希函数映射到桶下标，平均 O(1) 增删查的数据结构。" },
 ];
 
 export function makeDemoProject(): ChatProject {

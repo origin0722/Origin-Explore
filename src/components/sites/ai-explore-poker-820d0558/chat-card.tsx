@@ -11,10 +11,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import {
-  ArrowLeft,
   BookmarkPlus,
   ChevronLeft,
   Copy,
+  HelpCircle,
   Maximize2,
   Minimize2,
   MoreHorizontal,
@@ -66,29 +66,17 @@ function toTerm(children: ReactNode): string {
 
 interface TermCardProps {
   node: TermNode;
-  depth: number;
-  onBack(): void;
   onClose(): void;
   onOpenChild(child: TermNode): void;
   onCollect(): void;
   onBranch(): void;
 }
 
-function TermCard({ node, depth, onBack, onClose, onOpenChild, onCollect, onBranch }: TermCardProps) {
+function TermCard({ node, onClose, onOpenChild, onCollect, onBranch }: TermCardProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden rounded-2xl">
       {/* header: kind badge + term name + collect + close */}
       <div className="flex items-center gap-2 px-3 sm:px-4 h-12 border-b border-divider shrink-0">
-        {depth > 0 && (
-          <button
-            type="button"
-            className="w-8 h-8 bg-btn-std hover:bg-btn-std-hover rounded-full flex items-center justify-center shrink-0 transition-colors"
-            title="返回上一层"
-            onClick={onBack}
-          >
-            <ArrowLeft size={16} />
-          </button>
-        )}
         <span className="text-xs text-brand border border-brand/40 rounded-full px-2 py-0.5 whitespace-nowrap shrink-0">
           {KIND_BADGE[node.kind]}
         </span>
@@ -164,20 +152,24 @@ interface StackItem {
 export function ChatCard() {
   const {
     turns,
-    activeTurn,
     busy,
     projects,
     activeProjectId,
     deleteProject,
+    renameProject,
     termStates,
     addThoughtNode,
     markTermState,
     openBranchTurn,
+    openModal,
+    loadSampleProject,
   } = useApp();
 
   const [minimized, setMinimized] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameDraft, setRenameDraft] = useState("");
   const [hlTerm, setHlTerm] = useState<string | null>(null);
   const hlTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** recursive term-card stack: index 0 = clicked term, deeper layers = child cards */
@@ -185,6 +177,18 @@ export function ChatCard() {
   const stackSeq = useRef(0);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  /** term card closing animation state (exit class applied, then unmount) */
+  const [termClosing, setTermClosing] = useState<string | null>(null);
+
+  /** Empty-state "Explore" title size: 128px desktop / 72px mobile (matches original). */
+  const [titleSize, setTitleSize] = useState(128);
+  useEffect(() => {
+    const compute = () => setTitleSize(window.innerWidth < 640 ? 72 : 128);
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
 
   const activeProject = useMemo(
     () => projects.find((p) => p.id === activeProjectId) ?? null,
@@ -198,13 +202,26 @@ export function ChatCard() {
     };
   }, []);
 
+  // Auto-scroll to the bottom while the reply streams in (content grows).
+  const lastMsgLen =
+    turns.length > 0
+      ? turns[turns.length - 1].messages[turns[turns.length - 1].messages.length - 1]?.content
+          .length ?? 0
+      : 0;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lastMsgLen, turns.length]);
+
   const showToast = (msg: string) => {
     setToast(msg);
     if (toastTimeout.current) clearTimeout(toastTimeout.current);
     toastTimeout.current = setTimeout(() => setToast(null), 2400);
   };
 
-  const title = activeTurn?.title || activeProject?.title || "新对话";
+  // Header shows the project title (rename acts on the project, consistent
+  // with the sidebar); the first message auto-titles an "Untitled" project.
+  const title = activeProject?.title || "新对话";
 
   const fmtTs = (ts: number) =>
     new Date(ts).toLocaleString("en-US", {
@@ -217,21 +234,53 @@ export function ChatCard() {
 
   /* --- header actions --- */
   const handleCopy = async () => {
-    if (!turns.length) return;
+    if (!turns.length) {
+      showToast("没有可复制的内容");
+      return;
+    }
     const text = turns
       .flatMap((t) => t.messages)
       .map((m) => `${m.role === "user" ? "我" : "AI"}：\n${m.content}`)
       .join("\n\n---\n\n");
     try {
       await navigator.clipboard.writeText(text);
+      showToast("✓ 已复制全部对话");
     } catch {
-      /* clipboard unavailable — ignore */
+      showToast("复制失败：浏览器拒绝了剪贴板访问");
     }
+  };
+
+  const handleExport = () => {
+    setMenuOpen(false);
+    if (!activeProject) return;
+    const data = { title: activeProject.title, turns: activeProject.turns };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${activeProject.title || "project"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("✓ 已导出项目");
   };
 
   const handleDelete = () => {
     setMenuOpen(false);
-    if (activeProjectId) deleteProject(activeProjectId);
+    if (activeProjectId && !activeProject?.resident) {
+      deleteProject(activeProjectId);
+      showToast("已删除项目");
+    }
+  };
+
+  const startRename = () => {
+    setMenuOpen(false);
+    setRenameDraft(activeProject?.title ?? "");
+    setRenaming(true);
+  };
+
+  const confirmRename = () => {
+    if (activeProjectId) renameProject(activeProjectId, renameDraft);
+    setRenaming(false);
   };
 
   /* --- term expansion (recursive tree) --- */
@@ -263,6 +312,20 @@ export function ChatCard() {
     setTermStack([]);
   };
 
+  /**
+   * Close only the clicked card: animate it out, then drop this layer and
+   * everything above it (the previous card is already visible underneath the
+   * cascade, so no separate back button is needed).
+   */
+  const closeOne = (key: string, index: number) => {
+    if (termClosing) return;
+    setTermClosing(key);
+    window.setTimeout(() => {
+      setTermStack((s) => s.slice(0, index));
+      setTermClosing(null);
+    }, 280);
+  };
+
   /* --- turn navigation --- */
   const jumpToTurn = (id: string) => {
     document
@@ -272,7 +335,7 @@ export function ChatCard() {
 
   return (
     <div
-      className="text-primary relative h-full w-full"
+      className="text-primary relative h-full w-full transition-[height] duration-300 ease-in-out"
       style={{
         maxWidth: "min(990px, 100%)",
         height: minimized ? 48 : "100%",
@@ -282,12 +345,26 @@ export function ChatCard() {
       <div className="relative w-full h-full min-h-0 overflow-hidden rounded-[24px]">
         {/* ---------- header ---------- */}
         <div className="absolute top-0 inset-x-0 h-9 px-4 flex items-center justify-between border-b border-divider z-[5]">
-          <span className="font-bold truncate pr-2 text-[15px]">{title}</span>
+          {renaming ? (
+            <input
+              autoFocus
+              value={renameDraft}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmRename();
+                else if (e.key === "Escape") setRenaming(false);
+              }}
+              onBlur={confirmRename}
+              className="flex-1 min-w-0 mr-2 rounded bg-item-std px-2 py-0.5 text-[15px] font-bold text-primary outline-none ring-1 ring-brand/50"
+            />
+          ) : (
+            <span className="font-bold truncate pr-2 text-[15px]">{title}</span>
+          )}
           <div className="relative flex items-center gap-2">
             <button
               type="button"
               className="w-8 h-8 sm:w-9 sm:h-9 bg-btn-std hover:bg-btn-std-hover rounded-full flex items-center justify-center shadow-card transition-colors"
-              title={minimized ? "展开演示" : "收起演示"}
+              title={minimized ? "展开卡片" : "收起卡片"}
               onClick={() => setMinimized((v) => !v)}
             >
               {minimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
@@ -316,17 +393,26 @@ export function ChatCard() {
                   <button
                     type="button"
                     className="px-3 py-2 rounded-lg text-left text-[13px] text-text-secondary hover:bg-item-std-hover transition-colors"
-                    onClick={() => setMenuOpen(false)}
+                    onClick={startRename}
                   >
                     重命名
                   </button>
                   <button
                     type="button"
                     className="px-3 py-2 rounded-lg text-left text-[13px] text-text-secondary hover:bg-item-std-hover transition-colors"
-                    onClick={handleDelete}
+                    onClick={handleExport}
                   >
-                    删除
+                    导出为 JSON
                   </button>
+                  {!activeProject?.resident && (
+                    <button
+                      type="button"
+                      className="px-3 py-2 rounded-lg text-left text-[13px] text-destructive hover:bg-item-std-hover transition-colors"
+                      onClick={handleDelete}
+                    >
+                      删除
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -336,22 +422,40 @@ export function ChatCard() {
         {!minimized && (
           <>
             {/* ---------- scrollable turn list ---------- */}
-            <div className="absolute inset-0 overflow-y-auto scrollbar-card-std pt-[52px] px-4 pb-6">
+            <div
+              ref={scrollRef}
+              className="absolute inset-0 overflow-y-auto scrollbar-card-std pt-[52px] px-4 pb-6"
+            >
               {turns.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center -translate-y-[28px]">
+                <div className="flex h-full flex-col items-center justify-center gap-12 -translate-y-[30px]">
                   <h1
                     className="font-bruno-ace select-none text-brand"
                     style={{
-                      fontSize: "128px",
+                      fontSize: `${titleSize}px`,
                       lineHeight: 1,
                       textShadow: "0 0 24px rgba(19, 228, 37, 0.35)",
                     }}
                   >
                     Explore
                   </h1>
-                  <p className="mt-10 text-sm text-text-tertiary">
-                    输入问题，开始你的探索
-                  </p>
+                  <div className="flex items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => openModal("onboarding")}
+                      className="cursor-pointer rounded-full bg-btn-std px-6 py-2 font-medium text-primary transition-colors hover:bg-btn-std-hover"
+                    >
+                      使用指南
+                    </button>
+                    <button
+                      type="button"
+                      onClick={loadSampleProject}
+                      aria-label="加载示例项目"
+                      title="加载示例项目"
+                      className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-btn-std text-text-icon-secondary transition-colors hover:bg-btn-std-hover hover:text-primary"
+                    >
+                      <HelpCircle size={20} />
+                    </button>
+                  </div>
                 </div>
               ) : (
                 turns.map((turn) => (
@@ -360,10 +464,15 @@ export function ChatCard() {
                     id={`chat-turn-${turn.id}`}
                     className="flex flex-col gap-4 px-2 pb-2 rounded-lg relative border-2 border-turn-std mb-4 scroll-mt-[52px]"
                   >
-                    {/* turn header */}
-                    <div className="flex items-center h-14 text-lg font-semibold truncate text-text-turn-title">
-                      <span className="w-full min-w-0 truncate">{turn.title}</span>
-                    </div>
+                    {/* turn header: big title only when there are multiple
+                        turns (branch conversations need orientation); a single
+                        turn already shows its title in the card header, so
+                        repeating it here would be redundant */}
+                    {turns.length > 1 && (
+                      <div className="flex items-center h-14 text-lg font-semibold truncate text-text-turn-title">
+                        <span className="w-full min-w-0 truncate">{turn.title}</span>
+                      </div>
+                    )}
                     <div className="flex justify-end pr-1 select-none">
                       <span className="text-[11px] text-text-quaternary">
                         {fmtTs(turn.createdAt)}
@@ -422,20 +531,31 @@ export function ChatCard() {
               )}
             </div>
 
-            {/* ---------- recursive term cards (layered stack) ---------- */}
+            {/* ---------- recursive term cards (centered cascade stack) ----------
+                Cards sit centered on the canvas; each deeper layer is nudged
+                down-right so the previous card's top edge peeks out, like
+                cascading desktop windows. */}
             {termStack.length > 0 && (
-              <div className="card-container entering-from-bottom absolute right-2 top-[52px] bottom-2 w-[85%] sm:w-[70%] z-10 bg-card-floating rounded-2xl border border-std shadow-card overflow-hidden">
+              <>
                 {termStack.map(({ node, key }, i) => (
                   <div
                     key={key}
-                    className={`absolute inset-0 rounded-2xl overflow-hidden ${i > 0 ? "new-word-fade-in" : ""}`}
-                    style={{ zIndex: i + 1 }}
+                    className={`card-container absolute left-1/2 top-1/2 w-[85%] sm:w-[70%] h-[min(680px,calc(100%-96px))] rounded-2xl overflow-hidden bg-card-floating border border-std shadow-card ${
+                      termClosing === key ? "exiting-cascade" : "entering-cascade"
+                    }`}
+                    style={
+                      {
+                        zIndex: 20 + i,
+                        "--cx": `${i * 8}px`,
+                        "--cy": `${i * 16}px`,
+                        transform:
+                          "translate(calc(-50% + var(--cx)), calc(-50% + var(--cy)))",
+                      } as React.CSSProperties
+                    }
                   >
                     <TermCard
                       node={node}
-                      depth={i}
-                      onBack={() => setTermStack((s) => s.slice(0, -1))}
-                      onClose={() => setTermStack([])}
+                      onClose={() => closeOne(key, i)}
                       onOpenChild={handleOpenChild}
                       onCollect={() => handleCollect(node)}
                       onBranch={() => handleBranch(node)}
@@ -443,11 +563,11 @@ export function ChatCard() {
                   </div>
                 ))}
                 {toast && (
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-4 z-[60] bg-modal-floating border border-std shadow-card rounded-full px-4 py-2 text-xs text-brand whitespace-nowrap pointer-events-none">
+                  <div className="absolute left-1/2 bottom-6 -translate-x-1/2 z-[60] bg-modal-floating border border-std shadow-card rounded-full px-4 py-2 text-xs text-brand whitespace-nowrap pointer-events-none">
                     {toast}
                   </div>
                 )}
-              </div>
+              </>
             )}
 
             {/* ---------- right turn-navigation rail ---------- */}
@@ -455,8 +575,9 @@ export function ChatCard() {
               <div className="hidden sm:flex absolute right-0 top-[52px] bottom-0 w-[20px] z-[15] flex-col items-end">
                 <button
                   type="button"
-                  className="w-5 h-6 rounded-l-lg bg-btn-std/40 hover:bg-btn-std flex items-center justify-center transition-colors"
-                  title="轮次导航"
+                  className="relative z-20 w-5 h-6 rounded-l-lg bg-btn-std/40 hover:bg-btn-std flex items-center justify-center transition-colors"
+                  title={navOpen ? "收起轮次导航" : "轮次导航"}
+                  aria-label={navOpen ? "收起轮次导航" : "轮次导航"}
                   onClick={() => setNavOpen((v) => !v)}
                 >
                   <ChevronLeft

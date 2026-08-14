@@ -57,7 +57,7 @@ const GUIDE_STEPS: GuideStep[] = [
 ];
 
 export function WelcomeView() {
-  const { openModal, projects } = useApp();
+  const { openModal, projects, loadSampleProject } = useApp();
   const [helpOpen, setHelpOpen] = useState(false);
   const isFirstRun = projects.length === 0;
 
@@ -73,19 +73,25 @@ export function WelcomeView() {
 
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden">
-      {/* Logo — original uses a text-2xl bold heading (brand color reserved
-          for the sidebar logo / interactive accents) */}
-      <h1 className="select-none text-center text-2xl font-bold text-primary">
+      {/* Logo — same Bruno Ace brand treatment as the empty chat state */}
+      <h1
+        className="font-bruno-ace select-none text-center text-brand"
+        style={{
+          fontSize: "clamp(3rem, 8vw, 7rem)",
+          lineHeight: 1,
+          textShadow: "0 0 24px rgba(19, 228, 37, 0.35)",
+        }}
+      >
         Explore
       </h1>
 
       {/* Tagline */}
-      <p className="mt-2 max-w-md px-6 text-center text-base text-text-secondary">
+      <p className="mt-4 max-w-md px-6 text-center text-base text-text-secondary">
         AI 结构化思维与知识探索工具 —— 哪里不懂点哪里，一棵属于你的知识树。
       </p>
 
       {/* Actions */}
-      <div className="mt-6 flex items-center gap-4">
+      <div className="mt-8 flex items-center gap-4">
         <button
           type="button"
           onClick={() => setHelpOpen(true)}
@@ -95,9 +101,9 @@ export function WelcomeView() {
         </button>
         <button
           type="button"
-          onClick={() => openModal("onboarding")}
-          aria-label="帮助"
-          title="引导向导"
+          onClick={loadSampleProject}
+          aria-label="加载示例项目"
+          title="加载示例项目"
           className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-btn-std text-text-icon-secondary transition-colors hover:bg-btn-std-hover hover:text-primary"
         >
           <HelpCircle size={20} />

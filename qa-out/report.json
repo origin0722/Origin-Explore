@@ -1,9 +1,58 @@
 [
   {
+    "scene": "d-welcome",
+    "ref": "state-mainui-1440.png",
+    "size": "1440x900",
+    "mismatched": 53798,
+    "pct": "4.15"
+  },
+  {
+    "scene": "d-settings",
+    "ref": "state-boot.png",
+    "size": "1440x900",
+    "mismatched": 80257,
+    "pct": "6.19"
+  },
+  {
+    "scene": "d-welcome-main",
+    "ref": "state-main.png",
+    "size": "1440x900",
+    "mismatched": 67617,
+    "pct": "5.22"
+  },
+  {
     "scene": "d-newproj",
     "ref": "state-newproj1.png",
     "size": "1440x900",
-    "mismatched": 90803,
-    "pct": "7.01"
+    "mismatched": 84957,
+    "pct": "6.56"
+  },
+  {
+    "scene": "d-chat",
+    "ref": "state-typed.png",
+    "size": "1440x900",
+    "mismatched": 88017,
+    "pct": "6.79"
+  },
+  {
+    "scene": "d-chat-reply",
+    "ref": "state-seeded-v3.png",
+    "size": "1440x900",
+    "mismatched": 121981,
+    "pct": "9.41"
+  },
+  {
+    "scene": "m-main",
+    "ref": "state-mobile-main.png",
+    "size": "390x844",
+    "mismatched": 13731,
+    "pct": "4.17"
+  },
+  {
+    "scene": "m-fab",
+    "ref": "state-mobfab.png",
+    "size": "390x844",
+    "mismatched": 19304,
+    "pct": "5.86"
   }
 ]

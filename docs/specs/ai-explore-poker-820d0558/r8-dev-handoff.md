@@ -1,0 +1,137 @@
+# R8 功能开发 — 交接文档（2026-08-13 续）
+
+> 本文件记录 R7 像素级 QA 之后的功能开发与 bug 修复，供新 agent 无缝接手。
+> 上一阶段：`r7-qa-handoff.md`（像素级 QA，全部待办已收尾）。
+> 运行中的 dev server: `npm run dev`（localhost:3000，Turbopack 热更新）。
+
+## 一、当前状态总览
+
+Explore 克隆（ai.explore.poker/chat）已从"纯 UI"演进为**可交互的个人工具**（mock 数据、无后端、数据仅存 localStorage）。
+
+**已可用的完整闭环**：新建项目 → 提问 → AI 流式回复（按提问术语动态生成）→ 点击加粗术语展开子卡片（递归知识树）→ 收录进思维宇宙 / 分支另起炉灶 → 文档导入阅读 → 划词问 AI。
+
+## 二、R8 完成的功能（按时间序）
+
+### 核心交互
+1. **术语卡片修复**（原 bug：位置错 + 关不掉）——根因：原站 `entering-from-bottom` 动画结尾 `translate(-50%,-50%)` 是为居中卡片设计的，克隆卡片是右锚定（`right-2`），被整体平移出屏。修复：新增右锚定的 `entering-from-right` / `exiting-to-right` 动画（`globals.css`）。
+2. **卡片关闭退场动画** + 关闭按钮 z-index 修复（原被轮次导航面板 z-15 盖住，提到 z-20）。
+3. **轮次导航开关可点**（开关按钮 `relative z-20` 提到面板之上）。
+4. **思维宇宙按钮改为开关式**（点一下开、再点关，aria-label 随状态切换）。
+
+### 内容灵魂（mock AI）
+5. **`generateReply(question)`**（`mock.ts`）：按提问匹配知识树/词典术语，动态生成带可点击术语的回复；相关概念按领域聚类（物理↔ML 邻近词）。
+6. **流式输出**：回复逐字打字机式出现（`app-context.tsx` sendMessage 内 setInterval 分块更新）+ 聊天区自动滚底。
+7. **自动标题**：给 "Untitled" 项目用首条消息命名（受设置"自动标题"开关控制）。
+
+### 侧边栏 & 按钮全部接线（原为 toast 占位）
+8. 重命名（项目行内联 + 卡片头部内联）、新建文件夹（内联输入 + 按文件夹分组 + 悬停删除）、导入项目（JSON 文件）、导出为 JSON、智能模式开关（常驻聊天）。
+9. **卡片头部**：收起/展开（含高度过渡）、复制（带反馈 toast）、更多菜单（重命名/导出/删除）。
+
+### 设置面板
+10. 移除订阅/协作相关：`ModelInfo` 删除 `tier`/`multiplier`/`locked`；侧边栏删除"云端项目/仅会员"；设置删除"编辑权限/API 密钥"分节；模型档位徽章（Free/Pro/Max）全部移除。
+11. **BYOK 真实调用**（R8 续；再续：升级为流式 SSE，见第 24 条）：
+    - 表单 4 字段：模型名称 / API 地址（OpenAI 兼容 baseUrl）/ 模型 ID / API Key；密钥仅存本机。
+    - 选中 BYOK 模型后，`sendMessage` 走真实 `POST {baseUrl}/chat/completions`（非流式，15s 超时，带最近 12 条消息上下文）。
+    - 成功 → 真实回复按打字机效果展示；失败（CORS/网络/非 200/超时/空响应）→ 自动回退离线 `generateReply`，回复开头注明原因。
+    - 注意：浏览器直连受 **CORS 限制**——提供方需允许跨域（`Access-Control-Allow-Origin`），否则必然回退离线；这是设计上的优雅降级。
+    - 测试：`scripts/verify-byok.mjs`（puppeteer 请求拦截模拟 OPTIONS 预检 + 200/500）。
+
+### 文档库
+12. 文档问答/分支卡片改用 `generateReply`（划词问任意术语都得到词典/知识树讲解，不再是"未收录"占位）。
+
+### 欢迎页
+13. 标题改为 Bruno Ace 品牌绿大字 + 光晕；「?」按钮改为载入示例项目。
+
+### 术语卡片布局（R8 续，用户指定）
+14. **居中 + 向下级联**：卡片从"右侧锚定"改为**页面居中**（`left-1/2 top-1/2 translate(-50%,-50%)`，尺寸 `w-[85%]/70% × min(680px, calc(100%-96px))`）。
+15. 每深一层向右下偏移 **+8px / +16px**（`translate(calc(-50%+8i px), calc(-50%+16i px))`），像桌面窗口级联，底层卡片的顶边露出来；每层自带 `bg-card-floating`（不透明，防文本重叠）+ 边框阴影。
+16. 进场 = `card-enter-cascade`（淡入 + 上浮 26px + 缩放 0.97→1，320ms，偏移走 CSS 变量 `--cx/--cy`）；退场 = `exiting-cascade`（纯淡出 280ms）。
+17. **交互（用户指定）**：去掉头部左上"返回上一层"箭头；右上 ✕ = **只关当前这一张卡**（连同其上层一起弹出，露出下面那张，可逐层关完）。
+18. 测试：`scripts/verify-cascade.mjs`（居中+级联+不透明）、`scripts/verify-popclose.mjs`（逐层关闭+无返回箭头）。
+
+### 知识库内容扩充（R8 续）
+19. **TERM_TREE 从"仅量子物理 5 根"扩到 3 大领域 8 根**：新增「机器学习」（监督学习/神经网络/深度学习，含感知机/反向传播→梯度消失/CNN/Transformer→注意力机制）、「算法与数据结构」（时间复杂度→大O/P与NP、排序→快排/归并、哈希表→冲突）、「数学基础」（线性代数→特征向量、概率论→贝叶斯定理/大数定律、微积分→梯度）。共约 +26 个节点、最深 4 层。
+20. **GLOSSARY 从 35 → 60 条**：新增监督学习/分类/决策树/随机森林/损失函数/学习率/幻觉/提示词工程/思维链/RAG/导数/向量/矩阵/方差/中心极限定理/递归/动态规划/栈/二叉树/快排/哈希表等。
+21. 内容自动流入 `generateReply`（术语命中+相关概念）与文档划词高亮（detectTerms），无需改组件逻辑。测试：`scripts/verify-content.mjs`。
+
+### 常驻聊天（R8 续）
+22. **常驻聊天从"死按钮"变为真功能**：固定项目（id=`resident`，`ChatProject.resident` 标记），首次启动自动创建；点击侧边栏"常驻聊天"行进入（选中高亮），消息跨项目保留；不出现在"本地项目"列表、不可删除（context `deleteProject` 守卫 + 卡片菜单隐藏"删除"）；发消息后侧边栏自动折叠不影响（折叠态显示图标）。
+23. 测试：`scripts/verify-resident.mjs`（打开/发送/跨项目持久/列表排除/删除隐藏）。
+
+### BYOK 流式 SSE + 相关概念同域（R8 续²，2026-08-14）
+24. **BYOK 升级为流式**：`streamOpenAICompatible`（`app-context.tsx`）以 `stream: true` 请求并解析 SSE（`data:` 行 -> `choices[0].delta.content`，`[DONE]` 结束，心跳/半包静默跳过），逐 delta 直写 assistant 消息。少数网关忽略 stream 仍回整段 JSON -> 按整体输出兜底。超时改为**首增量 15s**（出字后不再限时，流可能很长）。
+25. **流式中断优雅降级**：已收到部分内容时保留原文，续打字机补离线回复（`> ⚠️ BYOK 流式中断…`）；一个字都没收到才整段回退（`streamReply` 增加 `append`/`prefix` 选项，拆出 `appendAssistantMessage` + `setLastAssistantContent` 供打字机/SSE 共用）。
+26. **相关概念同域修复**（`mock.ts`）：原 treeHit 分支的「相关概念」写死取 `GLOSSARY.slice(0,3)`（前 3 条全是量子物理词）--问「梯度下降」会在相关概念里列「量子纠缠」。修复：优先词典邻近词（同域聚类），否则取树内兄弟节点；不再列术语自身。
+27. `verify-byok.mjs` 改为拦截 SSE 响应（校验 `stream:true` + 流式渲染 + 失败回退）；`verify-termstack.mjs` 更新到居中级联新结构（`.card-container` 平铺兄弟 + `--cx/--cy` 偏移，旧的 `inset-0` 断言已过时）。
+
+### UX 细节（R8 续³，2026-08-14）
+28. **轮次标题去重**：单轮次对话隐藏轮次大标题（卡片顶部 + 消息气泡已足够），多轮次/分支时保留用于定位。测试：`scripts/verify-turntitle.mjs`。
+29. **文档删除键常显**：文档库卡片删除键从"悬停才显示"改为常显；阅读页工具栏新增删除键（删完自动回文档库）。测试：`scripts/verify-docdelete.mjs`（fixture：`scripts/fixtures/ml-notes.md`）。
+30. **文档库可退出**：库工具栏新增"返回聊天"按钮（`setActiveDocId(null)`）——此前点进文档库就出不来；侧边栏"本地文档"旁的 **+ 改为直接上传文档**（侧边栏自带隐藏 file input + 解析，上传后进入文档库）。测试：`scripts/verify-library.mjs`。
+31. **侧边栏字体统一**：本地文档/常驻聊天/本地项目/文件夹名全部统一为 `text-sm font-medium`（原 12px/14px 混排）。
+
+## 三、R8 关键 bug 修复
+
+| bug | 根因 | 修复 |
+|---|---|---|
+| 术语卡片位置错+关不掉 | 居中动画用在右锚定卡片 | 新增右锚定进出场动画 |
+| 轮次导航关不掉 | 面板(z-10)盖住开关按钮 | 开关按钮 `relative z-20` |
+| 卡片重命名"看不见" | 头部显示轮次标题、重命名的是项目 | 头部改显项目标题 + 自动标题 |
+| **桌面端侧边栏完全点不动** | 侧边栏 `sm:z-auto`，主内容列 `relative z-10` 在 DOM 后 → 主内容盖住侧边栏 | 侧边栏保持 `z-40` |
+| 全站文字是绿色 | shadcn `--primary: var(--brand)` 使 `text-primary` 变绿 | `@theme inline` 覆盖 `--color-primary: var(--text-primary)` |
+
+> 教训：用 `.click()`（绕过命中检测）测不出"元素被盖住"类问题；必须用真实鼠标事件（`page.mouse.click`）或 `document.elementFromPoint` 验证。
+
+## 四、验证脚本（scripts/，全部可复用）
+
+| 脚本 | 用途 |
+|---|---|
+| `qa-pixel.mjs` | 像素级 diff（8 场景，需 Edge） |
+| `qa-local.mjs` | 结构化 + 交互冒烟测试 |
+| `analyze-diff.mjs` / `row-profile.mjs` / `font-check.cjs` | diff/布局分析工具 |
+| `verify-term-card.mjs` | 术语卡片位置+关闭 |
+| `verify-cascade.mjs` | 居中级联布局+不透明+逐层关闭 |
+| `verify-popclose.mjs` | 逐层关闭+无返回箭头 |
+| `verify-sidebar.mjs` | 重命名/建文件夹/智能模式 |
+| `verify-features.mjs` | 上下文回复/轮次导航/BYOK |
+| `verify-ui-fixes.mjs` | 轮次导航开关/FAB 开关/订阅 UI 移除 |
+| `verify-polish.mjs` | 流式输出/退场动画/头部重命名/设置精简/欢迎页 |
+| `verify-byok.mjs` | BYOK 真实调用（SSE 拦截模拟 200/500/中断） |
+| `verify-content.mjs` | 知识库扩充回复+深挖 |
+| `verify-resident.mjs` | 常驻聊天（打开/持久/列表排除/删除隐藏） |
+| `verify-turntitle.mjs` | 轮次标题去重 |
+| `verify-docdelete.mjs` | 文档删除键（库+阅读页） |
+| `verify-library.mjs` | 库返回按钮/侧边栏加号上传/字体统一 |
+
+**所有脚本运行需 `danger-full-access`**（puppeteer 启动 Edge 会触发文件沙箱的 spawn EPERM）。
+
+## 五、当前像素 diff 快照（2026-08-14，BYOK 流式 + 相关概念同域后）
+
+| 场景 | diff% |
+|---|---|
+| d-welcome | 4.15% |
+| d-welcome-main | 5.22% |
+| d-settings | 6.19% |
+| d-newproj | 6.56% |
+| d-chat | 6.79% |
+| d-chat-reply | 9.41% |
+| m-main | 4.17% |
+| m-fab | 5.86% |
+
+## 六、剩余已知差距（下一步候选，按价值排序）
+
+1. **右侧思维宇宙面板**——⚠️ 已实测：原站所有截图里右侧 225px 区域是**纯背景**（DOM 有面板但视觉为空），克隆保持"20px 折叠条"反而更贴近；若要默认展开面板是 UX 取舍，会牺牲像素 diff。
+2. **卡片/设置面板内容向原站像素级对齐**（中文文案是刻意保留，不会到 0%）。
+3. **文档库划词提问体验**（划词浮条目前固定在底部，可改为跟随选区）。
+4. **卡片进出场动画**——已接进入场+关闭退场；"返回上一层/分支"的中间态动画未接。
+5. **移动端细节**——用户明确"移动端最后做，个人用不常用"。
+
+## 七、命令速查
+
+| 用途 | 命令 |
+|---|---|
+| dev server | `npm run dev`（localhost:3000） |
+| 类型检查 | `npx tsc --noEmit` |
+| 生产构建 | `npm run build` |
+| 像素 diff | `node scripts/qa-pixel.mjs [scene...]` |
+| 功能验证 | `node scripts/verify-*.mjs` |

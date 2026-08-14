@@ -16,10 +16,12 @@ import {
   type ReactNode,
 } from "react";
 import type {
+  ByokModel,
   ChatProject,
   ChatSettings,
   DocumentItem,
   Message,
+  ModelInfo,
   Profile,
   TermState,
   ThoughtNode,
@@ -27,13 +29,81 @@ import type {
 } from "@/types/sites/ai-explore-poker-820d0558";
 import {
   DEFAULT_SETTINGS,
-  MOCK_REPLY_MARKDOWN,
-  findTerm,
-  genericTermSummary,
+  generateReply,
   makeDemoProject,
   makeDemoTurn,
   themeId,
 } from "@/lib/sites/ai-explore-poker-820d0558/mock";
+
+/**
+ * OpenAI 兼容的 chat/completions 流式调用（`stream: true` + SSE，浏览器直连，密钥不落盘到服务器）。
+ * 逐 delta 回调 `onDelta`；首个增量到达时触发 `onFirst`（用于解除"首字超时"）。
+ * 少数网关忽略 stream:true 仍返回整段 JSON -> 按整体输出兜底。
+ */
+async function streamOpenAICompatible(
+  byok: ByokModel,
+  messages: { role: string; content: string }[],
+  onDelta: (delta: string) => void,
+  signal?: AbortSignal,
+  onFirst?: () => void
+): Promise<void> {
+  const url = byok.baseUrl.replace(/\/+$/, "") + "/chat/completions";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${byok.apiKey}`,
+    },
+    body: JSON.stringify({ model: byok.modelId, messages, stream: true }),
+    signal,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  // 解析一行 SSE data -> 取 delta.content；心跳/半包静默跳过。
+  const handleLine = (line: string, state: { received: boolean }) => {
+    const t = line.trim();
+    if (!t.startsWith("data:")) return;
+    const payload = t.slice(5).trim();
+    if (payload === "[DONE]") return;
+    let delta: unknown;
+    try {
+      delta = JSON.parse(payload)?.choices?.[0]?.delta?.content;
+    } catch {
+      return;
+    }
+    if (typeof delta === "string" && delta) {
+      if (!state.received) {
+        state.received = true;
+        onFirst?.();
+      }
+      onDelta(delta);
+    }
+  };
+
+  const ctype = res.headers.get("content-type") ?? "";
+  if (!res.body || ctype.includes("application/json")) {
+    const data = await res.json();
+    const text = data?.choices?.[0]?.message?.content;
+    if (typeof text !== "string" || !text.trim()) throw new Error("空响应");
+    handleLine("data: " + JSON.stringify({ choices: [{ delta: { content: text.trim() } }] }), { received: false });
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  const state = { received: false };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) handleLine(line, state);
+  }
+  if (buf) handleLine(buf, state);
+  if (!state.received) throw new Error("空响应");
+}
 
 export interface AppState {
   settings: ChatSettings;
@@ -41,8 +111,26 @@ export interface AppState {
   projects: ChatProject[];
   activeProjectId: string | null;
   createProject(): void;
+  /** 空态 "?" 按钮：载入一个带示例对话的项目 */
+  loadSampleProject(): void;
   selectProject(id: string): void;
+  /** 打开常驻聊天（跨项目保留的会话）。 */
+  selectResident(): void;
   deleteProject(id: string): void;
+  renameProject(id: string, name: string): void;
+  /** 项目文件夹（分组） */
+  folders: string[];
+  createFolder(name: string): void;
+  removeFolder(name: string): void;
+  moveProjectToFolder(id: string, folder: string | null): void;
+  /** 常驻聊天 AI 智能模式开关 */
+  smartMode: boolean;
+  toggleSmartMode(): void;
+  /** 导入一个项目（导出/导入为 JSON） */
+  importProject(data: { title?: string; turns?: Turn[] }): void;
+  /** 用户自带的 BYOK 模型（密钥仅存本机） */
+  byokModels: ByokModel[];
+  addByokModel(input: { name: string; baseUrl: string; modelId: string; apiKey: string }): void;
   collapsed: boolean;
   toggleSidebar(): void;
   mindscapeOpen: boolean;
@@ -89,6 +177,9 @@ const isDesktop = () =>
 
 const STORAGE_KEY = "explore-state-v1";
 
+/** 常驻聊天的固定项目 id（跨项目保留的会话）。 */
+const RESIDENT_CHAT_ID = "resident";
+
 interface PersistedState {
   settings?: ChatSettings;
   projects?: ChatProject[];
@@ -97,6 +188,9 @@ interface PersistedState {
   termStates?: Record<string, TermState>;
   profile?: Profile | null;
   documents?: DocumentItem[];
+  folders?: string[];
+  smartMode?: boolean;
+  byokModels?: ByokModel[];
 }
 
 function loadState(): PersistedState {
@@ -118,9 +212,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ...DEFAULT_SETTINGS,
     ...boot.settings,
   });
-  const [projects, setProjects] = useState<ChatProject[]>(
-    boot.projects?.length ? boot.projects : [makeDemoProject()]
-  );
+  // 常驻聊天：固定项目（不可删、不进列表），首次启动自动创建。
+  const [projects, setProjects] = useState<ChatProject[]>(() => {
+    const list = boot.projects?.length ? boot.projects : [makeDemoProject()];
+    return list.some((p) => p.resident)
+      ? list
+      : [{ ...makeDemoProject(), id: RESIDENT_CHAT_ID, title: "常驻聊天", resident: true }, ...list];
+  });
   const [activeProjectId, setActiveProjectId] = useState<string | null>(
     boot.activeProjectId ?? null
   );
@@ -140,6 +238,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
   const [documents, setDocuments] = useState<DocumentItem[]>(boot.documents ?? []);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
+  const [folders, setFolders] = useState<string[]>(boot.folders ?? []);
+  const [smartMode, setSmartModeState] = useState<boolean>(boot.smartMode ?? false);
+  const [byokModels, setByokModels] = useState<ByokModel[]>(boot.byokModels ?? []);
 
   // First visit → auto-open onboarding wizard once.
   useEffect(() => {
@@ -163,12 +264,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         termStates,
         profile,
         documents,
+        folders,
+        smartMode,
+        byokModels,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch {
       /* quota / unavailable — skip */
     }
-  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, documents]);
+  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, documents, folders, smartMode, byokModels]);
 
   // Theme → <html data-theme> (runtime re-skin).
   useEffect(() => {
@@ -185,12 +289,94 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveProjectId(p.id);
   }, []);
 
+  const loadSampleProject = useCallback(() => {
+    const turn = makeDemoTurn("什么是量子纠缠？");
+    turn.messages = [
+      { id: uid(), role: "user", content: "什么是量子纠缠？", createdAt: Date.now() },
+      { id: uid(), role: "assistant", content: generateReply("什么是量子纠缠？"), createdAt: Date.now() },
+    ];
+    const p: ChatProject = {
+      ...makeDemoProject(),
+      id: uid(),
+      title: "示例：量子纠缠",
+      turns: [turn],
+    };
+    setProjects((list) => [p, ...list]);
+    setActiveProjectId(p.id);
+    setActiveDocId(null);
+  }, []);
+
   const selectProject = useCallback((id: string) => setActiveProjectId(id), []);
 
+  const selectResident = useCallback(() => setActiveProjectId(RESIDENT_CHAT_ID), []);
+
   const deleteProject = useCallback((id: string) => {
+    // 常驻聊天不可删除。
+    if (id === RESIDENT_CHAT_ID) return;
     setProjects((list) => list.filter((p) => p.id !== id));
     setActiveProjectId((cur) => (cur === id ? null : cur));
   }, []);
+
+  const renameProject = useCallback((id: string, name: string) => {
+    const title = name.trim();
+    if (!title) return;
+    setProjects((list) =>
+      list.map((p) => (p.id === id ? { ...p, title, updatedAt: Date.now() } : p))
+    );
+  }, []);
+
+  const createFolder = useCallback((name: string) => {
+    const n = name.trim();
+    if (!n) return;
+    setFolders((list) => (list.includes(n) ? list : [...list, n]));
+  }, []);
+
+  const removeFolder = useCallback((name: string) => {
+    setFolders((list) => list.filter((f) => f !== name));
+    setProjects((list) =>
+      list.map((p) => (p.folder === name ? { ...p, folder: null } : p))
+    );
+  }, []);
+
+  const moveProjectToFolder = useCallback((id: string, folder: string | null) => {
+    setProjects((list) =>
+      list.map((p) => (p.id === id ? { ...p, folder } : p))
+    );
+  }, []);
+
+  const toggleSmartMode = useCallback(() => setSmartModeState((v) => !v), []);
+
+  const importProject = useCallback(
+    (data: { title?: string; turns?: Turn[] }) => {
+      const p: ChatProject = {
+        ...makeDemoProject(),
+        id: uid(),
+        title: data.title?.trim() || "Untitled",
+        turns: Array.isArray(data.turns) ? data.turns : [],
+      };
+      setProjects((list) => [p, ...list]);
+      setActiveProjectId(p.id);
+    },
+    []
+  );
+
+  const addByokModel = useCallback(
+    (input: { name: string; baseUrl: string; modelId: string; apiKey: string }) => {
+      const name = input.name.trim();
+      if (!name) return;
+      const m: ByokModel = {
+        id: "byok:" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+        name,
+        provider: "BYOK",
+        description: input.apiKey.trim() ? "自定义模型（密钥仅存本机）" : "自定义模型",
+        baseUrl: input.baseUrl.trim().replace(/\/+$/, "") || "https://api.openai.com/v1",
+        modelId: input.modelId.trim() || name,
+        apiKey: input.apiKey.trim(),
+      };
+      setByokModels((list) => [...list, m]);
+    },
+    []
+  );
 
   const toggleSidebar = useCallback(() => setCollapsed((c) => !c), []);
 
@@ -235,6 +421,90 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  /** 在目标项目最后一个 turn 追加一条空 assistant 消息（打字机/SSE 共用的写入目标）。 */
+  const appendAssistantMessage = useCallback((targetId: string) => {
+    setProjects((list) =>
+      list.map((p) =>
+        p.id === targetId
+          ? {
+              ...p,
+              turns: p.turns.map((t, i) =>
+                i === p.turns.length - 1
+                  ? {
+                      ...t,
+                      messages: [
+                        ...t.messages,
+                        {
+                          id: uid(),
+                          role: "assistant" as const,
+                          content: "",
+                          createdAt: Date.now(),
+                        },
+                      ],
+                    }
+                  : t
+              ),
+            }
+          : p
+      )
+    );
+  }, []);
+
+  /** 覆写目标项目最后一条 assistant 消息的内容。 */
+  const setLastAssistantContent = useCallback(
+    (targetId: string, content: string) => {
+      setProjects((list) =>
+        list.map((p) =>
+          p.id === targetId
+            ? {
+                ...p,
+                turns: p.turns.map((t, i) =>
+                  i === p.turns.length - 1
+                    ? {
+                        ...t,
+                        messages: t.messages.map((m, mi) =>
+                          mi === t.messages.length - 1 ? { ...m, content } : m
+                        ),
+                      }
+                    : t
+                ),
+              }
+            : p
+        )
+      );
+    },
+    []
+  );
+
+  /**
+   * 打字机式把 `reply` 写入最后一条 assistant 消息。
+   * `opts.append === false`：复用已有消息（SSE 已追加过 / 覆写部分内容）。
+   * `opts.prefix`：从头就显示的前缀（用于保留流式中断前已收到的部分）。
+   */
+  const streamReply = useCallback(
+    (
+      reply: string,
+      targetId: string,
+      onDone?: () => void,
+      opts?: { append?: boolean; prefix?: string }
+    ) => {
+      if (opts?.append !== false) appendAssistantMessage(targetId);
+      const prefix = opts?.prefix ?? "";
+      let pos = 0;
+      const step = 12;
+      const timer = window.setInterval(() => {
+        pos = Math.min(pos + step, reply.length);
+        setLastAssistantContent(targetId, prefix + reply.slice(0, pos));
+        if (pos >= reply.length) {
+          window.clearInterval(timer);
+          setBusy(false);
+          onDone?.();
+        }
+      }, 20);
+    },
+    [appendAssistantMessage, setLastAssistantContent]
+  );
+
   const sendMessage = useCallback(
     (text: string) => {
       const content = text.trim();
@@ -251,41 +521,89 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const title = content.length > 18 ? content.slice(0, 18) + "…" : content;
       appendTurn(targetId, title, content);
-      setBusy(true);
-
-      // Mock AI reply (knowledge-tree card content).
-      window.setTimeout(() => {
+      // 自动标题：给"Untitled"项目用首条消息命名（设置可关）。
+      if (settings.autoTitleEnabled) {
         setProjects((list) =>
           list.map((p) =>
-            p.id === targetId
-              ? {
-                  ...p,
-                  turns: p.turns.map((t, i) =>
-                    i === p.turns.length - 1
-                      ? {
-                          ...t,
-                          messages: [
-                            ...t.messages,
-                            {
-                              id: uid(),
-                              role: "assistant" as const,
-                              content: MOCK_REPLY_MARKDOWN,
-                              createdAt: Date.now(),
-                            },
-                          ],
-                        }
-                      : t
-                  ),
-                }
+            p.id === targetId && (p.title === "Untitled" || !p.title.trim())
+              ? { ...p, title, updatedAt: Date.now() }
               : p
           )
         );
-        setBusy(false);
+      }
+      setBusy(true);
+      const done = () => {
         // 发消息后自动折叠侧边栏（桌面端）
         if (wasDesktop) setCollapsed(true);
-      }, 1200);
+      };
+
+      // 当前激活的是 BYOK 模型且有完整配置 → 走真实流式 API（失败回退离线）。
+      const byok = byokModels.find(
+        (m) => m.id === settings.activeModelId && m.provider === "BYOK"
+      );
+      if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
+        const history = turns
+          .flatMap((t) => t.messages)
+          .slice(-12)
+          .map((m) => ({ role: m.role, content: m.content }));
+        const controller = new AbortController();
+        // 15s 内没有任何增量 -> 放弃回退；开始出字后不再限时（流可能很长）。
+        const timer = window.setTimeout(() => controller.abort(), 15000);
+        appendAssistantMessage(targetId); // SSE 直接往这条消息里流
+        let acc = "";
+        streamOpenAICompatible(
+          byok,
+          [...history, { role: "user", content }],
+          (delta) => {
+            acc += delta;
+            setLastAssistantContent(targetId, acc);
+          },
+          controller.signal,
+          () => window.clearTimeout(timer)
+        )
+          .then(() => {
+            window.clearTimeout(timer);
+            setBusy(false);
+            done();
+          })
+          .catch((err: unknown) => {
+            window.clearTimeout(timer);
+            const why =
+              err instanceof Error && err.name === "AbortError"
+                ? "请求超时"
+                : err instanceof Error && err.message
+                  ? err.message
+                  : "网络错误";
+            if (acc) {
+              // 流中断：保留已收到的部分，接着补一段离线回复。
+              streamReply(generateReply(content), targetId, done, {
+                append: false,
+                prefix: `${acc}\n\n> ⚠️ BYOK 流式中断（${why}），以下为离线知识库补充：\n\n`,
+              });
+            } else {
+              const fallback = `> ⚠️ BYOK 请求失败（${why}），已回退到离线知识库。\n\n${generateReply(content)}`;
+              streamReply(fallback, targetId, done, { append: false });
+            }
+          });
+      } else {
+        // 离线 mock 路径：短暂延迟后按知识库生成回复。
+        window.setTimeout(() => {
+          streamReply(generateReply(content), targetId, done);
+        }, 1200);
+      }
     },
-    [activeProjectId, busy, appendTurn]
+    [
+      activeProjectId,
+      busy,
+      appendTurn,
+      settings.autoTitleEnabled,
+      settings.activeModelId,
+      byokModels,
+      turns,
+      streamReply,
+      appendAssistantMessage,
+      setLastAssistantContent,
+    ]
   );
 
   /** 分支卡片：以术语开新 turn，AI 直接给出术语内容（继承上下文） */
@@ -297,7 +615,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setProjects((list) => [p, ...list]);
         targetId = p.id;
       }
-      appendTurn(targetId, title, `继续深挖：${title}`, aiContent ?? genericTermSummary(title));
+      appendTurn(targetId, title, `继续深挖：${title}`, aiContent ?? generateReply(title));
       setMindscapeOpen(false);
     },
     [activeProjectId, appendTurn]
@@ -307,8 +625,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const openDocQuestion = useCallback(
     (term: string, docName: string) => {
       const projectTitle = `论文：${docName}`;
-      const node = findTerm(term);
-      const ai = node?.summary ?? genericTermSummary(term);
+      const ai = generateReply(term);
       let pid: string | null = null;
       setProjects((list) => {
         const existing = list.find((p) => p.title === projectTitle);
@@ -383,8 +700,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     projects,
     activeProjectId,
     createProject,
+    loadSampleProject,
     selectProject,
+    selectResident,
     deleteProject,
+    renameProject,
+    folders,
+    createFolder,
+    removeFolder,
+    moveProjectToFolder,
+    smartMode,
+    toggleSmartMode,
+    importProject,
+    byokModels,
+    addByokModel,
     collapsed,
     toggleSidebar,
     mindscapeOpen,
