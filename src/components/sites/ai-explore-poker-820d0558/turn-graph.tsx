@@ -107,7 +107,7 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnTre
   const rows = useMemo(() => buildRows(turns), [turns]);
 
   return (
-    <div className="w-full px-2.5 py-2" role="tree" aria-label="轮次导航图">
+    <div className="w-full animate-[fadeIn_300ms_ease-out] px-2.5 py-2" role="tree" aria-label="轮次导航图">
       {rows.map((row) =>
         row.turn ? (
           <div

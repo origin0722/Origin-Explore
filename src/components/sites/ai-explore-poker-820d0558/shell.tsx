@@ -50,6 +50,15 @@ export function AppShell() {
     activeProjectId != null
       ? projects.find((p) => p.id === activeProjectId) ?? null
       : null;
+  /** 是否已有轮次（出现卡片树） */
+  const hasTurns = (activeProject?.turns.length ?? 0) > 0;
+
+  /**
+   * 对话框左缘定位：按"无卡片树时的页面居中（略偏右 16px）"计算一次并固定——
+   * 卡片树出现后左边不动、右缘随右侧留白平滑回收。
+   */
+  const dialogLeftMl =
+    "mx-auto lg:ml-[max(0px,calc((100vw_-_min(990px,100vw))/2_-_209px))]";
 
   const activeDoc =
     activeDocId != null && activeDocId !== "__library__"
@@ -103,12 +112,20 @@ export function AppShell() {
           </button>
 
           {/* Main canvas column: content area + bottom input bar。
-              右侧预留 400px 给卡片树（锚定对话框右缘） */}
-          <div className="relative z-10 flex h-full flex-col lg:pr-[400px]">
-            <div className="relative mx-auto min-h-0 w-full max-w-[990px] flex-1">
+              无轮次：对话框按页面居中（略偏右）展开；
+              有轮次：右侧让出 400px 给卡片树（padding 过渡），对话框左缘不动、右缘平滑回收 */}
+          <div
+            className={`relative z-10 flex h-full flex-col transition-[padding-right] duration-300 ease-in-out ${
+              hasTurns ? "lg:pr-[400px]" : "lg:pr-0"
+            }`}
+          >
+            <div
+              data-dialog-root
+              className={`relative min-h-0 w-full max-w-[990px] flex-1 ${dialogLeftMl}`}
+            >
               {content}
 
-              {/* 轮次导航卡片树：贴着对话框右缘 */}
+              {/* 轮次导航卡片树：贴着对话框右缘，随右缘回收而浮现 */}
               <div className="absolute bottom-0 left-full top-0 ml-5 hidden w-[380px] flex-col pr-5 lg:flex">
                 <div
                   className="my-auto max-h-[70%] overflow-y-auto overflow-x-hidden pt-[8vh]"
@@ -119,7 +136,7 @@ export function AppShell() {
               </div>
             </div>
             <div
-              className={`mx-auto w-full max-w-[990px] flex-shrink-0 ${
+              className={`w-full max-w-[990px] flex-shrink-0 ${dialogLeftMl} ${
                 activeProjectId == null ? "max-sm:hidden" : ""
               }`}
             >
