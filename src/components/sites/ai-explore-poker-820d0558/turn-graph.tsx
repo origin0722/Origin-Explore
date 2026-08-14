@@ -93,7 +93,7 @@ function buildRows(turns: Turn[]): TreeRow[] {
 
 function CardKindIcon({ kind }: { kind: TermKindLike }) {
   const Icon = KIND_ICON[kind];
-  return <Icon size={11} strokeWidth={2.4} className="shrink-0 text-brand/80" />;
+  return <Icon size={12} strokeWidth={2.4} className="shrink-0 text-brand/80" />;
 }
 
 interface TurnTreeProps {
@@ -107,7 +107,7 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnTre
   const rows = useMemo(() => buildRows(turns), [turns]);
 
   return (
-    <div className="w-full px-2 py-2" role="tree" aria-label="轮次导航图">
+    <div className="w-full px-2.5 py-2" role="tree" aria-label="轮次导航图">
       {rows.map((row) =>
         row.turn ? (
           <div
@@ -119,25 +119,25 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnTre
               e.preventDefault();
               onToggleUnread(row.turn!.id);
             }}
-            className="group flex cursor-pointer items-center gap-1.5 rounded-md py-1 pr-1.5 transition-colors hover:bg-item-std-hover"
+            className="group flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-1.5 transition-colors hover:bg-item-std-hover"
             style={{
-              paddingLeft: 8 + row.depth * 16,
+              paddingLeft: 10 + row.depth * 18,
               borderLeft: row.depth ? "1px solid rgba(19,228,37,0.18)" : undefined,
-              marginLeft: row.depth ? 9 : 0,
+              marginLeft: row.depth ? 10 : 0,
             }}
           >
             <span
-              className={`h-2.5 w-2.5 shrink-0 rounded-full border ${
+              className={`h-3 w-3 shrink-0 rounded-full border ${
                 row.turn.favorite ? "border-brand bg-brand" : "border-brand bg-brand/25"
               }`}
             />
             {row.turn.parentTurnId && (
-              <ArrowDown size={11} className="shrink-0 text-brand/80" aria-label="分支轮次" />
+              <ArrowDown size={12} className="shrink-0 text-brand/80" aria-label="分支轮次" />
             )}
-            <span className="min-w-0 flex-1 truncate text-xs text-text-secondary group-hover:text-primary">
+            <span className="min-w-0 flex-1 truncate text-[13px] text-text-secondary group-hover:text-primary">
               {row.turn.title}
             </span>
-            {row.turn.favorite && <Star size={11} className="shrink-0 text-brand" fill="currentColor" />}
+            {row.turn.favorite && <Star size={12} className="shrink-0 text-brand" fill="currentColor" />}
             {row.turn.unread && (
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-label="未读" />
             )}
@@ -148,15 +148,15 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnTre
             data-card-node={row.card!.term}
             role="treeitem"
             onClick={() => onOpenCard(row.card!.turnId, row.card!.term)}
-            className="flex cursor-pointer items-center gap-1.5 rounded-md py-1 pr-1.5 transition-colors hover:bg-item-std-hover"
+            className="flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-1.5 transition-colors hover:bg-item-std-hover"
             style={{
-              paddingLeft: 8 + row.depth * 16,
+              paddingLeft: 10 + row.depth * 18,
               borderLeft: "1px solid rgba(19,228,37,0.18)",
-              marginLeft: 9,
+              marginLeft: 10,
             }}
           >
             <CardKindIcon kind={row.card!.kind} />
-            <span className="min-w-0 flex-1 truncate text-xs text-brand/85">{row.card!.term}</span>
+            <span className="min-w-0 flex-1 truncate text-[13px] text-brand/85">{row.card!.term}</span>
           </div>
         )
       )}

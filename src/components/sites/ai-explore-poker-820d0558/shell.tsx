@@ -132,9 +132,9 @@ export function AppShell() {
         </div>
 
         {/* 轮次导航卡片树：对话框与思维宇宙之间的独立区域 */}
-        <div className="relative z-10 mr-5 hidden w-[300px] shrink-0 flex-col lg:flex">
+        <div className="relative z-10 mr-5 hidden w-[340px] shrink-0 flex-col lg:flex xl:w-[380px]">
           <div
-            className="my-auto max-h-[62%] overflow-y-auto overflow-x-hidden pt-[8vh]"
+            className="my-auto max-h-[70%] overflow-y-auto overflow-x-hidden pt-[8vh]"
             title="轮次导航图：点击跳转 · 右键切换已读/未读"
           >
             <TurnGraphPanel />
