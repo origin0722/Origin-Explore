@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { useApp, streamOpenAICompatible } from "./app-context";
-import { findTerm, genericTermSummary, generateReply } from "@/lib/sites/ai-explore-poker-820d0558/mock";
+import { findTerm, generateReply, GLOSSARY } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 import type { Message, TermNode } from "@/types/sites/ai-explore-poker-820d0558";
 
 const uid = () => "m-" + Math.random().toString(36).slice(2, 10);
@@ -41,16 +41,23 @@ const KIND_ICON: Record<TermNode["kind"], string> = {
   branch: "⬇️",
 };
 
-/** Resolve a term to a tree node; unknown terms fall back to a generic card. */
+/** Resolve a term to a tree node; glossary terms get their short explain;
+    unknown terms get an empty summary (the card will auto-ask the AI). */
 function resolveTerm(term: string): TermNode {
-  return (
-    findTerm(term) ?? {
-      id: "fallback-" + term,
+  const treeNode = findTerm(term);
+  if (treeNode) return treeNode;
+  const g = GLOSSARY.find(
+    (x) => x.zh === term || x.en.toLowerCase() === term.toLowerCase()
+  );
+  if (g) {
+    return {
+      id: "glossary-" + term,
       term,
       kind: "related",
-      summary: genericTermSummary(term),
-    }
-  );
+      summary: `**${g.zh}**（${g.en}）\n\n${g.explain}`,
+    };
+  }
+  return { id: "fallback-" + term, term, kind: "related", summary: "" };
 }
 
 /** Normalize ReactMarkdown strong-children into a plain string. */
@@ -176,7 +183,9 @@ function TermCard({ node, messages, busy, onClose, onTermClick, onCollect, onBra
         )}
         {messages.length === 0 && (
           <p className="mt-3 text-xs text-text-tertiary">
-            在这个卡片里继续问 AI —— 点击回复中的加粗术语可以继续往下深挖。
+            {node.summary
+              ? "在这个卡片里继续问 AI —— 点击回复中的加粗术语可以继续往下深挖。"
+              : "离线知识库没有这个词条。接入你自己的 API 后，点开卡片会自动问 AI；现在也可以直接在下面输入框提问。"}
           </p>
         )}
       </div>
@@ -380,18 +389,29 @@ export function ChatCard() {
   };
 
   /* --- term expansion (recursive tree) --- */
+
+  /** 开一张卡片；未知词条（空摘要）+ 已接 BYOK → 自动向 AI 提问解释。 */
+  const openCard = (node: TermNode, path: string) => {
+    stackSeq.current += 1;
+    const key = `${node.id}-${stackSeq.current}`;
+    setTermStack((s) => [...s, { node, key, messages: [], path, busy: false }]);
+    const byok = byokModels.find(
+      (m) => m.id === settings.activeModelId && m.provider === "BYOK"
+    );
+    if (!node.summary && byok?.apiKey && byok?.baseUrl && byok?.modelId) {
+      window.setTimeout(() => {
+        askInCard(
+          key,
+          `请详细解释「${node.term}」这个概念，重要术语用 **加粗** 标记。`,
+          { node, path, messages: [], busy: false }
+        );
+      }, 150);
+    }
+  };
+
   const handleTermClick = (term: string) => {
     const node = resolveTerm(term);
-    stackSeq.current += 1;
-    setTermStack([
-      {
-        node,
-        key: `${node.id}-${stackSeq.current}`,
-        messages: [],
-        path: node.term,
-        busy: false,
-      },
-    ]);
+    openCard(node, node.term);
     setHlTerm(term);
     if (hlTimeout.current) clearTimeout(hlTimeout.current);
     hlTimeout.current = setTimeout(() => setHlTerm(null), 1500);
@@ -401,23 +421,16 @@ export function ChatCard() {
   const handleCardTermClick = (parentKey: string, term: string) => {
     const parent = termStack.find((i) => i.key === parentKey);
     const node = resolveTerm(term);
-    stackSeq.current += 1;
-    setTermStack((s) => [
-      ...s,
-      {
-        node,
-        key: `${node.id}-${stackSeq.current}`,
-        messages: [],
-        path: parent ? `${parent.path} → ${term}` : term,
-        busy: false,
-      },
-    ]);
+    openCard(node, parent ? `${parent.path} → ${term}` : term);
   };
 
   /** 在卡片内提问：BYOK 走真实流式 API，否则离线知识库；回复写进该卡片。 */
-  const askInCard = (key: string, question: string) => {
-    const item = termStack.find((i) => i.key === key);
-    if (!item || item.busy) return;
+  const askInCard = (
+    key: string,
+    question: string,
+    item: Pick<StackItem, "node" | "path" | "messages" | "busy">
+  ) => {
+    if (item.busy) return;
 
     const patch = (k: string, fn: (i: StackItem) => StackItem) =>
       setTermStack((s) => s.map((i) => (i.key === k ? fn(i) : i)));
@@ -737,7 +750,7 @@ export function ChatCard() {
                 cascading desktop windows. */}
             {termStack.length > 0 && (
               <>
-                {termStack.map(({ node, key, messages, busy: cardBusy }, i) => (
+                {termStack.map(({ node, key, messages, path, busy: cardBusy }, i) => (
                   <div
                     key={key}
                     className={`card-container absolute left-1/2 top-1/2 w-[85%] sm:w-[70%] h-[min(680px,calc(100%-96px))] rounded-2xl overflow-hidden bg-card-floating border border-std shadow-card ${
@@ -761,7 +774,7 @@ export function ChatCard() {
                       onTermClick={(term) => handleCardTermClick(key, term)}
                       onCollect={() => handleCollect(node)}
                       onBranch={() => handleBranch(node)}
-                      onAsk={(q) => askInCard(key, q)}
+                      onAsk={(q) => askInCard(key, q, { node, path, messages, busy: cardBusy })}
                     />
                   </div>
                 ))}
