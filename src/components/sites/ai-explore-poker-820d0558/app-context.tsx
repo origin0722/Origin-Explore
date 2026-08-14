@@ -537,15 +537,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (wasDesktop) setCollapsed(true);
       };
 
+      // 最近对话历史（离线回复与 BYOK 共用；当前问题单独传）。
+      const history = turns
+        .flatMap((t) => t.messages)
+        .slice(-12)
+        .map((m) => ({ role: m.role, content: m.content }));
+
       // 当前激活的是 BYOK 模型且有完整配置 → 走真实流式 API（失败回退离线）。
       const byok = byokModels.find(
         (m) => m.id === settings.activeModelId && m.provider === "BYOK"
       );
       if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
-        const history = turns
-          .flatMap((t) => t.messages)
-          .slice(-12)
-          .map((m) => ({ role: m.role, content: m.content }));
         const controller = new AbortController();
         // 15s 内没有任何增量 -> 放弃回退；开始出字后不再限时（流可能很长）。
         const timer = window.setTimeout(() => controller.abort(), 15000);
@@ -576,19 +578,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   : "网络错误";
             if (acc) {
               // 流中断：保留已收到的部分，接着补一段离线回复。
-              streamReply(generateReply(content), targetId, done, {
+              streamReply(generateReply(content, history), targetId, done, {
                 append: false,
                 prefix: `${acc}\n\n> ⚠️ BYOK 流式中断（${why}），以下为离线知识库补充：\n\n`,
               });
             } else {
-              const fallback = `> ⚠️ BYOK 请求失败（${why}），已回退到离线知识库。\n\n${generateReply(content)}`;
+              const fallback = `> ⚠️ BYOK 请求失败（${why}），已回退到离线知识库。\n\n${generateReply(content, history)}`;
               streamReply(fallback, targetId, done, { append: false });
             }
           });
       } else {
-        // 离线 mock 路径：短暂延迟后按知识库生成回复。
+        // 离线 mock 路径：短暂延迟后按知识库生成回复（带上下文记忆）。
         window.setTimeout(() => {
-          streamReply(generateReply(content), targetId, done);
+          streamReply(generateReply(content, history), targetId, done);
         }, 1200);
       }
     },

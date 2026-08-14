@@ -70,6 +70,10 @@ Explore 克隆（ai.explore.poker/chat）已从"纯 UI"演进为**可交互的�
 30. **文档库可退出**：库工具栏新增"返回聊天"按钮（`setActiveDocId(null)`）——此前点进文档库就出不来；侧边栏"本地文档"旁的 **+ 改为直接上传文档**（侧边栏自带隐藏 file input + 解析，上传后进入文档库）。测试：`scripts/verify-library.mjs`。
 31. **侧边栏字体统一**：本地文档/常驻聊天/本地项目/文件夹名全部统一为 `text-sm font-medium`（原 12px/14px 混排）。
 
+### AI 对话完善（R8 续⁴，2026-08-14，用户将接入真实 API）
+32. **模型列表清洗**：8 个真实、无重复的模型（DeepSeek Chat/Reasoner、GPT-4o、Claude Sonnet、Gemini 2.5 Flash、Qwen-Max、GLM-4、Kimi K2），替换原虚拟名（deepseek-v4-flash-0731 等重复/过时名）；`DEFAULT_SETTINGS.activeModelId` 同步更新。用户接入 API 时按 BYOK 流程映射即可。
+33. **离线回复上下文记忆**：`generateReply(question, history?)` 新增历史参数；未命中新术语但像是追问（短句或以"那/它/继续/为什么…"开头）时，从历史里找**正在讨论的话题**（取消息中出现位置最早的术语，避免被"相关概念"词抢走；词典词兜底）续写回复。离线路径与 BYOK 失败回退均传最近 12 条历史。测试：`scripts/verify-chat.mjs`（模型列表 + 追问接话题）。
+
 ## 三、R8 关键 bug 修复
 
 | bug | 根因 | 修复 |

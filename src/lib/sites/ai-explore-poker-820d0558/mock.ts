@@ -15,15 +15,14 @@ import type {
 } from "@/types/sites/ai-explore-poker-820d0558";
 
 export const MODELS: ModelInfo[] = [
-  { id: "builtin:aiping/deepseek-v4-flash-0731/chat", name: "deepseek-v4-flash-0731", provider: "AIPing", description: "Built-in model" },
-  { id: "builtin:aiping/deepseek-v4-flash-0731/reasoner", name: "deepseek-v4-flash-0731", provider: "AIPing", description: "Built-in reasoning model" },
-  { id: "builtin:aiping/Step-3.5-Flash", name: "Step-3.5-Flash", provider: "AIPing", description: "Enough for simple tasks" },
-  { id: "builtin:tencent-tokenhub/qwen3.5-flash/chat", name: "qwen3.5-flash", provider: "Tencent TokenHub", description: "Vision-capable chat model", vision: true },
-  { id: "builtin:tencent-tokenhub/qwen3.5-flash/reasoner", name: "qwen3.5-flash", provider: "Tencent TokenHub", description: "Vision-capable reasoning model", vision: true },
-  { id: "builtin:grok/grok-4.5", name: "grok-4.5", provider: "Grok / xAI", description: "Good for most STEM tasks & coding" },
-  { id: "builtin:grok/grok-4.6", name: "grok-4.6", provider: "Grok / xAI", description: "Good for most STEM tasks" },
-  { id: "builtin:tencent-tokenhub/kimi-k3", name: "kimi-k3", provider: "Tencent TokenHub", description: "Just a little less knowledgeable than Gemini, but better at coding", vision: true },
-  { id: "builtin:zenmux/openai-gpt-5.6-sol", name: "openai/gpt-5.6-sol", provider: "ZenMux", description: "Frontier solver model", vision: true },
+  { id: "builtin:deepseek/deepseek-chat", name: "DeepSeek Chat", provider: "DeepSeek", description: "通用对话，性价比高" },
+  { id: "builtin:deepseek/deepseek-reasoner", name: "DeepSeek Reasoner", provider: "DeepSeek", description: "深度推理（思考模式）" },
+  { id: "builtin:openai/gpt-4o", name: "GPT-4o", provider: "OpenAI", description: "多模态旗舰模型", vision: true },
+  { id: "builtin:anthropic/claude-sonnet", name: "Claude Sonnet", provider: "Anthropic", description: "长文与推理均衡" },
+  { id: "builtin:google/gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "Google", description: "快速多模态", vision: true },
+  { id: "builtin:qwen/qwen-max", name: "Qwen-Max", provider: "阿里云", description: "通义千问旗舰" },
+  { id: "builtin:zhipu/glm-4", name: "GLM-4", provider: "智谱 AI", description: "中文友好" },
+  { id: "builtin:moonshot/kimi-k2", name: "Kimi K2", provider: "月之暗面", description: "超长上下文" },
 ];
 
 export const THEMES: ThemeOption[] = [
@@ -52,7 +51,7 @@ export function isThemeImplemented(name: string): boolean {
 export const DEFAULT_SETTINGS: ChatSettings = {
   theme: "Default (暗色)",
   language: "zh",
-  activeModelId: "builtin:aiping/deepseek-v4-flash-0731/chat",
+  activeModelId: "builtin:deepseek/deepseek-chat",
   isWebSearchEnabled: false,
   autoCitationEnabled: true,
   autoTitleInterval: 5,
@@ -659,16 +658,22 @@ export function genericTermSummary(term: string): string {
   return `关于 **${term}**\n\n这是你在阅读中遇到的一个概念。当前处于离线演示模式，内置词典还没有收录它的详细解释。\n\n> 接入 BYOK 模型后，我可以为你生成针对这个概念的完整讲解卡片。你也可以先在对话里追问它，或用自己的话描述你的理解，把它收录进思维宇宙。`;
 }
 
-/**
- * Generate a contextual mock reply for a user question.
- * Matches known terms (TERM_TREE + GLOSSARY) inside the question and returns a
- * detailed card with clickable related terms; falls back to a sample guide.
- */
-export function generateReply(question: string): string {
-  const q = question.trim();
+/** 回复生成用的历史消息（角色 + 内容）。 */
+export interface ReplyMessage {
+  role: string;
+  content: string;
+}
 
-  // Flatten the term tree so we can match any node by name.
-  const flat: { term: string; summary: string; children: TermNode[]; siblings: string[] }[] = [];
+interface TreeEntry {
+  term: string;
+  summary: string;
+  children: TermNode[];
+  siblings: string[];
+}
+
+/** 术语树扁平索引（模块级，避免每次调用重建）。 */
+const TREE_FLAT: TreeEntry[] = (() => {
+  const flat: TreeEntry[] = [];
   const walk = (nodes: TermNode[]) => {
     for (const n of nodes) {
       flat.push({
@@ -681,14 +686,56 @@ export function generateReply(question: string): string {
     }
   };
   walk(TERM_TREE);
+  return flat;
+})();
+
+/** 从最近的历史消息里找"正在讨论的术语"（倒序扫描；取出现位置最早者，
+ *  因为主话题通常在消息开头，避免被"相关概念"里的词抢走）。 */
+function topicFromHistory(history: ReplyMessage[]): TreeEntry | null {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const content = history[i].content;
+    let best: TreeEntry | null = null;
+    let bestIdx = Infinity;
+    for (const node of TREE_FLAT) {
+      const idx = content.indexOf(node.term);
+      if (idx >= 0 && idx < bestIdx) {
+        bestIdx = idx;
+        best = { ...node };
+      }
+    }
+    // 词典词兜底（词不在树里也能当话题）。
+    for (const g of GLOSSARY) {
+      const idx = content.indexOf(g.zh);
+      if (idx >= 0 && idx < bestIdx) {
+        bestIdx = idx;
+        best = { term: g.zh, summary: g.explain, children: [], siblings: [] };
+      }
+    }
+    if (best) return best;
+  }
+  return null;
+}
+
+/** 是否为"追问/继续"类短问句（无新术语时优先接上一轮话题）。 */
+const FOLLOW_UP_RE =
+  /^(那|它|这个|继续|然后|具体|举个|为什么|怎么|是什么|再|还有|详细|展开|例子|嗯|对)/;
+
+/**
+ * Generate a contextual mock reply for a user question.
+ * - 直接命中知识树/词典术语 → 详细讲解 + 同域相关概念；
+ * - 未命中但像是追问 → 接住历史里的话题继续；
+ * - 否则给示例引导。
+ */
+export function generateReply(question: string, history: ReplyMessage[] = []): string {
+  const q = question.trim();
 
   const list = (items: { term: string; hint?: string }[]) =>
     items.map((t, i) => `${i + 1}. **${t.term}**${t.hint ? `（${t.hint}）` : ""}`).join("\n");
 
   // Longest tree-term match wins ("波函数坍缩" over "坍缩").
-  const treeHit = flat
-    .filter((t) => q.includes(t.term))
-    .sort((a, b) => b.term.length - a.term.length)[0];
+  const treeHit = TREE_FLAT.filter((t) => q.includes(t.term)).sort(
+    (a, b) => b.term.length - a.term.length
+  )[0];
 
   // Glossary match (zh or en form).
   const glossaryHit = GLOSSARY.find(
@@ -727,6 +774,20 @@ export function generateReply(question: string): string {
       .slice(0, 3)
       .map((i) => GLOSSARY[i].zh);
     return `好的，我们来聊聊 **${glossaryHit.zh}**。\n\n${glossaryHit.explain}\n\n### 相关概念\n\n${list(neighbors.map((t) => ({ term: t })))}\n\n> 点击任意加粗术语，我可以展开更详细的解释卡片。`;
+  }
+
+  // 上下文记忆：没命中新术语，但像是追问 → 接住上一轮的话题。
+  const topic = history.length ? topicFromHistory(history) : null;
+  if (topic && (q.length <= 12 || FOLLOW_UP_RE.test(q))) {
+    const childrenBlock = topic.children.length
+      ? `\n### 可以继续深挖\n\n${list(
+          topic.children.map((c) => ({
+            term: c.term,
+            hint: c.kind === "child" ? "深挖背景" : c.kind === "related" ? "横向对比" : "分支另起",
+          }))
+        )}\n`
+      : "";
+    return `接着刚才的 **${topic.term}** 继续。\n\n${topic.summary}${childrenBlock}> 点击任意加粗术语继续下钻，也可以换个角度继续问我。`;
   }
 
   const samples = ["量子纠缠", "叠加态", "波函数坍缩", "贝尔不等式", "梯度下降", "注意力机制", "Transformer"];
