@@ -21,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { useApp, streamOpenAICompatible } from "./app-context";
-import { explorationChains, TurnGraphPanel, type ExploreEntry } from "./turn-graph";
+import { explorationChains, type ExploreEntry } from "./turn-graph";
 import { findTerm, generateReply, GLOSSARY } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 import type { Message, TermNode } from "@/types/sites/ai-explore-poker-820d0558";
 
@@ -794,9 +794,7 @@ export function ChatCard() {
             {/* ---------- scrollable turn list ---------- */}
             <div
               ref={scrollRef}
-              className={`absolute inset-0 overflow-y-auto scrollbar-card-std pt-[52px] pl-4 pb-6 pr-4 ${
-                turns.length > 0 ? "lg:pr-[296px]" : ""
-              }`}
+              className="absolute inset-0 overflow-y-auto scrollbar-card-std pt-[52px] pl-4 pb-6 pr-4"
             >
               {turns.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center gap-12 -translate-y-[30px]">
@@ -1018,15 +1016,7 @@ export function ChatCard() {
               </>
             )}
 
-            {/* ---------- 轮次导航卡片树（无框架，居中偏下浮在页面背景上） ---------- */}
-            {!minimized && turns.length > 0 && (
-              <div
-                className="hidden lg:block absolute right-0 top-[55%] -translate-y-1/2 w-[280px] max-h-[62%] overflow-y-auto overflow-x-hidden z-[14]"
-                title="轮次导航图：点击跳转 · 右键切换已读/未读"
-              >
-                <TurnGraphPanel />
-              </div>
-            )}
+            {/* 轮次导航卡片树已移至 shell 右侧独立区域（对话框与思维宇宙之间） */}
           </>
         )}
       </div>

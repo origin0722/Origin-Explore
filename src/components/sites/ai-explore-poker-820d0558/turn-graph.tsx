@@ -9,7 +9,7 @@
  *  - 点击轮次跳转、点击卡片重开卡片、右键轮次切换未读。
  */
 import { useMemo } from "react";
-import { Star } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUpRight, Star, type LucideIcon } from "lucide-react";
 import type { Turn } from "@/types/sites/ai-explore-poker-820d0558";
 import { useApp } from "./app-context";
 
@@ -41,7 +41,12 @@ export function explorationChains(explored: ExploreEntry[]): ExploreEntry[][] {
   return chains;
 }
 
-const KIND_EMOJI: Record<string, string> = { child: "↗️", related: "➡️", branch: "⬇️" };
+/** 卡片类型图标（子 ↗ / 关联 → / 分支 ↓） */
+const KIND_ICON: Record<TermKindLike, LucideIcon> = {
+  child: ArrowUpRight,
+  related: ArrowRight,
+  branch: ArrowDown,
+};
 
 /* ------------------------------------------------------------------ */
 /* 树构建                                                               */
@@ -86,6 +91,11 @@ function buildRows(turns: Turn[]): TreeRow[] {
 /* 组件                                                                 */
 /* ------------------------------------------------------------------ */
 
+function CardKindIcon({ kind }: { kind: TermKindLike }) {
+  const Icon = KIND_ICON[kind];
+  return <Icon size={11} strokeWidth={2.4} className="shrink-0 text-brand/80" />;
+}
+
 interface TurnTreeProps {
   turns: Turn[];
   onJump(id: string): void;
@@ -122,9 +132,7 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnTre
               }`}
             />
             {row.turn.parentTurnId && (
-              <span className="shrink-0 text-[10px] text-brand/80" aria-label="分支轮次">
-                ⬇️
-              </span>
+              <ArrowDown size={11} className="shrink-0 text-brand/80" aria-label="分支轮次" />
             )}
             <span className="min-w-0 flex-1 truncate text-xs text-text-secondary group-hover:text-primary">
               {row.turn.title}
@@ -147,7 +155,7 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnTre
               marginLeft: 9,
             }}
           >
-            <span className="shrink-0 text-[10px]">{KIND_EMOJI[row.card!.kind]}</span>
+            <CardKindIcon kind={row.card!.kind} />
             <span className="min-w-0 flex-1 truncate text-xs text-brand/85">{row.card!.term}</span>
           </div>
         )
