@@ -214,11 +214,11 @@ const graphUi = await page.evaluate(() => ({
   turnNodes: document.querySelectorAll("[data-turn-node]").length,
   cardNodes: document.querySelectorAll("[data-card-node]").length,
   cardTerms: [...document.querySelectorAll("[data-card-node]")].map((n) => n.getAttribute("data-card-node")),
-  edges: document.querySelectorAll("svg path[marker-end]").length,
+  edges: document.querySelectorAll("svg [marker-end]").length,
 }));
 log("   graph rendered:", JSON.stringify(graphUi));
 log("   PASS graph: 3 turn nodes + branch card node + edges:",
-  graphUi.turnNodes === 3 && graphUi.cardTerms.includes("玻姆诠释") && graphUi.edges >= 3);
+  graphUi.turnNodes === 3 && graphUi.cardTerms.includes("玻姆诠释") && graphUi.edges >= 4);
 
 await browser.close();
 console.log("DONE");

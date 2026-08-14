@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * Explore — TurnGraph（轮次导航有向图，右侧常驻面板）
+ * Explore — TurnGraph（轮次导航有向图，透明浮层）
  * 借鉴原站卡片树：轮次 + 术语卡片同图呈现——
- *  - 轮次节点：按时间纵排；边 = parentTurnId（分支来源）?? 顺序上一轮；
- *  - 卡片节点：来自 Turn.explored 探索路径——↗️ 子卡片向右分支、
- *    ➡️ 关联卡片向左分支、⬇️ 分支卡片向右（指向其另起炉灶的轮次）；
+ *  - 轮次节点：左侧主干纵排；边 = parentTurnId（分支来源）?? 顺序上一轮；
+ *  - 卡片节点：来自 Turn.explored 探索链条——↗️ 子卡片向右分支、
+ *    ➡️ 关联卡片向左分支、⬇️ 分支卡片向右；
  *  - 点击轮次节点跳转对话；点击卡片节点重新打开该卡片；右键轮次切换未读。
  */
 import { useMemo } from "react";
@@ -44,8 +44,10 @@ export function explorationChains(explored: ExploreEntry[]): ExploreEntry[][] {
 /* 图布局                                                               */
 /* ------------------------------------------------------------------ */
 
-const ROW_H = 62;
-const TURN_X = 0; // 轮次列（归一化前）
+const ROW_H = 88; // 轮次行距（宽松防重叠）
+const TURN_X = 90; // 主干列（归一化前；左侧留 关联卡片 分支位）
+const ROOT_DX = 64; // 链条根卡片与主干的距离
+const DEEP_DX = 56; // 链条内更深一层的距离
 const KIND_EMOJI: Record<string, string> = { child: "↗️", related: "➡️", branch: "⬇️" };
 
 interface GNode {
@@ -63,8 +65,11 @@ interface GNode {
 }
 
 interface GEdge {
-  from: string; // node id
+  from: string;
   to: string;
+  kind: "turn" | "card";
+  /** 从父节点左侧出（关联卡片向左分支） */
+  fromLeft?: boolean;
 }
 
 function shortLabel(s: string, n: number) {
@@ -84,53 +89,60 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnGra
     const edges: GEdge[] = [];
     const byId = new Map(turns.map((t) => [t.id, t]));
 
-    // 轮次节点（纵排） + 轮次间有向边
+    // 轮次节点（左侧主干纵排） + 轮次间有向边
     turns.forEach((t, i) => {
       nodes.push({
         id: `t-${t.id}`,
         kind: "turn",
         turnId: t.id,
         term: "",
-        label: shortLabel(t.title, 8),
+        label: shortLabel(t.title, 7),
         x: TURN_X,
-        y: i * ROW_H + 28,
+        y: i * ROW_H + 44,
         unread: t.unread,
         favorite: t.favorite,
       });
       const parent = t.parentTurnId ? byId.get(t.parentTurnId) : undefined;
       const from = parent?.id ?? (i > 0 ? turns[i - 1].id : undefined);
-      if (from) edges.push({ from: `t-${from}`, to: `t-${t.id}` });
+      if (from) edges.push({ from: `t-${from}`, to: `t-${t.id}`, kind: "turn" });
     });
 
-    // 卡片节点：每个轮次的探索链条 — 子卡片向右、关联卡片向左、分支向右
+    // 卡片节点：每条探索链条从所属轮次出发，沿 parentTerm 连续分支
     turns.forEach((t, i) => {
       const chains = explorationChains(t.explored ?? []);
-      const baseY = i * ROW_H + 28;
+      const baseY = i * ROW_H + 44;
       chains.forEach((chain, ci) => {
-        const lane = (ci - (chains.length - 1) / 2) * 24;
-        let px = TURN_X;
+        const lane = (ci - (chains.length - 1) / 2) * 30;
         const py = baseY + lane;
+        let px = TURN_X;
+        let parentId = `t-${t.id}`;
         chain.forEach((e, k) => {
           const dir = e.kind === "related" ? -1 : 1; // 关联卡片 → 左侧
-          const nx = px + dir * (k === 0 ? 60 : 54);
+          const nx = px + dir * (k === 0 ? ROOT_DX : DEEP_DX);
           const nodeId = `c-${t.id}-${e.term}`;
           nodes.push({
             id: nodeId,
             kind: "card",
             turnId: t.id,
             term: e.term,
-            label: shortLabel(e.term, 6),
+            label: shortLabel(e.term, 5),
             x: nx,
             y: py,
             cardKind: e.kind,
           });
-          edges.push({ from: k === 0 ? `t-${t.id}` : nodes[nodes.length - 2].id, to: nodeId });
+          edges.push({
+            from: parentId,
+            to: nodeId,
+            kind: "card",
+            fromLeft: dir === -1 && k > 0,
+          });
+          parentId = nodeId;
           px = nx;
         });
       });
     });
 
-    // 归一化：整体右移使最左节点 x=14，宽 = 跨度 + 标签区
+    // 归一化：整体右移使最左节点 x=14；宽 = 跨度 + 标签区
     const minX = Math.min(...nodes.map((n) => n.x));
     const maxX = Math.max(...nodes.map((n) => n.x));
     const shift = 14 - minX;
@@ -138,8 +150,8 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnGra
     return {
       nodes,
       edges,
-      width: Math.max(240, maxX - minX + 170),
-      height: Math.max(turns.length * ROW_H + 14, 60),
+      width: Math.max(232, maxX - minX + 130),
+      height: Math.max(turns.length * ROW_H + 20, 80),
     };
   }, [turns]);
 
@@ -150,37 +162,53 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnGra
   }, [nodes]);
 
   return (
-    <div className="w-full overflow-x-auto overflow-y-auto nav-scroll px-2 py-2">
-      <svg width={width} height={height} className="block mx-auto" role="img" aria-label="轮次导航图">
+    <div className="w-full px-1 py-2">
+      <svg width={width} height={height} className="block" role="img" aria-label="轮次导航图">
         <defs>
           <marker
             id="turn-arrow"
-            markerWidth="9"
-            markerHeight="9"
-            refX="7"
+            markerWidth="8"
+            markerHeight="8"
+            refX="6.5"
             refY="3"
             orient="auto"
             markerUnits="userSpaceOnUse"
           >
-            <path d="M0,0 L7,3 L0,6 z" fill="#13e425" opacity="0.75" />
+            <path d="M0,0 L7,3 L0,6 z" fill="#13e425" opacity="0.8" />
           </marker>
         </defs>
 
-        {/* 有向边 */}
+        {/* 有向边：主干垂直连接；卡片分支平滑弧线 */}
         {edges.map((e, i) => {
           const a = pos.get(e.from);
           const b = pos.get(e.to);
           if (!a || !b) return null;
-          const mx = (a.x + b.x) / 2;
-          const d = `M ${a.x + 11} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x - 11} ${b.y}`;
+          if (e.kind === "turn") {
+            return (
+              <line
+                key={i}
+                x1={a.x}
+                y1={a.y + 13}
+                x2={b.x}
+                y2={b.y - 13}
+                stroke="#13e425"
+                strokeOpacity="0.35"
+                strokeWidth="1.5"
+                markerEnd="url(#turn-arrow)"
+              />
+            );
+          }
+          const dir = b.x >= a.x ? 1 : -1;
+          const d = `M ${a.x + dir * 12} ${a.y} C ${a.x + dir * 44} ${a.y}, ${b.x - dir * 44} ${b.y}, ${b.x - dir * 10} ${b.y}`;
           return (
             <path
               key={i}
               d={d}
               fill="none"
               stroke="#13e425"
-              strokeOpacity="0.5"
-              strokeWidth="1.5"
+              strokeOpacity="0.45"
+              strokeWidth="1.4"
+              strokeDasharray={e.fromLeft ? "3 3" : undefined}
               markerEnd="url(#turn-arrow)"
             />
           );
@@ -188,7 +216,7 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnGra
 
         {nodes.map((n) => {
           const isTurn = n.kind === "turn";
-          const r = isTurn ? 10 : 7;
+          const r = isTurn ? 10 : 8;
           return (
             <g
               key={n.id}
@@ -207,36 +235,36 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnGra
               }
             >
               <rect
-                x={-16}
-                y={-ROW_H / 2 + 6}
-                width={width - n.x + 16}
-                height={ROW_H - 12}
+                x={-18}
+                y={-ROW_H / 2 + 8}
+                width={width - n.x + 18}
+                height={ROW_H - 16}
                 fill="transparent"
               />
               <circle
                 r={r}
-                fill={isTurn ? "rgba(19,228,37,0.14)" : "rgba(19,228,37,0.08)"}
+                fill={isTurn ? "rgba(19,228,37,0.16)" : "rgba(19,228,37,0.07)"}
                 stroke="#13e425"
-                strokeOpacity={isTurn ? 1 : 0.7}
+                strokeOpacity={isTurn ? 0.95 : 0.6}
                 strokeWidth="1.5"
               />
               {n.unread && <circle r="3.5" fill="#13e425" aria-label="未读" />}
               {n.cardKind && (
-                <text x={-4.5} y={3.5} fontSize="8" style={{ userSelect: "none" }}>
+                <text x={-4} y={3} fontSize="7" style={{ userSelect: "none" }}>
                   {KIND_EMOJI[n.cardKind]}
                 </text>
               )}
               <text
-                x={isTurn ? 16 : 12}
+                x={isTurn ? 16 : 13}
                 y={isTurn ? 4 : 3.5}
                 fontSize={isTurn ? 12 : 10}
-                fill={isTurn ? "rgba(226,232,240,0.9)" : "rgba(19,228,37,0.85)"}
+                fill={isTurn ? "rgba(226,232,240,0.92)" : "rgba(19,228,37,0.9)"}
                 style={{ userSelect: "none" }}
               >
                 {n.label}
               </text>
               {n.favorite && (
-                <text x={16 + n.label.length * 12 + 6} y={5} fontSize="11" style={{ userSelect: "none" }}>
+                <text x={16 + n.label.length * 12 + 6} y={5} fontSize="10" style={{ userSelect: "none" }}>
                   ⭐
                 </text>
               )}
@@ -249,7 +277,7 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnGra
 }
 
 /* ------------------------------------------------------------------ */
-/* 右侧常驻面板                                                          */
+/* 浮层接线（无框架，直接浮在页面背景上）                                 */
 /* ------------------------------------------------------------------ */
 
 export function TurnGraphPanel() {

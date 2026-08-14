@@ -1007,10 +1007,10 @@ export function ChatCard() {
               </>
             )}
 
-            {/* ---------- 轮次导航有向图（无框架，直接浮在页面背景上） ---------- */}
+            {/* ---------- 轮次导航有向图（无框架，居中偏下浮在页面背景上） ---------- */}
             {!minimized && turns.length > 0 && (
               <div
-                className="hidden lg:block absolute right-0 top-[52px] bottom-4 w-[232px] z-[14]"
+                className="hidden lg:block absolute right-0 top-[55%] -translate-y-1/2 w-[232px] max-h-[62%] overflow-y-auto overflow-x-hidden z-[14]"
                 title="轮次导航图：点击节点跳转 · 右键切换已读/未读"
               >
                 <TurnGraphPanel />
