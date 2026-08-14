@@ -212,13 +212,12 @@ const graphState = await page.evaluate(() => {
 log("D4. branch turn parentTurnId links to source turn:", graphState.branchParent === graphState.sourceId && !!graphState.sourceId);
 const graphUi = await page.evaluate(() => ({
   turnNodes: document.querySelectorAll("[data-turn-node]").length,
-  cardNodes: document.querySelectorAll("[data-card-node]").length,
   cardTerms: [...document.querySelectorAll("[data-card-node]")].map((n) => n.getAttribute("data-card-node")),
-  edges: document.querySelectorAll("svg [marker-end]").length,
+  branchRows: document.querySelectorAll("[aria-label='分支轮次']").length,
 }));
-log("   graph rendered:", JSON.stringify(graphUi));
-log("   PASS graph: 3 turn nodes + branch card node + edges:",
-  graphUi.turnNodes === 3 && graphUi.cardTerms.includes("玻姆诠释") && graphUi.edges >= 4);
+log("   tree rendered:", JSON.stringify(graphUi));
+log("   PASS tree: 3 turn rows + branch turn nested (⬇️) + card row:",
+  graphUi.turnNodes === 3 && graphUi.branchRows >= 1 && graphUi.cardTerms.includes("玻姆诠释"));
 
 await browser.close();
 console.log("DONE");

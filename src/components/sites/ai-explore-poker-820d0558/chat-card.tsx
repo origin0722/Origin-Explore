@@ -333,18 +333,29 @@ export function ChatCard() {
   }, []);
 
   // Auto-scroll to the bottom while the reply streams in (content grows) —
-  // 但只在本就在底部时跟随（用户上滚阅读时不强行拉回，并触发未读标记）。
+  // 但只在用户"贴底"时跟随（上滚阅读则不拉回，并触发未读标记）。
+  // 用 sticky 引用而非瞬时判断：内容尚未溢出时 scrollTop 恒为 0，
+  // 瞬时判断会在"刚好溢出"那一刻错过跟随。
   const lastMsgLen =
     turns.length > 0
       ? turns[turns.length - 1].messages[turns[turns.length - 1].messages.length - 1]?.content
           .length ?? 0
       : 0;
+  const stickToBottom = useRef(true);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (nearBottom) el.scrollTop = el.scrollHeight;
+    if (stickToBottom.current) el.scrollTop = el.scrollHeight;
   }, [lastMsgLen, turns.length]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    };
+    el.addEventListener("scroll", onScroll);
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
 
   // 新回复完成时，若目标轮次不在视野内（用户滚上去了）→ 标记未读。
   const prevBusy = useRef(false);
@@ -784,7 +795,7 @@ export function ChatCard() {
             <div
               ref={scrollRef}
               className={`absolute inset-0 overflow-y-auto scrollbar-card-std pt-[52px] pl-4 pb-6 pr-4 ${
-                turns.length > 0 ? "lg:pr-[248px]" : ""
+                turns.length > 0 ? "lg:pr-[296px]" : ""
               }`}
             >
               {turns.length === 0 ? (
@@ -1007,11 +1018,11 @@ export function ChatCard() {
               </>
             )}
 
-            {/* ---------- 轮次导航有向图（无框架，居中偏下浮在页面背景上） ---------- */}
+            {/* ---------- 轮次导航卡片树（无框架，居中偏下浮在页面背景上） ---------- */}
             {!minimized && turns.length > 0 && (
               <div
-                className="hidden lg:block absolute right-0 top-[55%] -translate-y-1/2 w-[232px] max-h-[62%] overflow-y-auto overflow-x-hidden z-[14]"
-                title="轮次导航图：点击节点跳转 · 右键切换已读/未读"
+                className="hidden lg:block absolute right-0 top-[55%] -translate-y-1/2 w-[280px] max-h-[62%] overflow-y-auto overflow-x-hidden z-[14]"
+                title="轮次导航图：点击跳转 · 右键切换已读/未读"
               >
                 <TurnGraphPanel />
               </div>
