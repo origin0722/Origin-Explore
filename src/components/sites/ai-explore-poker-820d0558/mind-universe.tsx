@@ -7,7 +7,7 @@
  * Click a node → detail overlay (bottom-right); click empty space → dismiss.
  * Rendered by shell: {universeOpen && <MindUniverse onClose={...} />}.
  */
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -56,29 +56,39 @@ function fibPositions(n: number): THREE.Vector3[] {
   return pts;
 }
 
-/** Greedy nearest-neighbor edges, deduped (i < j). */
-function buildEdges(positions: THREE.Vector3[]): Array<[number, number]> {
-  const n = positions.length;
-  if (n < 2) return [];
-  const k = n <= 12 ? 3 : 2;
-  const seen = new Set<string>();
+/**
+ * Real relation edges only: each node connects to the node whose subject
+ * equals its parentSubject (深挖来源). Nearest-neighbor "constellation"
+ * links are gone — a line now always means a genuine parent-child
+ * relationship, so the graph never implies a link that isn't there.
+ * If the parent isn't among the visible nodes, no edge is drawn.
+ */
+function buildRelationEdges(nodes: ThoughtNode[]): Array<[number, number]> {
+  const index = new Map<string, number>();
+  nodes.forEach((n, i) => {
+    if (!index.has(n.subject)) index.set(n.subject, i); // first occurrence wins
+  });
   const edges: Array<[number, number]> = [];
-  for (let i = 0; i < n; i++) {
-    const nearest = positions
-      .map((p, j) => ({ j, d: positions[i].distanceTo(p) }))
-      .filter((o) => o.j !== i)
-      .sort((a, b) => a.d - b.d);
-    for (let t = 0; t < Math.min(k, nearest.length); t++) {
-      const a = i;
-      const b = nearest[t].j;
-      const key = a < b ? `${a}-${b}` : `${b}-${a}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        edges.push(a < b ? [a, b] : [b, a]);
-      }
-    }
-  }
+  nodes.forEach((n, i) => {
+    if (!n.parentSubject) return;
+    const p = index.get(n.parentSubject);
+    if (p !== undefined && p !== i) edges.push([p, i]);
+  });
   return edges;
+}
+
+/** Ancestor chain (root → … → node) resolved via parentSubject; cycle-safe. */
+function ancestorChain(node: ThoughtNode, nodes: ThoughtNode[]): ThoughtNode[] {
+  const bySubject = new Map(nodes.map((n) => [n.subject, n]));
+  const chain: ThoughtNode[] = [];
+  const seen = new Set<string>();
+  let cur: ThoughtNode | undefined = node;
+  while (cur && !seen.has(cur.subject)) {
+    seen.add(cur.subject);
+    chain.unshift(cur);
+    cur = cur.parentSubject ? bySubject.get(cur.parentSubject) : undefined;
+  }
+  return chain;
 }
 
 /**
@@ -103,7 +113,7 @@ function ConstellationLines({
     const material = new THREE.LineBasicMaterial({
       color: LINE_COLOR,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.3,
     });
     return new THREE.Line(geometry, material);
   }, [positions, edges]);
@@ -230,7 +240,7 @@ function NodeGroup({
   onSelect: (node: ThoughtNode) => void;
 }) {
   const positions = useMemo(() => fibPositions(nodes.length), [nodes]);
-  const edges = useMemo(() => buildEdges(positions), [positions]);
+  const edges = useMemo(() => buildRelationEdges(nodes), [nodes]);
   return (
     <group>
       <ConstellationLines positions={positions} edges={edges} />
@@ -308,7 +318,11 @@ export function MindUniverse({ onClose }: { onClose: () => void }) {
         g.moved = Math.max(g.moved, Math.hypot(e.clientX - g.downX, e.clientY - g.downY));
       }}
     >
-      <Canvas dpr={[1, 2]} camera={{ position: [0, 2.2, 7], fov: 55 }}>
+      <Canvas
+        dpr={[1, 2]}
+        camera={{ position: [0, 2.2, 7], fov: 55 }}
+        gl={{ preserveDrawingBuffer: true }}
+      >
         <color attach="background" args={["#05080a"]} />
         <ambientLight intensity={0.4} />
         <pointLight position={[4, 6, 4]} intensity={30} color="#13e425" />
@@ -350,7 +364,9 @@ export function MindUniverse({ onClose }: { onClose: () => void }) {
       )}
 
       {/* Selected node detail (bottom-right) */}
-      {selected && (
+      {selected && (() => {
+        const chain = ancestorChain(selected, validated);
+        return (
         <div className="fixed bottom-6 right-6 z-[90] w-[320px] max-w-[calc(100vw-3rem)] rounded-2xl border border-brand/30 bg-[#101614]/90 p-4 backdrop-blur">
           <div className="flex items-start justify-between gap-3">
             <h3 className="text-base font-semibold text-white break-words">
@@ -368,6 +384,30 @@ export function MindUniverse({ onClose }: { onClose: () => void }) {
           <p className="mt-2 text-sm leading-6 text-white/70 line-clamp-6">
             {selected.content}
           </p>
+
+          {/* 连接链：真实深挖关系（root → … → 本节点），可沿链跳转 */}
+          {chain.length > 1 && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-0.5 gap-y-1 border-t border-white/10 pt-2">
+              <span className="mr-1 shrink-0 text-[10px] text-white/35">连接链</span>
+              {chain.map((c, i) => (
+                <Fragment key={c.id}>
+                  {i > 0 && <span className="text-[11px] text-white/25">→</span>}
+                  <button
+                    type="button"
+                    onClick={() => setSelected(c)}
+                    className={`max-w-[120px] truncate rounded px-1 py-0.5 text-[11px] transition-colors ${
+                      c.id === selected.id
+                        ? "text-brand font-semibold"
+                        : "text-brand/70 hover:text-brand hover:underline"
+                    }`}
+                  >
+                    {c.subject}
+                  </button>
+                </Fragment>
+              ))}
+            </div>
+          )}
+
           <div className="mt-3 flex items-center justify-between">
             <time className="text-xs text-white/40">{formatTime(selected.createdAt)}</time>
             <button
@@ -382,7 +422,8 @@ export function MindUniverse({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

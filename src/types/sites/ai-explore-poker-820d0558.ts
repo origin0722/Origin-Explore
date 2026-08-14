@@ -65,6 +65,9 @@ export interface Turn {
   createdAt: number;
   messages: Message[];
   favorite?: boolean;
+  /** 本轮对话中点击过的术语卡片（探索路径），按点击顺序；
+      parentTerm = 打开这张卡片时所在的父卡片术语（null = 从主对话点开） */
+  explored?: { term: string; kind: TermKind; at: number; parentTerm: string | null }[];
 }
 
 export interface ChatProject extends Project {
@@ -95,6 +98,8 @@ export interface ThoughtNode {
   /** pending = collected from chat/doc, awaiting mock AI validation */
   status?: "pending" | "validated";
   validatedAt?: number;
+  /** 深挖来源（父术语 subject）；null/缺省 = 独立节点。用于思维宇宙的真实连线 */
+  parentSubject?: string | null;
 }
 
 export interface ThemeOption {

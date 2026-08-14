@@ -23,6 +23,7 @@ import type {
   Message,
   ModelInfo,
   Profile,
+  TermKind,
   TermState,
   ThoughtNode,
   Turn,
@@ -151,7 +152,10 @@ export interface AppState {
   /** 思维宇宙节点 */
   thoughtNodes: ThoughtNode[];
   /** 从对话/文档收录：pending 状态，待面板验证 */
-  addThoughtNode(subject: string, content: string, category?: string): void;
+  addThoughtNode(subject: string, content: string, category?: string, parentSubject?: string | null): void;
+  /** 记录某轮对话里点击过的术语卡片（探索路径，按轮次划分）；
+      parentTerm = 打开时所在的父卡片术语（主对话点开为 null） */
+  recordExploration(turnId: string, term: string, kind: TermKind, parentTerm?: string | null): void;
   /** mock AI 验证通过 */
   validateThoughtNode(id: string): void;
   removeThoughtNode(id: string): void;
@@ -418,6 +422,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
         )
       );
       setActiveProjectId(projectId);
+      return turn.id;
+    },
+    []
+  );
+
+  /** 记录某轮对话里点击过的术语卡片（探索路径，按轮次划分）。
+      按 turn id 定位项目（turn id 全局唯一），不依赖 activeProjectId。 */
+  const recordExploration = useCallback(
+    (turnId: string, term: string, kind: TermKind, parentTerm: string | null = null) => {
+      setProjects((list) =>
+        list.map((p) => {
+          if (!p.turns.some((t) => t.id === turnId)) return p;
+          return {
+            ...p,
+            turns: p.turns.map((t) =>
+              t.id === turnId
+                ? {
+                    ...t,
+                    explored: [
+                      ...(t.explored ?? []).filter((e) => e.term !== term),
+                      { term, kind, at: Date.now(), parentTerm },
+                    ],
+                  }
+                : t
+            ),
+          };
+        })
+      );
     },
     []
   );
@@ -622,10 +654,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setProjects((list) => [p, ...list]);
         targetId = p.id;
       }
-      appendTurn(targetId, title, `继续深挖：${title}`, aiContent ?? generateReply(title));
+      const turnId = appendTurn(targetId, title, `继续深挖：${title}`, aiContent ?? generateReply(title));
+      // 新 turn 的探索路径从该分支术语起算（继承上下文另起炉灶）。
+      recordExploration(turnId, title, "branch", null);
       setMindscapeOpen(false);
     },
-    [activeProjectId, appendTurn]
+    [activeProjectId, appendTurn, recordExploration]
   );
 
   /** 文档问答：同名项目（论文: xxx）不存在则创建，然后开新 turn。
@@ -664,7 +698,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const addThoughtNode = useCallback(
-    (subject: string, content: string, category = "概念") => {
+    (subject: string, content: string, category = "概念", parentSubject: string | null = null) => {
       setThoughtNodes((list) => [
         ...list,
         {
@@ -674,6 +708,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           category,
           createdAt: Date.now(),
           status: "pending",
+          parentSubject,
         },
       ]);
     },
@@ -739,6 +774,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setProfile,
     thoughtNodes,
     addThoughtNode,
+    recordExploration,
     validateThoughtNode,
     removeThoughtNode,
     termStates,

@@ -154,6 +154,11 @@ export function MindscapePanel({ thoughts, onClose }: MindscapePanelProps) {
             <p className="text-xs text-text-tertiary mt-1 line-clamp-2 leading-5">
               {n.content}
             </p>
+            {n.parentSubject && (
+              <p className="mt-1 truncate text-[10px] text-text-quaternary">
+                <span className="text-brand/70">🔗 深挖自</span>「{n.parentSubject}」
+              </p>
+            )}
             <div className="flex items-center justify-between mt-2">
               <time className="text-[10px] text-text-quaternary">
                 {formatTime(n.createdAt)}

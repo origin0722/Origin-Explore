@@ -81,6 +81,12 @@ Explore 克隆（ai.explore.poker/chat）已从"纯 UI"演进为**可交互的�
 37. **模型体系重构**：内置模型列表移除（用户用不到的摆设）→ 唯一内置是 **「离线知识库」**（id=`offline`）；`MODEL_PRESETS`（7 个 OpenAI 兼容预设：DeepSeek×2/GPT-4o/Gemini/Qwen/GLM/Kimi）在 BYOK 表单一键填充地址+模型 ID；模型选择器 = 离线知识库 + 用户 BYOK 模型；`genericTermSummary` 文案更新（不再提"接入 BYOK 后才能解释"）。
 38. **回复提速**：离线延迟 1200→500ms，打字机步长 12→16 字/帧。测试：`scripts/verify-cardchat.mjs`（选择器/卡片输入/卡内回复/卡内深挖）。
 
+### 轮次探索路径 + 思维宇宙真实连线（R8 续⁶，2026-08-14，用户需求）
+39. **轮次探索路径**：`Turn.explored`（`{term, kind, at, parentTerm}`）按轮次记录点开的术语卡片。`recordExploration(turnId, term, kind, parentTerm)`（`app-context.tsx`，按 turn id 全局定位项目，不依赖 activeProjectId）；主对话点词条、卡内点词条都会记入来源轮次；**分支卡片另起炉灶**时新 turn 的路径自动以该分支术语起步（`appendTurn` 现在返回 turn id，`openBranchTurn` 接着记录）。
+40. **探索路径链 UI**（`chat-card.tsx`）：轮次底部"🧭 本轮探索路径"chips——`explorationChains` 按 `parentTerm` 把扁平记录重组为链条（根 → ➡️ 关联 → ↗️ 子卡片，每条链一个根）；点击 chip 重开卡片（`reopenFromTrail`，`record:false` 不重复记录、不打乱链条）。
+41. **思维宇宙只连真实关系**（`mind-universe.tsx`）：`buildRelationEdges` 替换原贪心最近邻连线——只有 `parentSubject` 真实父子关系才画线，父术语不在可见节点里则不连（不再误导用户）；线透明度 0.15→0.3（线少了更醒目）。详情浮层新增**连接链**（根 → … → 本节点，可沿链跳转）；思维宇宙面板节点卡显示"🔗 深挖自「父术语」"；卡内收录时 `addThoughtNode(..., parentSubject)` 传父卡术语（`chat-card.tsx` handleCollect 改收整个 StackItem）。
+42. Canvas 加 `gl={{ preserveDrawingBuffer: true }}`（供像素级验证 + 未来截图功能）。测试：`scripts/verify-exploration.mjs`（路径记录/链条箭头/收录父术语/重开不重复/分支继承/面板深挖自）、`scripts/verify-universe.mjs`（种子 3 节点 → 读 GL 帧缓冲：3 节点定位 + 沿节点对连线采样——仅 A–B 有连线像素 + 点击节点弹连接链且不含无关节点）。
+
 ## 三、R8 关键 bug 修复
 
 | bug | 根因 | 修复 |
@@ -113,6 +119,8 @@ Explore 克隆（ai.explore.poker/chat）已从"纯 UI"演进为**可交互的�
 | `verify-turntitle.mjs` | 轮次标题去重 |
 | `verify-docdelete.mjs` | 文档删除键（库+阅读页） |
 | `verify-library.mjs` | 库返回按钮/侧边栏加号上传/字体统一 |
+| `verify-exploration.mjs` | 轮次探索路径（记录/链条/收录父术语/重开不重复/分支继承） |
+| `verify-universe.mjs` | 思维宇宙真实连线（GL 像素分析 + 连接链浮层） |
 
 **所有脚本运行需 `danger-full-access`**（puppeteer 启动 Edge 会触发文件沙箱的 spawn EPERM）。
 

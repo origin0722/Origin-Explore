@@ -5,7 +5,7 @@
  * 术语卡片 = 可对话的卡片：点开卡片后可以在卡片内继续向 AI 提问（BYOK 走真实
  * 流式 API，否则离线知识库），回复里的 **加粗术语** 可点击 → 继续开子卡片深挖。
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import {
   BookmarkPlus,
@@ -66,6 +66,35 @@ function toTerm(children: ReactNode): string {
   if (typeof children === "string" || typeof children === "number") return String(children);
   if (Array.isArray(children)) return children.map(toTerm).join("");
   return String(children);
+}
+
+/** One recorded exploration entry in a turn's trail. */
+type ExploreEntry = { term: string; kind: TermNode["kind"]; at: number; parentTerm: string | null };
+
+/**
+ * Reconstruct exploration chains from a turn's flat explored list:
+ * each entry's parentTerm links back to the card it was opened from, so a
+ * chain reads 根术语 → ➡️ 关联 → ↗️ 子卡片. Entries whose parent is missing
+ * (or a term not in the trail) start a new chain; chains are ordered by the
+ * time their root was clicked. Every term belongs to exactly one chain.
+ */
+function explorationChains(explored: ExploreEntry[]): ExploreEntry[][] {
+  const ordered = [...explored].sort((a, b) => a.at - b.at);
+  const owner = new Map<string, ExploreEntry[]>();
+  const chains: ExploreEntry[][] = [];
+  for (const e of ordered) {
+    let chain = e.parentTerm ? owner.get(e.parentTerm) : undefined;
+    if (!chain) {
+      chain = [];
+      chains.push(chain);
+    } else if (chain.some((c) => c.term === e.term)) {
+      owner.set(e.term, chain);
+      continue; // cycle-safe: never add the same term twice to one chain
+    }
+    chain.push(e);
+    owner.set(e.term, chain);
+  }
+  return chains;
 }
 
 /* ------------------------------------------------------------------ */
@@ -250,6 +279,10 @@ interface StackItem {
   /** 深挖路径（根 → … → 本卡），给 AI 当上下文 */
   path: string;
   busy: boolean;
+  /** 来源轮次（记录探索路径用） */
+  sourceTurnId: string;
+  /** 打开本卡时所在的父卡片术语；null = 从主对话点开（收录进思维宇宙时用于真实连线） */
+  parentSubject: string | null;
 }
 
 export function ChatCard() {
@@ -262,6 +295,7 @@ export function ChatCard() {
     renameProject,
     termStates,
     addThoughtNode,
+    recordExploration,
     markTermState,
     openBranchTurn,
     openModal,
@@ -390,11 +424,25 @@ export function ChatCard() {
 
   /* --- term expansion (recursive tree) --- */
 
-  /** 开一张卡片；未知词条（空摘要）+ 已接 BYOK → 自动向 AI 提问解释。 */
-  const openCard = (node: TermNode, path: string) => {
+  /** 开一张卡片；未知词条（空摘要）+ 已接 BYOK → 自动向 AI 提问解释。
+      每次打开都会记入 sourceTurnId 的探索路径（opts.record=false 时跳过，
+      用于从路径 chip 重新打开——重开会破坏原有链条顺序）。 */
+  const openCard = (
+    node: TermNode,
+    path: string,
+    sourceTurnId: string,
+    parentSubject: string | null,
+    opts?: { record?: boolean }
+  ) => {
     stackSeq.current += 1;
     const key = `${node.id}-${stackSeq.current}`;
-    setTermStack((s) => [...s, { node, key, messages: [], path, busy: false }]);
+    setTermStack((s) => [
+      ...s,
+      { node, key, messages: [], path, busy: false, sourceTurnId, parentSubject },
+    ]);
+    if (opts?.record !== false) {
+      recordExploration(sourceTurnId, node.term, node.kind, parentSubject);
+    }
     const byok = byokModels.find(
       (m) => m.id === settings.activeModelId && m.provider === "BYOK"
     );
@@ -410,19 +458,31 @@ export function ChatCard() {
     }
   };
 
-  const handleTermClick = (term: string) => {
+  /** 从主对话的加粗术语点开卡片（记录到该术语所在轮次）。 */
+  const handleTermClick = (term: string, turnId: string) => {
     const node = resolveTerm(term);
-    openCard(node, node.term);
+    openCard(node, node.term, turnId, null);
     setHlTerm(term);
     if (hlTimeout.current) clearTimeout(hlTimeout.current);
     hlTimeout.current = setTimeout(() => setHlTerm(null), 1500);
   };
 
-  /** 在卡片里点击加粗术语 → 开子卡片（继承深挖路径）。 */
+  /** 从探索路径 chip 重新打开卡片：不重复记录（否则会打乱链条顺序）。 */
+  const reopenFromTrail = (term: string, turnId: string) => {
+    const node = resolveTerm(term);
+    openCard(node, node.term, turnId, null, { record: false });
+  };
+
+  /** 在卡片里点击加粗术语 → 开子卡片（继承深挖路径，链回父卡片术语）。 */
   const handleCardTermClick = (parentKey: string, term: string) => {
     const parent = termStack.find((i) => i.key === parentKey);
     const node = resolveTerm(term);
-    openCard(node, parent ? `${parent.path} → ${term}` : term);
+    openCard(
+      node,
+      parent ? `${parent.path} → ${term}` : term,
+      parent?.sourceTurnId ?? "",
+      parent?.node.term ?? null
+    );
   };
 
   /** 在卡片内提问：BYOK 走真实流式 API，否则离线知识库；回复写进该卡片。
@@ -519,11 +579,12 @@ export function ChatCard() {
     }
   };
 
-  /** Bookmark term into the mind universe + mark as mastered. */
-  const handleCollect = (node: TermNode) => {
-    addThoughtNode(node.term, node.summary);
-    markTermState(node.term, "mastered");
-    showToast(`✓ 已收录「${node.term}」，待验证`);
+  /** Bookmark term into the mind universe + mark as mastered.
+      带 parentSubject：从卡片收录时链回父卡片术语，思维宇宙里才有真实连线。 */
+  const handleCollect = (item: StackItem) => {
+    addThoughtNode(item.node.term, item.node.summary, "概念", item.parentSubject);
+    markTermState(item.node.term, "mastered");
+    showToast(`✓ 已收录「${item.node.term}」，待验证`);
   };
 
   /** Branch card → start a brand-new turn with this term as context. */
@@ -726,7 +787,7 @@ export function ChatCard() {
                                       } ${
                                         hlTerm === text ? "bg-brand/15 shadow-brandtw rounded" : ""
                                       }`}
-                                      onClick={() => handleTermClick(text)}
+                                      onClick={() => handleTermClick(text, turn.id)}
                                     >
                                       {children}
                                     </button>
@@ -739,6 +800,34 @@ export function ChatCard() {
                           </div>
                         </div>
                       )
+                    )}
+
+                    {/* 本轮探索路径：点开的术语卡片按链条展示（被它们"分割"出深挖脉络） */}
+                    {turn.explored && turn.explored.length > 0 && (
+                      <div className="explore-trail mt-1 flex flex-col gap-1.5 border-t border-dashed border-divider pt-2">
+                        <span className="text-[11px] text-text-quaternary select-none">
+                          🧭 本轮探索路径（点击词条可重新打开）
+                        </span>
+                        {explorationChains(turn.explored).map((chain, ci) => (
+                          <div key={ci} className="flex flex-wrap items-center gap-x-1 gap-y-1.5">
+                            {chain.map((e, ei) => (
+                              <Fragment key={e.term}>
+                                {ei > 0 && (
+                                  <span className="select-none text-xs text-text-quaternary">→</span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => reopenFromTrail(e.term, turn.id)}
+                                  className="explore-chip inline-flex cursor-pointer items-center gap-1 rounded-full border border-brand/25 bg-brand/10 px-2 py-0.5 text-xs text-brand transition-colors hover:bg-brand/20"
+                                >
+                                  {ei > 0 && <span className="text-[10px]">{KIND_ICON[e.kind]}</span>}
+                                  {e.term}
+                                </button>
+                              </Fragment>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ))
@@ -757,7 +846,9 @@ export function ChatCard() {
                 cascading desktop windows. */}
             {termStack.length > 0 && (
               <>
-                {termStack.map(({ node, key, messages, path, busy: cardBusy }, i) => (
+                {termStack.map((item, i) => {
+                  const { node, key, messages, path, busy: cardBusy } = item;
+                  return (
                   <div
                     key={key}
                     className={`card-container absolute left-1/2 top-1/2 w-[85%] sm:w-[70%] h-[min(680px,calc(100%-96px))] rounded-2xl overflow-hidden bg-card-floating border border-std shadow-card ${
@@ -779,12 +870,13 @@ export function ChatCard() {
                       busy={cardBusy}
                       onClose={() => closeOne(key, i)}
                       onTermClick={(term) => handleCardTermClick(key, term)}
-                      onCollect={() => handleCollect(node)}
+                      onCollect={() => handleCollect(item)}
                       onBranch={() => handleBranch(node)}
                       onAsk={(q) => askInCard(key, q, { node, path, messages, busy: cardBusy })}
                     />
                   </div>
-                ))}
+                  );
+                })}
                 {toast && (
                   <div className="absolute left-1/2 bottom-6 -translate-x-1/2 z-[60] bg-modal-floating border border-std shadow-card rounded-full px-4 py-2 text-xs text-brand whitespace-nowrap pointer-events-none">
                     {toast}
