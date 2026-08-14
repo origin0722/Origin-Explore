@@ -48,6 +48,28 @@ const legacyToggle = await page.evaluate(() =>
   [...document.querySelectorAll("button")].some((b) => (b.getAttribute("aria-label") ?? "").includes("收起轮次导航"))
 );
 log("1b. no legacy rail toggle button:", !legacyToggle);
+const pos = await page.evaluate(() => {
+  const railBtn = document.querySelector("button[title='思维宇宙']");
+  const railRect = railBtn?.parentElement?.getBoundingClientRect();
+  const treeWrap = document.querySelector("[title^='轮次导航图']");
+  const treeRect = treeWrap?.getBoundingClientRect();
+  const card = document.querySelector("[class*='rounded-[24px]']");
+  const cardRect = card?.getBoundingClientRect();
+  const cardLeft = cardRect ? Math.round(cardRect.left) : null;
+  const sbWrapper = document.querySelector("aside")?.parentElement;
+  const sbRight = sbWrapper ? Math.round(sbWrapper.getBoundingClientRect().right) : 225;
+  return {
+    railRight: railRect ? Math.round(railRect.right) : null,
+    treeLeft: treeRect ? Math.round(treeRect.left) : null,
+    treeRight: treeRect ? Math.round(treeRect.right) : null,
+    cardRight: cardRect ? Math.round(cardRect.right) : null,
+    cardLeft,
+    sbRight,
+  };
+});
+log("1c. mindscape rail at far right edge:", pos.railRight === 1440, JSON.stringify(pos));
+log("1d. order 对话框 < 卡片树 < 思维宇宙:", (pos.cardRight ?? Infinity) <= (pos.treeLeft ?? 0) && (pos.treeRight ?? 0) <= (pos.railRight ?? 0));
+log("1e. dialog clears the sidebar (no overlap):", (pos.cardLeft ?? 0) >= pos.sbRight - 1);
 
 // 2. Mindscape FAB toggles.
 const fabLabel = await page.evaluate(() => document.querySelector("button[aria-label='打开思维宇宙']")?.getAttribute("aria-label"));

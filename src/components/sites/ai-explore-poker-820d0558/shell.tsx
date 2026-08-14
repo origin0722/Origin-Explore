@@ -69,12 +69,9 @@ export function AppShell() {
 
   return (
     <div className="fixed inset-0 flex overflow-hidden overscroll-none bg-bg">
-      {/* ---- Sidebar: absolute overlay on desktop (does not take flow space —
-             main stays full-screen so content centers on x=720 like the
-             original), off-canvas drawer on mobile. Width tracks `collapsed`
-             on every breakpoint (225px / 56px). ---- */}
+      {/* ---- Sidebar: 桌面端为真实占位列（不遮挡对话框）；移动端 off-canvas 抽屉 ---- */}
       <div
-        className={`fixed bottom-0 left-0 top-0 z-40 h-full overflow-hidden bg-bg transition-all duration-200 sm:absolute sm:translate-x-0 sm:bg-transparent ${
+        className={`fixed inset-y-0 left-0 z-40 h-full shrink-0 overflow-hidden bg-bg transition-all duration-200 sm:static sm:z-auto sm:translate-x-0 sm:bg-transparent ${
           collapsed ? "w-[56px]" : "w-[225px]"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
@@ -90,9 +87,9 @@ export function AppShell() {
         />
       )}
 
-      {/* ---- Main column ---- */}
-      <main className="relative flex-1 overflow-hidden flex">
-        {/* 对话区（flex-1；聊天卡片在其内居中，最大 990px） */}
+      {/* ---- Main row: 对话区 | 轮次导航卡片树 | 思维宇宙（贴最右） ---- */}
+      <main className="relative flex min-w-0 flex-1 overflow-hidden">
+        {/* 对话区（聊天卡片在其中居中，最大 990px） */}
         <div className="relative z-10 flex h-full min-w-0 flex-1 flex-col">
           {/* Mobile hamburger — opens the sidebar drawer */}
           <button
@@ -118,29 +115,7 @@ export function AppShell() {
             </div>
           </div>
 
-          {/* Desktop: right Mindscape panel (mobile opens its own fullscreen
-              drawer via the FAB below — container stays decoration-free there) */}
-          {mindscapeOpen && (
-            <div className="absolute right-0 top-0 z-10 h-full sm:w-[225px] sm:border-l sm:border-divider sm:bg-bg/60 sm:backdrop-blur-sm">
-              <MindscapePanel onClose={() => setMindscapeOpen(false)} />
-            </div>
-          )}
-          {/* Desktop: always-visible 20px Mindscape rail (expand/collapse) */}
-          <div className="absolute right-0 top-0 z-20 hidden h-full w-[20px] sm:block">
-            <button
-              type="button"
-              aria-label={mindscapeOpen ? "收起思维宇宙" : "打开思维宇宙"}
-              title="思维宇宙"
-              onClick={() => setMindscapeOpen(!mindscapeOpen)}
-              className="absolute right-0 top-[52px] flex h-6 w-5 items-center justify-center rounded-l-lg bg-btn-std/40 text-text-tertiary transition-colors hover:bg-btn-std"
-            >
-              <ChevronLeft size={14} className={mindscapeOpen ? "" : "rotate-180"} />
-            </button>
-          </div>
-
-          {/* Centered Mind Universe toggle — original places it bottom-center above
-              the input (32x32 @90px on mobile / 36x36 @120px on desktop) with a
-              brand-green glyph. Click again to close the Mindscape panel. */}
+          {/* Centered Mind Universe toggle — bottom-center of the dialog area */}
           <button
             type="button"
             aria-label={mindscapeOpen ? "关闭思维宇宙" : "打开思维宇宙"}
@@ -156,14 +131,32 @@ export function AppShell() {
           </div>
         </div>
 
-        {/* Desktop: 轮次导航卡片树 —— 对话框与思维宇宙之间的独立区域 */}
-        <div className="relative z-10 hidden w-[300px] shrink-0 flex-col lg:flex">
+        {/* 轮次导航卡片树：对话框与思维宇宙之间的独立区域 */}
+        <div className="relative z-10 mr-5 hidden w-[300px] shrink-0 flex-col lg:flex">
           <div
             className="my-auto max-h-[62%] overflow-y-auto overflow-x-hidden pt-[8vh]"
             title="轮次导航图：点击跳转 · 右键切换已读/未读"
           >
             <TurnGraphPanel />
           </div>
+        </div>
+
+        {/* 思维宇宙（贴最右侧）：Mindscape 面板 + 20px 折叠条 */}
+        {mindscapeOpen && (
+          <div className="absolute right-0 top-0 z-10 h-full w-[225px] border-l border-divider bg-bg/60 backdrop-blur-sm">
+            <MindscapePanel onClose={() => setMindscapeOpen(false)} />
+          </div>
+        )}
+        <div className="absolute right-0 top-0 z-20 hidden h-full w-[20px] sm:block">
+          <button
+            type="button"
+            aria-label={mindscapeOpen ? "收起思维宇宙" : "打开思维宇宙"}
+            title="思维宇宙"
+            onClick={() => setMindscapeOpen(!mindscapeOpen)}
+            className="absolute right-0 top-[52px] flex h-6 w-5 items-center justify-center rounded-l-lg bg-btn-std/40 text-text-tertiary transition-colors hover:bg-btn-std"
+          >
+            <ChevronLeft size={14} className={mindscapeOpen ? "" : "rotate-180"} />
+          </button>
         </div>
       </main>
 
