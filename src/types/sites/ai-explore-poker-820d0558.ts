@@ -24,6 +24,15 @@ export interface ByokModel extends ModelInfo {
   apiKey: string;
 }
 
+/** BYOK 一键填充预设（OpenAI 兼容接口）。 */
+export interface ModelPreset {
+  name: string;
+  provider: string;
+  description: string;
+  baseUrl: string;
+  modelId: string;
+}
+
 export interface Project {
   id: string;
   title: string;

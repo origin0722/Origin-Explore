@@ -37,7 +37,7 @@ const modelNames = await page.evaluate(() => {
 });
 const dupes = modelNames.filter((n, i) => modelNames.indexOf(n) !== i);
 log("1. model list:", JSON.stringify(modelNames));
-log("   count:", modelNames.length, "| duplicates:", JSON.stringify(dupes));
+log("   has 离线知识库:", modelNames.some((n) => n.includes("离线知识库")), "| duplicates:", JSON.stringify(dupes));
 await page.keyboard.press("Escape");
 await sleep(300);
 

@@ -16,7 +16,7 @@ import {
   Send,
   Zap,
 } from "lucide-react";
-import { MODELS } from "@/lib/sites/ai-explore-poker-820d0558/mock";
+import { OFFLINE_MODEL } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 import { useApp } from "./app-context";
 
 export function InputArea() {
@@ -28,7 +28,7 @@ export function InputArea() {
   const rootRef = useRef<HTMLDivElement>(null);
   const hintTimer = useRef<number | undefined>(undefined);
 
-  const allModels = useMemo(() => [...MODELS, ...byokModels], [byokModels]);
+  const allModels = useMemo(() => [OFFLINE_MODEL, ...byokModels], [byokModels]);
   const activeModel = allModels.find((m) => m.id === settings.activeModelId);
   const modelName = activeModel?.name ?? settings.activeModelId;
 

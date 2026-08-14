@@ -39,8 +39,9 @@ import {
  * OpenAI 兼容的 chat/completions 流式调用（`stream: true` + SSE，浏览器直连，密钥不落盘到服务器）。
  * 逐 delta 回调 `onDelta`；首个增量到达时触发 `onFirst`（用于解除"首字超时"）。
  * 少数网关忽略 stream:true 仍返回整段 JSON -> 按整体输出兜底。
+ * 导出给卡片内对话（chat-card）复用。
  */
-async function streamOpenAICompatible(
+export async function streamOpenAICompatible(
   byok: ByokModel,
   messages: { role: string; content: string }[],
   onDelta: (delta: string) => void,
@@ -491,7 +492,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (opts?.append !== false) appendAssistantMessage(targetId);
       const prefix = opts?.prefix ?? "";
       let pos = 0;
-      const step = 12;
+      const step = 16;
       const timer = window.setInterval(() => {
         pos = Math.min(pos + step, reply.length);
         setLastAssistantContent(targetId, prefix + reply.slice(0, pos));
@@ -591,7 +592,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // 离线 mock 路径：短暂延迟后按知识库生成回复（带上下文记忆）。
         window.setTimeout(() => {
           streamReply(generateReply(content, history), targetId, done);
-        }, 1200);
+        }, 500);
       }
     },
     [

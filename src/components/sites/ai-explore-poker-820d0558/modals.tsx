@@ -22,7 +22,8 @@ import {
 } from "lucide-react";
 import { useApp } from "./app-context";
 import {
-  MODELS,
+  MODEL_PRESETS,
+  OFFLINE_MODEL,
   THEMES,
   isThemeImplemented,
 } from "@/lib/sites/ai-explore-poker-820d0558/mock";
@@ -405,6 +406,24 @@ export function SettingsModal() {
 
                 {byokOpen && (
                   <div className="mb-4 p-3 bg-modal-floating border border-std rounded-xl space-y-2">
+                    {/* 预设一键填充（OpenAI 兼容接口） */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {MODEL_PRESETS.map((p) => (
+                        <button
+                          key={p.name}
+                          type="button"
+                          onClick={() => {
+                            setByokName(p.name);
+                            setByokBaseUrl(p.baseUrl);
+                            setByokModelId(p.modelId);
+                          }}
+                          title={`${p.provider} · ${p.description}`}
+                          className="text-[11px] text-text-secondary border border-std rounded-full px-2.5 py-1 hover:border-brand/50 hover:text-primary transition-colors"
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
                     <input
                       autoFocus
                       value={byokName}
@@ -474,15 +493,7 @@ export function SettingsModal() {
                   </div>
                 )}
 
-                {MODELS.map((m) => (
-                  <ModelRow
-                    key={m.id}
-                    model={m}
-                    selected={draft.activeModelId === m.id}
-                    onSelect={() => update({ activeModelId: m.id })}
-                  />
-                ))}
-                {byokModels.map((m) => (
+                {[OFFLINE_MODEL, ...byokModels].map((m) => (
                   <ModelRow
                     key={m.id}
                     model={m}
@@ -505,7 +516,7 @@ export function SettingsModal() {
                   <div className="flex items-center gap-2 min-w-0">
                     <Star size={12} className="text-brand flex-shrink-0" />
                     <span className="text-sm text-primary truncate">
-                      {[...MODELS, ...byokModels].find((m) => m.id === draft.activeModelId)?.name ??
+                      {[OFFLINE_MODEL, ...byokModels].find((m) => m.id === draft.activeModelId)?.name ??
                         draft.activeModelId}
                     </span>
                   </div>

@@ -2,11 +2,8 @@
 
 /**
  * Explore — ChatCard (knowledge card: turn list + message bubbles + recursive term tree)
- * Reads shared state via useApp() (turns / activeTurn / busy / projects / activeProjectId /
- * termStates / addThoughtNode / markTermState / openBranchTurn).
- * React-markdown renders assistant replies; **bold** terms become clickable chips
- * that expand a floating recursive term card (children expand in-place as a stacked
- * layer with a back button; branch cards start a new turn).
+ * 术语卡片 = 可对话的卡片：点开卡片后可以在卡片内继续向 AI 提问（BYOK 走真实
+ * 流式 API，否则离线知识库），回复里的 **加粗术语** 可点击 → 继续开子卡片深挖。
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
@@ -15,14 +12,18 @@ import {
   ChevronLeft,
   Copy,
   HelpCircle,
+  Loader2,
   Maximize2,
   Minimize2,
   MoreHorizontal,
+  Send,
   X,
 } from "lucide-react";
-import { useApp } from "./app-context";
-import { findTerm, genericTermSummary } from "@/lib/sites/ai-explore-poker-820d0558/mock";
-import type { TermNode } from "@/types/sites/ai-explore-poker-820d0558";
+import { useApp, streamOpenAICompatible } from "./app-context";
+import { findTerm, genericTermSummary, generateReply } from "@/lib/sites/ai-explore-poker-820d0558/mock";
+import type { Message, TermNode } from "@/types/sites/ai-explore-poker-820d0558";
+
+const uid = () => "m-" + Math.random().toString(36).slice(2, 10);
 
 /* ------------------------------------------------------------------ */
 /* Recursive term tree helpers                                         */
@@ -66,13 +67,58 @@ function toTerm(children: ReactNode): string {
 
 interface TermCardProps {
   node: TermNode;
+  messages: Message[];
+  busy: boolean;
   onClose(): void;
-  onOpenChild(child: TermNode): void;
+  onTermClick(term: string): void;
   onCollect(): void;
   onBranch(): void;
+  onAsk(question: string): void;
 }
 
-function TermCard({ node, onClose, onOpenChild, onCollect, onBranch }: TermCardProps) {
+function TermCard({ node, messages, busy, onClose, onTermClick, onCollect, onBranch, onAsk }: TermCardProps) {
+  const [input, setInput] = useState("");
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 自动滚底（随回复增长）。
+  const lastLen = messages[messages.length - 1]?.content.length ?? 0;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lastLen, messages.length, busy]);
+
+  const send = () => {
+    const q = input.trim();
+    if (!q || busy) return;
+    setInput("");
+    onAsk(q);
+    requestAnimationFrame(() => {
+      const el = taRef.current;
+      if (el) {
+        el.style.height = "auto";
+        el.style.height = el.scrollHeight + "px";
+      }
+    });
+  };
+
+  // 卡内 markdown：**加粗术语** → 可点击，继续开子卡片深挖。
+  const mdComponents = {
+    strong: ({ children }: { children?: ReactNode }) => {
+      const text = toTerm(children).trim();
+      if (!text) return <strong>{children}</strong>;
+      return (
+        <button
+          type="button"
+          className="term-chip font-semibold cursor-pointer text-brand hover:underline transition-colors duration-300"
+          onClick={() => onTermClick(text)}
+        >
+          {children}
+        </button>
+      );
+    },
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden rounded-2xl">
       {/* header: kind badge + term name + collect + close */}
@@ -99,41 +145,84 @@ function TermCard({ node, onClose, onOpenChild, onCollect, onBranch }: TermCardP
         </button>
       </div>
 
-      {/* content + recursive children rows */}
-      <div className="mind-md flex-1 min-h-0 overflow-y-auto scrollbar-card-std px-4 py-3">
-        <div className="markdown-content">
-          <ReactMarkdown>{node.summary}</ReactMarkdown>
-        </div>
-
-        {node.children && node.children.length > 0 ? (
-          <div className="mt-3 flex flex-col gap-0.5 border-t border-divider pt-2">
-            {node.children.map((child) => (
-              <button
-                key={child.id}
-                type="button"
-                className="term-chip flex items-baseline gap-1.5 text-left text-sm text-brand hover:underline px-1 py-1 rounded hover:bg-item-std-hover transition-colors duration-300"
-                onClick={() => onOpenChild(child)}
-              >
-                <span className="text-[11px] shrink-0">{KIND_ICON[child.kind]}</span>
-                <span className="truncate min-w-0">{child.term}</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-3 border-t border-divider pt-3 text-xs text-text-tertiary">
-            这个概念的展开已经到底了，试试把它收录进思维宇宙
+      {/* 卡片对话区：术语摘要 + 卡内问答 */}
+      <div
+        ref={scrollRef}
+        className="mind-md flex-1 min-h-0 overflow-y-auto scrollbar-card-std px-4 py-3"
+      >
+        {node.summary && (
+          <div className="markdown-content text-text-content">
+            <ReactMarkdown components={mdComponents}>{node.summary}</ReactMarkdown>
           </div>
         )}
 
-        {node.kind === "branch" && (
+        {messages.map((m) =>
+          m.role === "user" ? (
+            <div key={m.id} className="flex flex-col items-end gap-2 mt-3">
+              <div className="bg-usermsg shadow-usermsg rounded-usermsg px-3 py-2 relative max-w-[90%]">
+                <span className="text-text-content whitespace-pre-wrap select-none">{m.content}</span>
+              </div>
+            </div>
+          ) : (
+            <div key={m.id} className="markdown-content w-full mt-3 text-text-content">
+              <ReactMarkdown components={mdComponents}>{m.content}</ReactMarkdown>
+            </div>
+          )
+        )}
+        {busy && (
+          <div className="flex items-center gap-2 py-1" aria-hidden>
+            <span className="inline-block w-2 h-4 bg-brand animate-pulse" />
+          </div>
+        )}
+        {messages.length === 0 && (
+          <p className="mt-3 text-xs text-text-tertiary">
+            在这个卡片里继续问 AI —— 点击回复中的加粗术语可以继续往下深挖。
+          </p>
+        )}
+      </div>
+
+      {node.kind === "branch" && (
+        <button
+          type="button"
+          className="mx-4 mt-2 h-9 shrink-0 rounded-xl bg-btn-std hover:bg-btn-std-hover text-[13px] text-brand transition-colors"
+          onClick={onBranch}
+        >
+          ⬇️ 另起炉灶 · 开新对话
+        </button>
+      )}
+
+      {/* 卡内输入条 */}
+      <div className="shrink-0 border-t border-divider p-3">
+        <div className="flex items-end gap-2">
+          <textarea
+            ref={taRef}
+            rows={1}
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = el.scrollHeight + "px";
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            placeholder={`在「${node.term}」里继续问…（Enter 发送）`}
+            className="block w-full min-h-0 flex-1 bg-inputarea border border-std rounded-xl px-3 py-2 text-sm resize-none outline-none focus:border-brand/50 placeholder:text-text-quaternary scrollbar-inputarea max-h-[120px] overflow-y-auto"
+          />
           <button
             type="button"
-            className="mt-4 w-full h-10 rounded-xl bg-btn-std hover:bg-btn-std-hover text-[13px] text-brand transition-colors"
-            onClick={onBranch}
+            onClick={send}
+            disabled={!input.trim() || busy}
+            aria-label="发送"
+            className="h-9 w-9 rounded-full bg-btn-inputarea text-black flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
           >
-            ⬇️ 另起炉灶 · 开新对话
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} strokeWidth={2.5} />}
           </button>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -147,6 +236,11 @@ interface StackItem {
   node: TermNode;
   /** unique per push, re-triggers the enter animation on each layer */
   key: string;
+  /** 卡片内自己的对话 */
+  messages: Message[];
+  /** 深挖路径（根 → … → 本卡），给 AI 当上下文 */
+  path: string;
+  busy: boolean;
 }
 
 export function ChatCard() {
@@ -163,6 +257,8 @@ export function ChatCard() {
     openBranchTurn,
     openModal,
     loadSampleProject,
+    byokModels,
+    settings,
   } = useApp();
 
   const [minimized, setMinimized] = useState(false);
@@ -287,16 +383,120 @@ export function ChatCard() {
   const handleTermClick = (term: string) => {
     const node = resolveTerm(term);
     stackSeq.current += 1;
-    setTermStack([{ node, key: `${node.id}-${stackSeq.current}` }]);
+    setTermStack([
+      {
+        node,
+        key: `${node.id}-${stackSeq.current}`,
+        messages: [],
+        path: node.term,
+        busy: false,
+      },
+    ]);
     setHlTerm(term);
     if (hlTimeout.current) clearTimeout(hlTimeout.current);
     hlTimeout.current = setTimeout(() => setHlTerm(null), 1500);
   };
 
-  /** Push a child card onto the stack (same position, layered, can go back). */
-  const handleOpenChild = (child: TermNode) => {
+  /** 在卡片里点击加粗术语 → 开子卡片（继承深挖路径）。 */
+  const handleCardTermClick = (parentKey: string, term: string) => {
+    const parent = termStack.find((i) => i.key === parentKey);
+    const node = resolveTerm(term);
     stackSeq.current += 1;
-    setTermStack((s) => [...s, { node: child, key: `${child.id}-${stackSeq.current}` }]);
+    setTermStack((s) => [
+      ...s,
+      {
+        node,
+        key: `${node.id}-${stackSeq.current}`,
+        messages: [],
+        path: parent ? `${parent.path} → ${term}` : term,
+        busy: false,
+      },
+    ]);
+  };
+
+  /** 在卡片内提问：BYOK 走真实流式 API，否则离线知识库；回复写进该卡片。 */
+  const askInCard = (key: string, question: string) => {
+    const item = termStack.find((i) => i.key === key);
+    if (!item || item.busy) return;
+
+    const patch = (k: string, fn: (i: StackItem) => StackItem) =>
+      setTermStack((s) => s.map((i) => (i.key === k ? fn(i) : i)));
+
+    const userMsg: Message = { id: uid(), role: "user", content: question, createdAt: Date.now() };
+    patch(key, (i) => ({ ...i, messages: [...i.messages, userMsg], busy: true }));
+
+    const byok = byokModels.find(
+      (m) => m.id === settings.activeModelId && m.provider === "BYOK"
+    );
+    const context: { role: string; content: string }[] = [
+      {
+        role: "user",
+        content: `我们正在深挖概念「${item.node.term}」（路径：${item.path}）。请用中文回答，重要术语用 **加粗** 标记，方便继续深挖。`,
+      },
+      ...item.messages.slice(-6).map((m) => ({ role: m.role, content: m.content })),
+      { role: "user", content: question },
+    ];
+
+    if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
+      const emptyMsg: Message = { id: uid(), role: "assistant", content: "", createdAt: Date.now() };
+      patch(key, (i) => ({ ...i, messages: [...i.messages, emptyMsg] }));
+      let acc = "";
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 15000);
+      streamOpenAICompatible(
+        byok,
+        context,
+        (delta) => {
+          acc += delta;
+          patch(key, (i) => ({
+            ...i,
+            messages: i.messages.map((m, mi) =>
+              mi === i.messages.length - 1 ? { ...m, content: acc } : m
+            ),
+          }));
+        },
+        controller.signal,
+        () => window.clearTimeout(timer)
+      )
+        .then(() => {
+          window.clearTimeout(timer);
+          patch(key, (i) => ({ ...i, busy: false }));
+        })
+        .catch(() => {
+          window.clearTimeout(timer);
+          const fallback = `> ⚠️ BYOK 请求失败，已回退离线知识库。\n\n${generateReply(question, context)}`;
+          patch(key, (i) => ({
+            ...i,
+            busy: false,
+            messages: i.messages.map((m, mi) =>
+              mi === i.messages.length - 1 ? { ...m, content: fallback } : m
+            ),
+          }));
+        });
+    } else {
+      // 离线：延迟后生成回复并打字机式写入卡片。
+      window.setTimeout(() => {
+        const reply = generateReply(question, context);
+        const emptyMsg: Message = { id: uid(), role: "assistant", content: "", createdAt: Date.now() };
+        patch(key, (i) => ({ ...i, messages: [...i.messages, emptyMsg] }));
+        let pos = 0;
+        const step = 16;
+        const t = window.setInterval(() => {
+          pos = Math.min(pos + step, reply.length);
+          const partial = reply.slice(0, pos);
+          patch(key, (i) => ({
+            ...i,
+            messages: i.messages.map((m, mi) =>
+              mi === i.messages.length - 1 ? { ...m, content: partial } : m
+            ),
+          }));
+          if (pos >= reply.length) {
+            window.clearInterval(t);
+            patch(key, (i) => ({ ...i, busy: false }));
+          }
+        }, 20);
+      }, 500);
+    }
   };
 
   /** Bookmark term into the mind universe + mark as mastered. */
@@ -537,7 +737,7 @@ export function ChatCard() {
                 cascading desktop windows. */}
             {termStack.length > 0 && (
               <>
-                {termStack.map(({ node, key }, i) => (
+                {termStack.map(({ node, key, messages, busy: cardBusy }, i) => (
                   <div
                     key={key}
                     className={`card-container absolute left-1/2 top-1/2 w-[85%] sm:w-[70%] h-[min(680px,calc(100%-96px))] rounded-2xl overflow-hidden bg-card-floating border border-std shadow-card ${
@@ -555,10 +755,13 @@ export function ChatCard() {
                   >
                     <TermCard
                       node={node}
+                      messages={messages}
+                      busy={cardBusy}
                       onClose={() => closeOne(key, i)}
-                      onOpenChild={handleOpenChild}
+                      onTermClick={(term) => handleCardTermClick(key, term)}
                       onCollect={() => handleCollect(node)}
                       onBranch={() => handleBranch(node)}
+                      onAsk={(q) => askInCard(key, q)}
                     />
                   </div>
                 ))}

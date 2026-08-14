@@ -74,6 +74,13 @@ Explore 克隆（ai.explore.poker/chat）已从"纯 UI"演进为**可交互的�
 32. **模型列表清洗**：8 个真实、无重复的模型（DeepSeek Chat/Reasoner、GPT-4o、Claude Sonnet、Gemini 2.5 Flash、Qwen-Max、GLM-4、Kimi K2），替换原虚拟名（deepseek-v4-flash-0731 等重复/过时名）；`DEFAULT_SETTINGS.activeModelId` 同步更新。用户接入 API 时按 BYOK 流程映射即可。
 33. **离线回复上下文记忆**：`generateReply(question, history?)` 新增历史参数；未命中新术语但像是追问（短句或以"那/它/继续/为什么…"开头）时，从历史里找**正在讨论的话题**（取消息中出现位置最早的术语，避免被"相关概念"词抢走；词典词兜底）续写回复。离线路径与 BYOK 失败回退均传最近 12 条历史。测试：`scripts/verify-chat.mjs`（模型列表 + 追问接话题）。
 
+### 卡片内对话（R8 续⁵，核心需求补齐）
+34. **卡片就是对话**：术语卡片从"静态说明卡"改为**可对话卡片**——卡片底部有输入条（Enter 发送），在卡片里向 AI 提问，回复直接写进该卡片（用户气泡 + AI markdown）。这是产品的核心交互："点进卡片 = 在这个概念里和 AI 继续对话"。
+35. **卡内回复可继续深挖**：卡片摘要与卡内回复里的 **加粗术语** 都是可点击按钮 → 开子卡片（继承深挖路径 `根 → … → 本卡`，路径作为上下文传给 AI）。旧的"显式子概念列表"已移除（加粗术语点击即深挖，↗️/➡️/⬇️ 类型由术语树数据决定）。
+36. **卡内问答双通道**：BYOK 激活时走真实流式 API（复用 `streamOpenAICompatible`，上下文含术语+路径+卡内历史），失败回退离线；离线走 `generateReply`（带卡内上下文，打字机写入）。回复期间卡内输入禁用 + 呼吸光标 + 自动滚底。
+37. **模型体系重构**：内置模型列表移除（用户用不到的摆设）→ 唯一内置是 **「离线知识库」**（id=`offline`）；`MODEL_PRESETS`（7 个 OpenAI 兼容预设：DeepSeek×2/GPT-4o/Gemini/Qwen/GLM/Kimi）在 BYOK 表单一键填充地址+模型 ID；模型选择器 = 离线知识库 + 用户 BYOK 模型；`genericTermSummary` 文案更新（不再提"接入 BYOK 后才能解释"）。
+38. **回复提速**：离线延迟 1200→500ms，打字机步长 12→16 字/帧。测试：`scripts/verify-cardchat.mjs`（选择器/卡片输入/卡内回复/卡内深挖）。
+
 ## 三、R8 关键 bug 修复
 
 | bug | 根因 | 修复 |

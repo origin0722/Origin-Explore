@@ -8,21 +8,33 @@ import type {
   ChatSettings,
   DocumentItem,
   ModelInfo,
+  ModelPreset,
   TermNode,
   ThemeOption,
   ThoughtNode,
   Turn,
 } from "@/types/sites/ai-explore-poker-820d0558";
 
-export const MODELS: ModelInfo[] = [
-  { id: "builtin:deepseek/deepseek-chat", name: "DeepSeek Chat", provider: "DeepSeek", description: "通用对话，性价比高" },
-  { id: "builtin:deepseek/deepseek-reasoner", name: "DeepSeek Reasoner", provider: "DeepSeek", description: "深度推理（思考模式）" },
-  { id: "builtin:openai/gpt-4o", name: "GPT-4o", provider: "OpenAI", description: "多模态旗舰模型", vision: true },
-  { id: "builtin:anthropic/claude-sonnet", name: "Claude Sonnet", provider: "Anthropic", description: "长文与推理均衡" },
-  { id: "builtin:google/gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "Google", description: "快速多模态", vision: true },
-  { id: "builtin:qwen/qwen-max", name: "Qwen-Max", provider: "阿里云", description: "通义千问旗舰" },
-  { id: "builtin:zhipu/glm-4", name: "GLM-4", provider: "智谱 AI", description: "中文友好" },
-  { id: "builtin:moonshot/kimi-k2", name: "Kimi K2", provider: "月之暗面", description: "超长上下文" },
+/**
+ * 内置"离线知识库"——唯一不需要 API 的默认模型；
+ * 其余模型由用户通过 BYOK 添加（MODEL_PRESETS 提供一键填充）。
+ */
+export const OFFLINE_MODEL: ModelInfo = {
+  id: "offline",
+  name: "离线知识库",
+  provider: "内置",
+  description: "本地知识树，无需 API",
+};
+
+/** BYOK 预设（OpenAI 兼容接口）：一键填充 API 地址 + 模型 ID。 */
+export const MODEL_PRESETS: ModelPreset[] = [
+  { name: "DeepSeek Chat", provider: "DeepSeek", description: "通用对话，性价比高", baseUrl: "https://api.deepseek.com/v1", modelId: "deepseek-chat" },
+  { name: "DeepSeek Reasoner", provider: "DeepSeek", description: "深度推理（思考模式）", baseUrl: "https://api.deepseek.com/v1", modelId: "deepseek-reasoner" },
+  { name: "GPT-4o", provider: "OpenAI", description: "多模态旗舰模型", baseUrl: "https://api.openai.com/v1", modelId: "gpt-4o" },
+  { name: "Gemini 2.5 Flash", provider: "Google", description: "快速多模态", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", modelId: "gemini-2.5-flash" },
+  { name: "Qwen-Max", provider: "阿里云", description: "通义千问旗舰", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", modelId: "qwen-max" },
+  { name: "GLM-4", provider: "智谱 AI", description: "中文友好", baseUrl: "https://open.bigmodel.cn/api/paas/v4", modelId: "glm-4" },
+  { name: "Kimi K2", provider: "月之暗面", description: "超长上下文", baseUrl: "https://api.moonshot.cn/v1", modelId: "kimi-k2-0711-preview" },
 ];
 
 export const THEMES: ThemeOption[] = [
@@ -51,7 +63,7 @@ export function isThemeImplemented(name: string): boolean {
 export const DEFAULT_SETTINGS: ChatSettings = {
   theme: "Default (暗色)",
   language: "zh",
-  activeModelId: "builtin:deepseek/deepseek-chat",
+  activeModelId: "offline",
   isWebSearchEnabled: false,
   autoCitationEnabled: true,
   autoTitleInterval: 5,
@@ -655,7 +667,7 @@ export function findTerm(name: string): TermNode | null {
 
 /** Generic fallback explanation for terms not in the tree (doc reader etc.). */
 export function genericTermSummary(term: string): string {
-  return `关于 **${term}**\n\n这是你在阅读中遇到的一个概念。当前处于离线演示模式，内置词典还没有收录它的详细解释。\n\n> 接入 BYOK 模型后，我可以为你生成针对这个概念的完整讲解卡片。你也可以先在对话里追问它，或用自己的话描述你的理解，把它收录进思维宇宙。`;
+  return `关于 **${term}**\n\n这个词条不在我的内置知识树里。你可以直接在下方输入框提问，我会接着这个话题和你讨论；接入你自己的 API 后，回答会由你的模型生成。`;
 }
 
 /** 回复生成用的历史消息（角色 + 内容）。 */
