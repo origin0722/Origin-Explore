@@ -42,10 +42,19 @@ const pop = await page.evaluate(() => {
   const truncated = [...dlg.querySelectorAll("li span, li div")].some((e) =>
     e.className.includes("truncate")
   );
-  return { hasMaxW2xl: cls.includes("max-w-2xl"), items, truncated, w: dlg.getBoundingClientRect().width };
+  // 遮罩 = dialog 的父级（fixed inset-0），应铺满整个视口
+  const overlay = dlg.parentElement?.getBoundingClientRect();
+  const fullscreen =
+    !!overlay &&
+    overlay.left === 0 &&
+    overlay.top === 0 &&
+    overlay.width >= window.innerWidth - 1 &&
+    overlay.height >= window.innerHeight - 1;
+  return { hasMaxW2xl: cls.includes("max-w-2xl"), items, truncated, w: dlg.getBoundingClientRect().width, fullscreen };
 });
 ok("G1. 如何使用弹层放大（max-w-2xl）且含 8 项能力",
   !!pop && pop.hasMaxW2xl && pop.items === 8 && pop.w > 600, pop);
+ok("G1b. 黑色遮罩铺满全屏（fixed inset-0）", !!pop && pop.fullscreen);
 ok("G2. 能力描述不再截断", !!pop && !pop.truncated);
 
 // G3: 继续 → 使用指南弹窗
