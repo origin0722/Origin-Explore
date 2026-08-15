@@ -424,10 +424,7 @@ export function ChatCard() {
     toastTimeout.current = setTimeout(() => setToast(null), 2400);
   };
 
-  // Header shows the project title (rename acts on the project, consistent
-  // with the sidebar); the first message auto-titles an "Untitled" project.
-  const title = activeProject?.title || "新对话";
-
+  // 项目标题不再置顶显示（连续对话易偏离首条消息标题）；侧边栏与导出仍用 activeProject.title。
   const fmtTs = (ts: number) =>
     new Date(ts).toLocaleString("en-US", {
       month: "short",
@@ -815,7 +812,10 @@ export function ChatCard() {
       }}
     >
       <div className="relative w-full h-full min-h-0 overflow-hidden rounded-[24px]">
-        {/* ---------- header ---------- */}
+        {/* ---------- header ----------
+            顶部不再置顶显示项目标题：连续对话进行到后期往往已偏离首条消息的标题，
+            悬浮置顶反而干扰阅读；项目标题仍保留在侧边栏与导出数据中，
+            重命名时这里临时出现输入框。 */}
         <div className="absolute top-0 inset-x-0 h-9 px-4 flex items-center justify-between border-b border-divider z-[5]">
           {renaming ? (
             <input
@@ -829,9 +829,7 @@ export function ChatCard() {
               onBlur={confirmRename}
               className="flex-1 min-w-0 mr-2 rounded bg-item-std px-2 py-0.5 text-[15px] font-bold text-primary outline-none ring-1 ring-brand/50"
             />
-          ) : (
-            <span className="font-bold truncate pr-2 text-[15px]">{title}</span>
-          )}
+          ) : null}
           <div className="relative flex items-center gap-2">
             <button
               type="button"

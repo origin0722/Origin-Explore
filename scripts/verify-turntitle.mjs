@@ -1,6 +1,8 @@
 /**
- * Verify the turn-title dedup: single turn hides the per-turn big title
- * (card header + bubble are enough); multi-turn restores them for orientation.
+ * Verify turn-title behavior (R9 update):
+ * - 卡片顶部不再置顶项目标题（连续对话偏离首条消息标题时，悬浮标题干扰阅读）；
+ * - single turn: 每轮的 turn 大标题隐藏（气泡已足够）；
+ * - multi-turn: turn 大标题恢复（提供轮次定位）。
  * Usage: node scripts/verify-turntitle.mjs
  */
 import puppeteer from "puppeteer-core";
@@ -36,7 +38,7 @@ const single = await page.evaluate(() => {
     (d) => d.className.includes("h-14") && d.className.includes("text-lg")
   );
   const headerTitle = document.querySelector("header, .rounded-\\[24px\\] > div")?.textContent?.includes("你好");
-  // card header title = the span in the top bar
+  // card header title = the span in the top bar (should be GONE since R9)
   const headerHasHello = (document.querySelector(".rounded-\\[24px\\]")?.querySelector("span.font-bold")?.textContent ?? "").includes("你好");
   const bubbleHasHello = [...document.querySelectorAll("[id^='chat-turn-'] span")].some((s) => s.textContent === "你好");
   return {
@@ -47,7 +49,7 @@ const single = await page.evaluate(() => {
   };
 });
 log("1. single turn — big turn title absent:", single.turnBigTitles === 0);
-log("   card header has 你好:", single.headerHasHello, "| bubble has 你好:", single.bubbleHasHello);
+log("   card header no longer pins 你好:", single.headerHasHello === false, "| bubble has 你好:", single.bubbleHasHello);
 
 // 2. Second message → multi-turn
 await page.type("textarea", "什么是动态规划？");
