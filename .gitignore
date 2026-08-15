@@ -48,3 +48,4 @@ next-env.d.ts
 # Local temp files
 temp/
 .dsh-vision-toolkit/
+qa-out/
