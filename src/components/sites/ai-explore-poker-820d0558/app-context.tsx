@@ -152,11 +152,15 @@ export interface AppState {
   busy: boolean;
   /** 分支卡片 → 在当前项目开新 turn（继承上游卡片主题与分支点之前的对话历史，走双通道）；
       sourceTurnId = 发起分支的轮次（有向图边 + parentTurnId）；新 turn 记为 kind="branch"，
-      branchPointIndex 默认 = 创建时上游轮次最后一条消息的下标（分割线画在该消息之后）。 */
-  openBranchTurn(title: string, history?: { role: string; content: string }[], sourceTurnId?: string): void;
+      branchPointIndex 默认 = 创建时上游轮次最后一条消息的下标（分割线画在该消息之后）。
+      去重：同一 sourceTurnId + 同一标题的分支卡片已存在时复用（返回其 id），不新建重复节点；
+      新建返回 null。 */
+  openBranchTurn(title: string, history?: { role: string; content: string }[], sourceTurnId?: string): string | null;
   /** 发散卡片 → 在当前项目开新 turn 作为平行会话（kind="diverge"，divergeSourceId=来源轮次）。
-      与分支卡片不同：不继承上游历史、也不打断当前对话——调用方保留卡片栈。 */
-  openDivergeTurn(title: string, sourceTurnId: string): void;
+      与分支卡片不同：不继承上游历史、也不打断当前对话——调用方保留卡片栈。
+      去重：同一 divergeSourceId + 同一标题的发散卡片已存在时复用（返回其 id，调用方跳转），不新建；
+      新建返回 null。 */
+  openDivergeTurn(title: string, sourceTurnId: string): string | null;
   /** 调整分支卡片的分支点（上游轮次 messages 下标；分割线画在该消息之后） */
   setBranchPoint(turnId: string, index: number): void;
   /** 生成并缓存分支卡片"分支点前上游对话"的总结（启发式，写入 turn.preBranchSummary） */
@@ -860,7 +864,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       AI 回复走 deliverReply 双通道（BYOK 真实 API / 离线知识库），不再静态贴摘要。
       新 turn 记为 kind="branch"；branchPointIndex 默认 = 创建时上游轮次最后一条消息下标。 */
   const openBranchTurn = useCallback(
-    (title: string, history: { role: string; content: string }[] = [], sourceTurnId?: string) => {
+    (title: string, history: { role: string; content: string }[] = [], sourceTurnId?: string): string | null => {
+      // 去重：同一来源轮次 + 同一标题的分支卡片已存在 → 复用（返回其 id），不新建重复节点。
+      if (sourceTurnId) {
+        const existing = projects
+          .flatMap((p) => p.turns)
+          .find((t) => t.kind === "branch" && t.parentTurnId === sourceTurnId && t.title === title);
+        if (existing) return existing.id;
+      }
       let targetId = activeProjectId;
       if (!targetId) {
         const p: ChatProject = { ...makeDemoProject(), id: uid(), title: "Untitled" };
@@ -908,15 +919,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...history.slice(-16),
       ];
       deliverReply(`继续深挖：${title}`, ctx, targetId);
+      return null;
     },
     [activeProjectId, projects, appendTurn, recordExploration, deliverReply]
   );
 
   /** 发散卡片：以术语开"平行会话"（kind="diverge"）。
       与分支卡片的关键区别：不继承上游历史、不打断当前对话（调用方保留卡片栈），
-      树中与来源卡片同层、位于其右侧。AI 回复走双通道。 */
+      树中与来源卡片同层、位于其右侧。AI 回复走双通道。
+      去重：同一来源 + 同一主题已存在 → 复用（返回其 id，调用方跳转），不新建。 */
   const openDivergeTurn = useCallback(
-    (title: string, sourceTurnId: string) => {
+    (title: string, sourceTurnId: string): string | null => {
+      const existing = projects
+        .flatMap((p) => p.turns)
+        .find((t) => t.kind === "diverge" && t.divergeSourceId === sourceTurnId && t.title === title);
+      if (existing) return existing.id;
       let targetId = activeProjectId;
       if (!targetId) {
         const p: ChatProject = { ...makeDemoProject(), id: uid(), title: "Untitled" };
@@ -947,8 +964,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         },
       ];
       deliverReply(`发散话题：${title}`, ctx, targetId);
+      return null;
     },
-    [activeProjectId, appendTurn, deliverReply]
+    [activeProjectId, projects, appendTurn, deliverReply]
   );
 
   /** 调整分支卡片的分支点（上游轮次 messages 下标；分割线画在该消息之后）。 */

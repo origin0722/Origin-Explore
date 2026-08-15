@@ -307,6 +307,7 @@ export function ChatCard() {
     setPendingQuote,
     toggleFavorite,
     setTurnUnread,
+    focusTurn,
     focusRequest,
     clearFocusRequest,
     cardOpenRequest,
@@ -657,14 +658,26 @@ export function ChatCard() {
         history.push({ role: m.role, content: m.content });
       }
     }
-    openBranchTurn(item.node.term, history.slice(-16), item.sourceTurnId);
+    const reusedId = openBranchTurn(item.node.term, history.slice(-16), item.sourceTurnId);
+    if (reusedId) {
+      if (activeProjectId) focusTurn(activeProjectId, reusedId);
+      showToast("已有同主题分支卡片，已跳转");
+    } else {
+      showToast(`✓ 已创建分支卡片「${item.node.term}」`);
+    }
     setTermStack([]);
   };
 
-  /** Divergence card → 以术语开"平行会话"（不打断当前对话）：保留卡片栈。 */
+  /** Divergence card → 以术语开"平行会话"（不打断当前对话）：保留卡片栈。
+      已存在同来源同主题的发散卡片时复用并跳转，不新建重复节点。 */
   const handleDiverge = (item: StackItem) => {
-    openDivergeTurn(item.node.term, item.sourceTurnId);
-    showToast(`✓ 已创建发散卡片「${item.node.term}」`);
+    const reusedId = openDivergeTurn(item.node.term, item.sourceTurnId);
+    if (reusedId) {
+      if (activeProjectId) focusTurn(activeProjectId, reusedId);
+      showToast(`已有同主题发散卡片「${item.node.term}」，已跳转`);
+    } else {
+      showToast(`✓ 已创建发散卡片「${item.node.term}」`);
+    }
   };
 
   /** 调整分支点：把分支轮次的分叉位置改到上游第 index 条消息之后。 */
@@ -1169,12 +1182,14 @@ export function ChatCard() {
                   </div>
                   );
                 })}
-                {toast && (
-                  <div className="absolute left-1/2 bottom-6 -translate-x-1/2 z-[60] bg-modal-floating border border-std shadow-card rounded-full px-4 py-2 text-xs text-brand whitespace-nowrap pointer-events-none">
-                    {toast}
-                  </div>
-                )}
               </>
+            )}
+
+            {/* toast：独立于卡片栈渲染——分支流程会关栈，toast 不能因此被卸载 */}
+            {toast && (
+              <div className="absolute left-1/2 bottom-6 -translate-x-1/2 z-[60] bg-modal-floating border border-std shadow-card rounded-full px-4 py-2 text-xs text-brand whitespace-nowrap pointer-events-none">
+                {toast}
+              </div>
             )}
 
             {/* 轮次导航卡片树已移至 shell 右侧独立区域（对话框与思维宇宙之间） */}

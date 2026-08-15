@@ -111,6 +111,26 @@ ok("A5. 卡片树：发散节点紧跟来源节点之后、同层且右移一档
     parseFloat(divergeNode.padLeft) > parseFloat(divergeNode.srcPadLeft),
   divergeNode);
 
+// A6. 同一张卡上再次点"发散对话" → 去重：不新建，复用并跳转
+await page.evaluate(() => {
+  const card = [...document.querySelectorAll(".card-container")].at(-1);
+  [...(card?.querySelectorAll("button") ?? [])].find((b) => b.textContent?.includes("发散对话"))?.click();
+});
+await sleep(800);
+const dedupeState = await state();
+const divergeCount = dedupeState.projects
+  ?.find((p) => p.id === proj.id)
+  ?.turns?.filter((t) => t.kind === "diverge" && t.divergeSourceId === t1.id && t.title === "叠加态").length;
+const divergeNodeCount = await page.evaluate(
+  () => document.querySelectorAll("[data-diverge='true']").length
+);
+const reuseToast = await page.evaluate(
+  () => document.body.textContent?.includes("已有同主题发散卡片") ?? false
+);
+ok("A6. 重复点击去重：不新建重复发散卡片，复用并跳转",
+  divergeCount === 1 && divergeNodeCount === 1 && reuseToast,
+  { divergeCount, divergeNodeCount, reuseToast });
+
 /* ================= B. 分支卡片：分支点 + 总结 ================= */
 log("--- B. 分支卡片 ---");
 // 关闭发散卡片打开时的术语卡，再开玻姆诠释（branch kind）卡片
@@ -176,6 +196,27 @@ const summary = await page.evaluate(() => {
 ok("B6. 分支卡片显示「分支点前对话总结」面板",
   summary.includes("分支点前对话总结") && summary.includes("上游主题") && summary.includes("1. **我**"),
   summary.slice(0, 60));
+
+// B7. 再次开卡片点"另起炉灶" → 去重：不新建重复分支卡片，复用并跳转
+await page.evaluate(() => {
+  const chip = [...document.querySelectorAll("button.term-chip")].find((b) => b.textContent?.includes("玻姆诠释"));
+  chip?.click();
+});
+await sleep(700);
+await page.evaluate(() => {
+  const card = [...document.querySelectorAll(".card-container")].at(-1);
+  [...(card?.querySelectorAll("button") ?? [])].find((b) => b.textContent?.includes("另起炉灶"))?.click();
+});
+await sleep(800);
+st2 = await state();
+const branchCount = st2.projects
+  ?.find((p) => p.id === proj.id)
+  ?.turns?.filter((t) => t.kind === "branch" && t.parentTurnId === t2.id && t.title === "玻姆诠释").length;
+const branchReuseToast = await page.evaluate(
+  () => document.body.textContent?.includes("已有同主题分支卡片") ?? false
+);
+ok("B7. 分支卡片重复创建去重（同一来源+同标题只保留一个）",
+  branchCount === 1 && branchReuseToast, { branchCount, branchReuseToast });
 
 /* ================= C. 验证话术（离线知识库） ================= */
 log("--- C. 验证话术 ---");
