@@ -5,7 +5,16 @@
  * 术语卡片 = 可对话的卡片：点开卡片后可以在卡片内继续向 AI 提问（BYOK 走真实
  * 流式 API，否则离线知识库），回复里的 **加粗术语** 可点击 → 继续开子卡片深挖。
  */
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import ReactMarkdown from "react-markdown";
 import {
   BookmarkPlus,
@@ -75,6 +84,35 @@ function toTerm(children: ReactNode): string {
 }
 
 /* ------------------------------------------------------------------ */
+/* Markdown 组件守卫：避免非法嵌套（button 套 button / button 套 a）      */
+/* ------------------------------------------------------------------ */
+
+/** 链接上下文：markdown 链接（[**术语**](url)）内部的加粗不渲染成 <button>
+    （HTML 禁止 <button> 嵌套在 <a> 内），回退为普通 <strong>。 */
+const InLinkContext = createContext(false);
+
+/** 加粗节点是否包含嵌套的加粗（**外层 **内层** …**）——CommonMark 允许这种写法，
+    两个 strong 都会被我们的渲染器变成 <button>，导致 button-in-button 非法嵌套。
+    外层有嵌套时回退为普通 <strong>（内层仍可点击）。 */
+function hasNestedStrong(node: unknown): boolean {
+  const children = (node as { children?: unknown[] } | undefined)?.children ?? [];
+  return children.some((c) => {
+    const el = c as { type?: unknown; tagName?: unknown };
+    return el?.type === "element" && (el.tagName === "strong" || hasNestedStrong(c));
+  });
+}
+
+/** markdown 链接覆盖：置位 InLinkContext，保证链接内的 strong 不会变成 button。 */
+function LinkWrap({ node, children }: { node?: unknown; children?: ReactNode }) {
+  const href = (node as { properties?: { href?: unknown } } | undefined)?.properties?.href;
+  return (
+    <InLinkContext.Provider value={true}>
+      <a href={typeof href === "string" ? href : "#"}>{children}</a>
+    </InLinkContext.Provider>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* TermCard — one layer of the recursive term tree                     */
 /* ------------------------------------------------------------------ */
 
@@ -120,10 +158,13 @@ function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect,
   };
 
   // 卡内 markdown：**加粗术语** → 可点击，继续开子卡片深挖。
+  // 嵌套加粗 / 链接内的加粗回退为普通 <strong>（避免 button-in-button / button-in-a 非法嵌套）。
   const mdComponents = {
-    strong: ({ children }: { children?: ReactNode }) => {
+    a: LinkWrap,
+    strong: ({ node, children }: { node?: unknown; children?: ReactNode }) => {
       const text = toTerm(children).trim();
-      if (!text) return <strong>{children}</strong>;
+      const inLink = useContext(InLinkContext);
+      if (!text || inLink || hasNestedStrong(node)) return <strong>{children}</strong>;
       return (
         <button
           type="button"
@@ -1065,9 +1106,14 @@ export function ChatCard() {
                               <div className="markdown-content w-full">
                                 <ReactMarkdown
                                   components={{
-                                    strong: ({ children }) => {
+                                    a: LinkWrap,
+                                    strong: ({ node, children }) => {
                                       const text = toTerm(children).trim();
-                                      if (!text) return <strong>{children}</strong>;
+                                      const inLink = useContext(InLinkContext);
+                                      // 嵌套加粗 / 链接内的加粗 → 普通 <strong>（防 button-in-button）
+                                      if (!text || inLink || hasNestedStrong(node)) {
+                                        return <strong>{children}</strong>;
+                                      }
                                       // Terms already asked about (e.g. via doc reader) are de-emphasized.
                                       const asked = termStates[text] === "asked";
                                       return (

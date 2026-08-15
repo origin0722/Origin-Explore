@@ -41,6 +41,11 @@ export function AppShell() {
   // Mobile drawer state (desktop ignores it — the sidebar is in-flow there).
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // 数据全部来自 localStorage（仅客户端）：服务端渲染的是空态，挂载后再渲染真实内容，
+  // 避免 SSR 空态与客户端内容的水合不匹配警告（与 mind-universe 同一模式）。
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // Close the drawer whenever the active project or document changes.
   useEffect(() => {
     setMobileOpen(false);
@@ -78,6 +83,8 @@ export function AppShell() {
 
   return (
     <div className="fixed inset-0 flex overflow-hidden overscroll-none bg-bg">
+      {mounted && (
+        <>
       {/* ---- Sidebar: 悬浮式（桌面端 overlay，不占流，不挤压对话框；移动端抽屉） ---- */}
       <div
         className={`fixed inset-y-0 left-0 z-40 h-full shrink-0 overflow-hidden bg-bg transition-all duration-200 sm:absolute sm:translate-x-0 sm:bg-transparent ${
@@ -187,6 +194,8 @@ export function AppShell() {
       {modals.onboarding && <OnboardingWizard />}
       {modals.guide && <GuideModal />}
       {modals.login && <ProfileModal />}
+        </>
+      )}
     </div>
   );
 }
