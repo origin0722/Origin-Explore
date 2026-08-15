@@ -16,6 +16,7 @@ import {
   type ReactNode,
 } from "react";
 import type {
+  BackupEnvelope,
   ByokModel,
   ChatProject,
   ChatSettings,
@@ -133,6 +134,11 @@ export interface AppState {
   toggleSmartMode(): void;
   /** 导入一个项目（导出/导入为 JSON） */
   importProject(data: { title?: string; turns?: Turn[] }): void;
+  /** 全量备份：导出所有数据（项目+思维宇宙+文档+术语状态+文件夹+档案+设置）为单个 JSON 文件并下载 */
+  exportBackup(): void;
+  /** 全量恢复/导入：识别新版备份包（按 id 合并、备份胜出）与旧版项目文件（{ title, turns }）；
+      返回 { ok, message } 供 UI 提示 */
+  importBackup(parsed: unknown): { ok: boolean; message: string };
   /** 用户自带的 BYOK 模型（密钥仅存本机） */
   byokModels: ByokModel[];
   addByokModel(input: { name: string; baseUrl: string; modelId: string; apiKey: string }): void;
@@ -488,6 +494,105 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActiveProjectId(p.id);
     },
     []
+  );
+
+  /** 全量备份：导出所有数据为单个 JSON 文件并下载（个人工具，数据仅存本机——备份即防丢）。 */
+  const exportBackup = useCallback(() => {
+    const envelope = {
+      app: "explore-backup",
+      version: 1,
+      exportedAt: Date.now(),
+      data: {
+        projects,
+        thoughtNodes,
+        termStates,
+        documents,
+        folders,
+        profile,
+        settings,
+      },
+    };
+    const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `explore-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [projects, thoughtNodes, termStates, documents, folders, profile, settings]);
+
+  /** 全量恢复/导入：
+      - 新版备份包（app==="explore-backup"）：按 id 合并（备份胜出），项目/思维节点/文档/文件夹/术语状态/档案/设置
+        全部还原，不丢备份之后新建的内容；
+      - 旧版项目文件（{ title, turns }）：沿用 importProject 建项目（兼容以前的导出）。
+      返回 { ok, message } 供 UI toast。 */
+  const importBackup = useCallback(
+    (parsed: unknown): { ok: boolean; message: string } => {
+      if (!parsed || typeof parsed !== "object") {
+        return { ok: false, message: "无法识别的文件格式" };
+      }
+      const env = parsed as { app?: unknown; data?: unknown; title?: unknown; turns?: unknown };
+      // 旧版项目文件
+      if (env.app !== "explore-backup") {
+        if (env.title !== undefined || env.turns !== undefined) {
+          importProject({ title: String(env.title ?? ""), turns: env.turns as Turn[] | undefined });
+          return { ok: true, message: `已导入项目「${String(env.title ?? "Untitled")}」` };
+        }
+        return { ok: false, message: "无法识别的文件格式" };
+      }
+      const d = env.data as Partial<BackupEnvelope["data"]> | undefined;
+      if (!d || typeof d !== "object") return { ok: false, message: "备份文件缺少 data 字段" };
+
+      const sanitizeTurn = (t: Partial<Turn>): Turn => ({
+        id: t.id || uid(),
+        title: String(t.title ?? "对话"),
+        createdAt: typeof t.createdAt === "number" ? t.createdAt : Date.now(),
+        messages: Array.isArray(t.messages)
+          ? t.messages.map((m) => ({ ...m, id: m.id || uid() }))
+          : [],
+      });
+      const projectsIn = (Array.isArray(d.projects) ? d.projects : [])
+        .filter((p): p is ChatProject => !!p && typeof p === "object")
+        .map((p) => ({ ...makeDemoProject(), ...p, id: p.id || uid(), turns: (p.turns ?? []).map(sanitizeTurn) }));
+      const thoughtIn = (Array.isArray(d.thoughtNodes) ? d.thoughtNodes : []).filter(
+        (n): n is ThoughtNode => !!n && typeof n === "object" && !!n.id
+      );
+      const docsIn = (Array.isArray(d.documents) ? d.documents : []).filter(
+        (x): x is DocumentItem => !!x && typeof x === "object" && !!x.id
+      );
+      const foldersIn = (Array.isArray(d.folders) ? d.folders : []).filter(
+        (f): f is string => typeof f === "string" && !!f.trim()
+      );
+      const termIn = d.termStates && typeof d.termStates === "object" ? (d.termStates as Record<string, TermState>) : {};
+
+      // 按 id 合并（备份胜出）；保留备份之后新建的内容。
+      setProjects((list) => {
+        const map = new Map(list.map((p) => [p.id, p]));
+        for (const p of projectsIn) map.set(p.id, p);
+        return [...map.values()];
+      });
+      setThoughtNodes((list) => {
+        const map = new Map(list.map((n) => [n.id, n]));
+        for (const n of thoughtIn) map.set(n.id, n);
+        return [...map.values()];
+      });
+      setDocuments((list) => {
+        const map = new Map(list.map((x) => [x.id, x]));
+        for (const x of docsIn) map.set(x.id, x);
+        return [...map.values()];
+      });
+      setFolders((list) => [...new Set([...list, ...foldersIn])]);
+      setTermStates((s) => ({ ...s, ...termIn }));
+      if (d.profile) setProfile(d.profile as Profile);
+      if (d.settings && typeof d.settings === "object") {
+        setSettingsState((s) => ({ ...DEFAULT_SETTINGS, ...s, ...(d.settings as ChatSettings) }));
+      }
+      return {
+        ok: true,
+        message: `已恢复备份：${projectsIn.length} 个项目 · ${thoughtIn.length} 个思维节点 · ${docsIn.length} 个文档`,
+      };
+    },
+    [importProject]
   );
 
   const addByokModel = useCallback(
@@ -1098,6 +1203,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     smartMode,
     toggleSmartMode,
     importProject,
+    exportBackup,
+    importBackup,
     byokModels,
     addByokModel,
     collapsed,

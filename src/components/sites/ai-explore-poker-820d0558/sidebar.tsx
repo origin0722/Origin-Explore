@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   BookOpen,
   ChevronRight,
+  Download,
   FileText,
   Folder,
   FolderPlus,
@@ -55,6 +56,8 @@ export function Sidebar() {
     smartMode,
     toggleSmartMode,
     importProject,
+    exportBackup,
+    importBackup,
     addDocument,
     collapsed,
     toggleSidebar,
@@ -130,14 +133,20 @@ export function Sidebar() {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const data = JSON.parse(String(reader.result));
-        importProject({ title: data?.title, turns: data?.turns });
-        showToast("已导入项目");
+        const parsed = JSON.parse(String(reader.result));
+        const res = importBackup(parsed);
+        showToast(res.ok ? res.message : `导入失败：${res.message}`);
       } catch {
         showToast("导入失败：无效的 JSON 文件");
       }
     };
     reader.readAsText(file);
+  };
+
+  /** 全量备份下载：项目 + 思维宇宙 + 文档 + 术语状态 + 文件夹 + 档案 + 设置。 */
+  const handleExportBackup = () => {
+    exportBackup();
+    showToast("✓ 已导出完整备份");
   };
 
   /** 侧边栏"+"：直接上传文档并进入文档库。 */
@@ -173,7 +182,8 @@ export function Sidebar() {
     { key: "toggle", icon: PanelLeftClose, label: "收起侧边栏", onClick: toggleSidebar },
     { key: "folder", icon: FolderPlus, label: "新建文件夹", onClick: () => setCreatingFolder(true) },
     { key: "new", icon: Plus, label: "新建项目", onClick: createProject },
-    { key: "import", icon: Upload, label: "导入项目", onClick: () => importRef.current?.click() },
+    { key: "import", icon: Upload, label: "导入项目/恢复备份", onClick: () => importRef.current?.click() },
+    { key: "export-backup", icon: Download, label: "导出完整备份", onClick: handleExportBackup },
   ];
 
   const localProjects = projects.filter((p) => !p.cloud && !p.resident);

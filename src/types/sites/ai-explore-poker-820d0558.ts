@@ -165,3 +165,20 @@ export interface UIState {
   mindscapeOpen: boolean;
   onboardingDone: boolean;
 }
+
+/** 全量备份包（导出/导入：所有项目 + 思维宇宙 + 文档 + 术语状态 + 文件夹 + 档案 + 设置）。
+    与旧的"项目级"导出（{ title, turns }）并存：导入时两种格式都识别。 */
+export interface BackupEnvelope {
+  app: "explore-backup";
+  version: 1;
+  exportedAt: number;
+  data: {
+    projects: ChatProject[];
+    thoughtNodes: ThoughtNode[];
+    termStates: Record<string, TermState>;
+    documents: DocumentItem[];
+    folders: string[];
+    profile: Profile | null;
+    settings: ChatSettings;
+  };
+}
