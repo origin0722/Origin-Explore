@@ -325,6 +325,11 @@ export function ChatCard() {
   /** recursive term-card stack: index 0 = clicked term, deeper layers = child cards */
   const [termStack, setTermStack] = useState<StackItem[]>([]);
   const stackSeq = useRef(0);
+  /** 未知词条自动问 AI 的会话级缓存（term → 卡片消息）。
+      探索路径/主对话重复打开同一未知词条时直接读缓存，不再发 API 请求（省 token）。 */
+  const autoAskCache = useRef(new Map<string, Message[]>());
+  /** 正在飞行中的自动问（term），防止并发重复请求。 */
+  const autoAskInflight = useRef(new Set<string>());
   const [toast, setToast] = useState<string | null>(null);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -485,7 +490,8 @@ export function ChatCard() {
 
   /* --- term expansion (recursive tree) --- */
 
-  /** 开一张卡片；未知词条（空摘要）+ 已接 BYOK → 自动向 AI 提问解释。
+  /** 开一张卡片；未知词条（空摘要）+ 已接 BYOK → 自动向 AI 提问解释（只问一次：
+      会话级缓存命中或请求在途时直接复用，不重复消耗 token）。
       每次打开都会记入 sourceTurnId 的探索路径（opts.record=false 时跳过，
       用于从路径 chip 重新打开——重开会破坏原有链条顺序）。 */
   const openCard = (
@@ -497,9 +503,10 @@ export function ChatCard() {
   ) => {
     stackSeq.current += 1;
     const key = `${node.id}-${stackSeq.current}`;
+    const cached = autoAskCache.current.get(node.term);
     setTermStack((s) => [
       ...s,
-      { node, key, messages: [], path, busy: false, sourceTurnId, parentSubject },
+      { node, key, messages: cached ?? [], path, busy: false, sourceTurnId, parentSubject },
     ]);
     if (opts?.record !== false) {
       recordExploration(sourceTurnId, node.term, node.kind, parentSubject);
@@ -507,12 +514,19 @@ export function ChatCard() {
     const byok = byokModels.find(
       (m) => m.id === settings.activeModelId && m.provider === "BYOK"
     );
-    if (!node.summary && byok?.apiKey && byok?.baseUrl && byok?.modelId) {
+    if (
+      !node.summary &&
+      byok?.apiKey &&
+      byok?.baseUrl &&
+      byok?.modelId &&
+      !cached &&
+      !autoAskInflight.current.has(node.term)
+    ) {
       window.setTimeout(() => {
         askInCard(
           key,
           `请详细解释「${node.term}」这个概念，重要术语用 **加粗** 标记。`,
-          { node, path, messages: [], busy: false },
+          { node, path, messages: cached ?? [], busy: false },
           { silent: true }
         );
       }, 150);
@@ -547,7 +561,9 @@ export function ChatCard() {
   };
 
   /** 在卡片内提问：BYOK 走真实流式 API，否则离线知识库；回复写进该卡片。
-      `opts.silent`：静默提问（自动问 AI 用）——问题只发给 API，不渲染成对话里的用户消息。 */
+      `opts.silent`：静默提问（自动问 AI 用）——问题只发给 API，不渲染成对话里的用户消息。
+      未知词条（node.summary 为空）的回答会写入会话级缓存（autoAskCache），
+      同一词条重复打开直接复用，不再发 API 请求。 */
   const askInCard = (
     key: string,
     question: string,
@@ -555,16 +571,34 @@ export function ChatCard() {
     opts?: { silent?: boolean }
   ) => {
     if (item.busy) return;
+    // 同一词条的自动问已在途 → 跳过（防并发重复请求）。
+    if (opts?.silent && autoAskInflight.current.has(item.node.term)) return;
+    if (opts?.silent) autoAskInflight.current.add(item.node.term);
 
     const patch = (k: string, fn: (i: StackItem) => StackItem) =>
       setTermStack((s) => s.map((i) => (i.key === k ? fn(i) : i)));
 
+    const userMsg: Message | null = opts?.silent
+      ? null
+      : { id: uid(), role: "user", content: question, createdAt: Date.now() };
     if (opts?.silent) {
       patch(key, (i) => ({ ...i, busy: true }));
     } else {
-      const userMsg: Message = { id: uid(), role: "user", content: question, createdAt: Date.now() };
-      patch(key, (i) => ({ ...i, messages: [...i.messages, userMsg], busy: true }));
+      patch(key, (i) => ({ ...i, messages: [...i.messages, userMsg!], busy: true }));
     }
+
+    /** 未知词条回答完成后写入会话缓存（重开卡片零消耗）；树内词条不缓存（本来就不会自动问）。 */
+    const remember = (finalContent: string) => {
+      if (item.node.summary) return;
+      const base = opts?.silent ? item.messages : [...item.messages, userMsg!];
+      autoAskCache.current.set(item.node.term, [
+        ...base,
+        { id: uid(), role: "assistant", content: finalContent, createdAt: Date.now() },
+      ]);
+    };
+    const clearInflight = () => {
+      if (opts?.silent) autoAskInflight.current.delete(item.node.term);
+    };
 
     const byok = byokModels.find(
       (m) => m.id === settings.activeModelId && m.provider === "BYOK"
@@ -602,6 +636,8 @@ export function ChatCard() {
         .then(() => {
           window.clearTimeout(timer);
           patch(key, (i) => ({ ...i, busy: false }));
+          remember(acc);
+          clearInflight();
         })
         .catch(() => {
           window.clearTimeout(timer);
@@ -613,6 +649,8 @@ export function ChatCard() {
               mi === i.messages.length - 1 ? { ...m, content: fallback } : m
             ),
           }));
+          remember(fallback);
+          clearInflight();
         });
     } else {
       // 离线：延迟后生成回复并打字机式写入卡片。
@@ -634,6 +672,8 @@ export function ChatCard() {
           if (pos >= reply.length) {
             window.clearInterval(t);
             patch(key, (i) => ({ ...i, busy: false }));
+            remember(reply);
+            clearInflight();
           }
         }, 20);
       }, 500);
