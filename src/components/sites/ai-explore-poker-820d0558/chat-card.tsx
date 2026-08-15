@@ -10,14 +10,18 @@ import ReactMarkdown from "react-markdown";
 import {
   BookmarkPlus,
   Copy,
+  FileText,
+  GitFork,
   HelpCircle,
   Loader2,
   Maximize2,
   Minimize2,
   MoreHorizontal,
   Quote,
+  Scissors,
   Send,
   Star,
+  Waypoints,
   X,
 } from "lucide-react";
 import { useApp, streamOpenAICompatible } from "./app-context";
@@ -84,10 +88,12 @@ interface TermCardProps {
   onTermClick(term: string): void;
   onCollect(): void;
   onBranch(): void;
+  /** 发散卡片：以本术语开平行会话（不打断当前对话） */
+  onDiverge(): void;
   onAsk(question: string): void;
 }
 
-function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect, onBranch, onAsk }: TermCardProps) {
+function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect, onBranch, onDiverge, onAsk }: TermCardProps) {
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -201,15 +207,25 @@ function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect,
         )}
       </div>
 
-      {node.kind === "branch" && (
+      <div className="mx-4 mt-2 flex shrink-0 gap-2">
+        {node.kind === "branch" && (
+          <button
+            type="button"
+            className="h-9 flex-1 rounded-xl bg-btn-std hover:bg-btn-std-hover text-[13px] text-brand transition-colors"
+            onClick={onBranch}
+          >
+            ⬇️ 另起炉灶 · 开新对话
+          </button>
+        )}
         <button
           type="button"
-          className="mx-4 mt-2 h-9 shrink-0 rounded-xl bg-btn-std hover:bg-btn-std-hover text-[13px] text-brand transition-colors"
-          onClick={onBranch}
+          title={`以「${node.term}」开一个不打断当前对话的平行会话`}
+          className="h-9 flex-1 rounded-xl border border-brand/30 bg-brand/[0.06] hover:bg-brand/15 text-[13px] text-brand transition-colors"
+          onClick={onDiverge}
         >
-          ⬇️ 另起炉灶 · 开新对话
+          🪢 发散对话 · 平行会话
         </button>
-      )}
+      </div>
 
       {/* 卡内输入条 */}
       <div className="shrink-0 border-t border-divider p-3">
@@ -280,6 +296,9 @@ export function ChatCard() {
     recordExploration,
     markTermState,
     openBranchTurn,
+    openDivergeTurn,
+    setBranchPoint,
+    summarizePreBranch,
     openModal,
     loadSampleProject,
     byokModels,
@@ -298,6 +317,8 @@ export function ChatCard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState("");
+  /** 正在调整分支点的分支轮次 id（上游每条消息旁出现"✂️ 在此分支"） */
+  const [branchPointEditing, setBranchPointEditing] = useState<string | null>(null);
   const [hlTerm, setHlTerm] = useState<string | null>(null);
   const hlTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** recursive term-card stack: index 0 = clicked term, deeper layers = child cards */
@@ -640,6 +661,34 @@ export function ChatCard() {
     setTermStack([]);
   };
 
+  /** Divergence card → 以术语开"平行会话"（不打断当前对话）：保留卡片栈。 */
+  const handleDiverge = (item: StackItem) => {
+    openDivergeTurn(item.node.term, item.sourceTurnId);
+    showToast(`✓ 已创建发散卡片「${item.node.term}」`);
+  };
+
+  /** 调整分支点：把分支轮次的分叉位置改到上游第 index 条消息之后。 */
+  const handleBranchAt = (branchTurnId: string, index: number) => {
+    setBranchPoint(branchTurnId, index);
+    setBranchPointEditing(null);
+    showToast("✓ 分支点已调整");
+  };
+
+  /** 复制一段文本（总结面板等）。 */
+  const copyText = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast("✓ 已复制");
+    } catch {
+      showToast("复制失败：浏览器拒绝了剪贴板访问");
+    }
+  };
+
+  /** 正在调整分支点的分支轮次（其 parentTurnId 指向的轮次 = 上游，显示"✂️ 在此分支"）。 */
+  const editedBranch = branchPointEditing
+    ? turns.find((t) => t.id === branchPointEditing) ?? null
+    : null;
+
   /* --- 引用回答（上下文管理）：选中 AI 回复文本 → 浮动"引用"按钮 --- */
   const handleQuoteMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
     const sel = window.getSelection();
@@ -839,11 +888,68 @@ export function ChatCard() {
                         turn already shows its title in the card header, so
                         repeating it here would be redundant */}
                     {turns.length > 1 && (
-                      <div className="flex items-center h-14 text-lg font-semibold truncate text-text-turn-title">
+                      <div className="flex items-center gap-2 h-14 text-lg font-semibold truncate text-text-turn-title">
+                        {turn.kind === "branch" && (
+                          <span className="shrink-0 rounded-full border border-brand/40 px-2 py-0.5 text-[10px] text-brand select-none">
+                            ⛓ 分支
+                          </span>
+                        )}
+                        {turn.kind === "diverge" && (
+                          <span className="shrink-0 rounded-full border border-[#ba8eff]/40 px-2 py-0.5 text-[10px] text-[#ba8eff] select-none">
+                            🪢 发散
+                          </span>
+                        )}
                         <span className="w-full min-w-0 truncate">{turn.title}</span>
                       </div>
                     )}
+                    {/* 分支点调整提示条（在上游轮次里，正在调整某个分支的分支点） */}
+                    {editedBranch && turn.id === editedBranch.parentTurnId && (
+                      <div className="flex items-center justify-between gap-2 rounded-lg border border-brand/40 bg-brand/10 px-3 py-2 text-[11px] text-brand select-none">
+                        <span className="min-w-0 flex-1 truncate">
+                          ✂️ 正在调整「{editedBranch.title}」的分支点：点击消息右侧的「在此分支」选择分叉位置
+                        </span>
+                        <button
+                          type="button"
+                          className="shrink-0 rounded-full px-2 py-0.5 text-[11px] text-text-secondary hover:text-primary transition-colors"
+                          onClick={() => setBranchPointEditing(null)}
+                        >
+                          取消
+                        </button>
+                      </div>
+                    )}
                     <div className="flex items-center justify-end gap-2 pr-1 select-none">
+                      {turn.kind === "branch" && (
+                        <>
+                          <button
+                            type="button"
+                            aria-label="查看/调整分支点"
+                            title={
+                              branchPointEditing === turn.id
+                                ? "收起分支点调整"
+                                : "查看并调整分支点（在来源对话中标记分割线位置）"
+                            }
+                            onClick={() =>
+                              setBranchPointEditing((cur) => (cur === turn.id ? null : turn.id))
+                            }
+                            className={`flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${
+                              branchPointEditing === turn.id
+                                ? "border-brand/50 bg-brand/10 text-brand"
+                                : "border-std bg-btn-std text-text-tertiary hover:border-brand/40 hover:text-brand"
+                            }`}
+                          >
+                            <GitFork size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="总结分支点前的上游对话"
+                            title="总结分支点前的上游对话"
+                            onClick={() => summarizePreBranch(turn.id)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-std bg-btn-std text-text-tertiary transition-colors hover:border-brand/40 hover:text-brand"
+                          >
+                            <FileText size={13} />
+                          </button>
+                        </>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
@@ -864,52 +970,106 @@ export function ChatCard() {
                         {fmtTs(turn.createdAt)}
                       </span>
                     </div>
-                    {/* messages */}
-                    {turn.messages.map((msg) =>
-                      msg.role === "user" ? (
-                        <div key={msg.id} className="flex flex-col items-end gap-2">
-                          <div className="bg-usermsg shadow-usermsg rounded-usermsg px-3 py-2 relative max-w-[90%]">
-                            <span className="text-text-content whitespace-pre-wrap select-none">
-                              {msg.content}
-                            </span>
-                          </div>
+                    {/* 分支卡片：分支点前上游对话总结（可复制） */}
+                    {turn.kind === "branch" && turn.preBranchSummary && (
+                      <div className="select-text rounded-xl border border-brand/20 bg-brand/[0.05] p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold text-brand/90 select-none">
+                            📋 分支点前对话总结
+                          </span>
+                          <button
+                            type="button"
+                            className="text-[10px] text-text-tertiary transition-colors hover:text-brand select-none"
+                            onClick={() => copyText(turn.preBranchSummary!)}
+                          >
+                            复制
+                          </button>
                         </div>
-                      ) : (
-                        <div
-                          key={msg.id}
-                          className="ai-message-content relative w-full select-text"
-                          onMouseUp={handleQuoteMouseUp}
-                        >
-                          <div className="markdown-content w-full">
-                            <ReactMarkdown
-                              components={{
-                                strong: ({ children }) => {
-                                  const text = toTerm(children).trim();
-                                  if (!text) return <strong>{children}</strong>;
-                                  // Terms already asked about (e.g. via doc reader) are de-emphasized.
-                                  const asked = termStates[text] === "asked";
-                                  return (
-                                    <button
-                                      type="button"
-                                      className={`term-chip font-semibold cursor-pointer underline decoration-brand/50 decoration-[1.5px] underline-offset-2 hover:decoration-brand transition-colors duration-300 ${
-                                        asked ? "text-text-secondary" : "text-brand"
-                                      } ${
-                                        hlTerm === text ? "bg-brand/15 shadow-brandtw rounded" : ""
-                                      }`}
-                                      onClick={() => handleTermClick(text, turn.id)}
-                                    >
-                                      {children}
-                                    </button>
-                                  );
-                                },
-                              }}
-                            >
-                              {msg.content}
-                            </ReactMarkdown>
-                          </div>
+                        <div className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-text-secondary">
+                          {turn.preBranchSummary}
                         </div>
-                      )
+                      </div>
                     )}
+                    {/* messages */}
+                    {(() => {
+                      // 指向本轮的出边分支（用于分支点分割线）
+                      const branchesHere = turns.filter(
+                        (b) => b.kind === "branch" && b.parentTurnId === turn.id
+                      );
+                      return turn.messages.map((msg, mi) => (
+                        <Fragment key={msg.id}>
+                          {msg.role === "user" ? (
+                            <div className="flex flex-col items-end gap-2">
+                              <div className="bg-usermsg shadow-usermsg rounded-usermsg px-3 py-2 relative max-w-[90%]">
+                                <span className="text-text-content whitespace-pre-wrap select-none">
+                                  {msg.content}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              className="ai-message-content relative w-full select-text"
+                              onMouseUp={handleQuoteMouseUp}
+                            >
+                              <div className="markdown-content w-full">
+                                <ReactMarkdown
+                                  components={{
+                                    strong: ({ children }) => {
+                                      const text = toTerm(children).trim();
+                                      if (!text) return <strong>{children}</strong>;
+                                      // Terms already asked about (e.g. via doc reader) are de-emphasized.
+                                      const asked = termStates[text] === "asked";
+                                      return (
+                                        <button
+                                          type="button"
+                                          className={`term-chip font-semibold cursor-pointer underline decoration-brand/50 decoration-[1.5px] underline-offset-2 hover:decoration-brand transition-colors duration-300 ${
+                                            asked ? "text-text-secondary" : "text-brand"
+                                          } ${
+                                            hlTerm === text ? "bg-brand/15 shadow-brandtw rounded" : ""
+                                          }`}
+                                          onClick={() => handleTermClick(text, turn.id)}
+                                        >
+                                          {children}
+                                        </button>
+                                      );
+                                    },
+                                  }}
+                                >
+                                  {msg.content}
+                                </ReactMarkdown>
+                              </div>
+                            </div>
+                          )}
+                          {/* 分支点分割线：这条消息之后分叉（"一条明显的分割线"） */}
+                          {branchesHere.map((b) => {
+                            const bp = b.branchPointIndex ?? turn.messages.length - 1;
+                            return bp === mi ? (
+                              <div
+                                key={`bp-${b.id}`}
+                                className="my-1 flex select-none items-center gap-2 rounded-lg border border-dashed border-brand/40 bg-brand/[0.06] px-3 py-1.5 text-[11px] text-brand"
+                              >
+                                <GitFork size={12} className="shrink-0" />
+                                <span className="min-w-0 flex-1 truncate">
+                                  ⛓ 分支点：从这里分出「{b.title}」分支
+                                </span>
+                              </div>
+                            ) : null;
+                          })}
+                          {/* 调整模式：每条消息右侧的"✂️ 在此分支" */}
+                          {editedBranch && turn.id === editedBranch.parentTurnId && (
+                            <div className="flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => handleBranchAt(editedBranch.id, mi)}
+                                className="flex items-center gap-1 rounded-full border border-brand/40 bg-card-floating px-2.5 py-1 text-[10px] text-brand transition-colors hover:bg-brand/15"
+                              >
+                                <Scissors size={11} /> 在此分支
+                              </button>
+                            </div>
+                          )}
+                        </Fragment>
+                      ));
+                    })()}
 
                     {/* 本轮探索路径：点开的术语卡片按链条展示（被它们"分割"出深挖脉络） */}
                     {turn.explored && turn.explored.length > 0 && (
@@ -1003,6 +1163,7 @@ export function ChatCard() {
                       onTermClick={(term) => handleCardTermClick(key, term)}
                       onCollect={() => handleCollect(item)}
                       onBranch={() => handleBranch(item)}
+                      onDiverge={() => handleDiverge(item)}
                       onAsk={(q) => askInCard(key, q, { node, path, messages, busy: cardBusy })}
                     />
                   </div>

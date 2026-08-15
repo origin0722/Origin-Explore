@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **发散卡片**：术语卡片上的"🪢 发散对话 · 平行会话"开平行会话（`kind="diverge"` + `divergeSourceId`），不打断当前对话（卡片栈保留）；卡片树中发散节点紧跟来源轮次、同一层级并横向右移（紫色虚线引导）。
+- **分支卡片增强**：分支轮次记录 `branchPointIndex`（分支点）；头部 ⛓ 按钮进入分支点调整模式（上游每条消息旁"✂️ 在此分支"，分割线随之移动）；📋 按钮生成"分支点前对话总结"面板（`preBranchSummary`，可复制）。
+- **验证话术**（离线知识库）："请问当前的相关主题是什么？" 与 "请问我们目前为止进行了哪些对话内容？请分条陈述。" 直接应答。
+- 使用指南补充发散卡片 / 分支卡片条目；`scripts/verify-divergence-branch.mjs` 回归脚本。
+
 ## [0.4.0] - 2026-08-10
 
 ### Added

@@ -151,8 +151,16 @@ export interface AppState {
   sendMessage(text: string): void;
   busy: boolean;
   /** 分支卡片 → 在当前项目开新 turn（继承上游卡片主题与分支点之前的对话历史，走双通道）；
-      sourceTurnId = 发起分支的轮次（有向图边 + parentTurnId） */
+      sourceTurnId = 发起分支的轮次（有向图边 + parentTurnId）；新 turn 记为 kind="branch"，
+      branchPointIndex 默认 = 创建时上游轮次最后一条消息的下标（分割线画在该消息之后）。 */
   openBranchTurn(title: string, history?: { role: string; content: string }[], sourceTurnId?: string): void;
+  /** 发散卡片 → 在当前项目开新 turn 作为平行会话（kind="diverge"，divergeSourceId=来源轮次）。
+      与分支卡片不同：不继承上游历史、也不打断当前对话——调用方保留卡片栈。 */
+  openDivergeTurn(title: string, sourceTurnId: string): void;
+  /** 调整分支卡片的分支点（上游轮次 messages 下标；分割线画在该消息之后） */
+  setBranchPoint(turnId: string, index: number): void;
+  /** 生成并缓存分支卡片"分支点前上游对话"的总结（启发式，写入 turn.preBranchSummary） */
+  summarizePreBranch(turnId: string): void;
   /** 本地档案（"登录"） */
   profile: Profile | null;
   setProfile(p: Profile | null): void;
@@ -271,6 +279,41 @@ function heuristicSummary(turn: Turn): string {
     `💬 共 ${turn.messages.length} 条消息 · 核心问题：「${firstUser}」`,
     hits.length ? `🔑 涉及术语：${hits.join("、")}` : "🔑 涉及术语：无",
     `🕐 ${when}`,
+  ].join("\n");
+}
+
+/** 分支卡片"分支点前对话"总结：上游主题 + 分支点 + 涉及术语 + 逐条陈述（消息截断）。
+    纯本地启发式，无 API 依赖；BYOK 用户的深总结可后续走 summarizeTurn 那套流式。 */
+function buildPreBranchSummary(
+  sourceTitle: string,
+  branchTitle: string,
+  messages: Message[]
+): string {
+  const terms = new Set<string>();
+  const walk = (nodes: TermNode[]) => {
+    for (const n of nodes) {
+      terms.add(n.term);
+      if (n.children) walk(n.children);
+    }
+  };
+  walk(TERM_TREE);
+  for (const g of GLOSSARY) {
+    terms.add(g.zh);
+  }
+  const joined = messages.map((m) => m.content).join(" ");
+  const hits = [...terms]
+    .filter((t) => t.length >= 2 && joined.includes(t))
+    .slice(0, 6);
+  const lines = messages.map((m, i) => {
+    const who = m.role === "user" ? "我" : "AI";
+    const text = m.content.replace(/^>\s?/gm, "").replace(/\s+/g, " ").trim();
+    return `${i + 1}. **${who}**：${text.slice(0, 110)}${text.length > 110 ? "…" : ""}`;
+  });
+  return [
+    `📌 上游主题：「${sourceTitle}」`,
+    `⛓ 分支点：从这里分出「${branchTitle}」分支（上游对话共 ${messages.length} 条消息）`,
+    hits.length ? `🔑 涉及术语：${hits.join("、")}` : "🔑 涉及术语：无",
+    `📝 分条陈述：\n${lines.join("\n")}`,
   ].join("\n");
 }
 
@@ -814,7 +857,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   /** 分支卡片：以术语开新 turn，继承上游卡片主题与分支点之前的对话历史。
-      AI 回复走 deliverReply 双通道（BYOK 真实 API / 离线知识库），不再静态贴摘要。 */
+      AI 回复走 deliverReply 双通道（BYOK 真实 API / 离线知识库），不再静态贴摘要。
+      新 turn 记为 kind="branch"；branchPointIndex 默认 = 创建时上游轮次最后一条消息下标。 */
   const openBranchTurn = useCallback(
     (title: string, history: { role: string; content: string }[] = [], sourceTurnId?: string) => {
       let targetId = activeProjectId;
@@ -824,15 +868,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
         targetId = p.id;
       }
       const turnId = appendTurn(targetId, title, `继续深挖：${title}`);
-      // 分支来源（有向图边）：新 turn 的 parentTurnId 指向发起分支的轮次。
-      if (sourceTurnId) {
+      // 分支标记（kind + parentTurnId + 默认分支点）：新 turn 的 parentTurnId 指向发起分支的轮次。
+      const source = sourceTurnId
+        ? projects.flatMap((p) => p.turns).find((t) => t.id === sourceTurnId) ?? null
+        : null;
+      if (sourceTurnId || source) {
+        const defaultPoint = source
+          ? Math.max(source.messages.length - 1, 0)
+          : 0;
         setProjects((list) =>
           list.map((p) =>
             p.id === targetId
               ? {
                   ...p,
                   turns: p.turns.map((t) =>
-                    t.id === turnId ? { ...t, parentTurnId: sourceTurnId } : t
+                    t.id === turnId
+                      ? {
+                          ...t,
+                          kind: "branch" as const,
+                          parentTurnId: sourceTurnId ?? null,
+                          branchPointIndex: defaultPoint,
+                        }
+                      : t
                   ),
                 }
               : p
@@ -852,7 +909,81 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ];
       deliverReply(`继续深挖：${title}`, ctx, targetId);
     },
-    [activeProjectId, appendTurn, recordExploration, deliverReply]
+    [activeProjectId, projects, appendTurn, recordExploration, deliverReply]
+  );
+
+  /** 发散卡片：以术语开"平行会话"（kind="diverge"）。
+      与分支卡片的关键区别：不继承上游历史、不打断当前对话（调用方保留卡片栈），
+      树中与来源卡片同层、位于其右侧。AI 回复走双通道。 */
+  const openDivergeTurn = useCallback(
+    (title: string, sourceTurnId: string) => {
+      let targetId = activeProjectId;
+      if (!targetId) {
+        const p: ChatProject = { ...makeDemoProject(), id: uid(), title: "Untitled" };
+        setProjects((list) => [p, ...list]);
+        targetId = p.id;
+      }
+      const turnId = appendTurn(targetId, title, `发散话题：${title}（平行会话）`);
+      setProjects((list) =>
+        list.map((p) =>
+          p.id === targetId
+            ? {
+                ...p,
+                turns: p.turns.map((t) =>
+                  t.id === turnId
+                    ? { ...t, kind: "diverge" as const, divergeSourceId: sourceTurnId }
+                    : t
+                ),
+              }
+            : p
+        )
+      );
+      setMindscapeOpen(false);
+      setBusy(true);
+      const ctx = [
+        {
+          role: "user",
+          content: `发散卡片：以「${title}」为主题开一个平行会话（不打断当前对话）。请给出与当前主题相关但独立成篇的讲解，用中文回答，重要术语用 **加粗** 标记，方便继续深挖。`,
+        },
+      ];
+      deliverReply(`发散话题：${title}`, ctx, targetId);
+    },
+    [activeProjectId, appendTurn, deliverReply]
+  );
+
+  /** 调整分支卡片的分支点（上游轮次 messages 下标；分割线画在该消息之后）。 */
+  const setBranchPoint = useCallback((turnId: string, index: number) => {
+    setProjects((list) =>
+      list.map((p) => ({
+        ...p,
+        turns: p.turns.map((t) =>
+          t.id === turnId ? { ...t, branchPointIndex: Math.max(index, 0) } : t
+        ),
+      }))
+    );
+  }, []);
+
+  /** 分支卡片：生成并缓存"分支点前上游对话"总结（启发式，无 API 依赖）。 */
+  const summarizePreBranch = useCallback(
+    (turnId: string) => {
+      const all = projects.flatMap((p) => p.turns);
+      const branch = all.find((t) => t.id === turnId);
+      if (!branch?.parentTurnId) return;
+      const source = all.find((t) => t.id === branch.parentTurnId);
+      if (!source) return;
+      const idx = branch.branchPointIndex ?? Math.max(source.messages.length - 1, 0);
+      const slice = source.messages.slice(0, idx + 1);
+      const summary = buildPreBranchSummary(source.title, branch.title, slice);
+      setProjects((list) =>
+        list.map((p) => ({
+          ...p,
+          turns: p.turns.map((t) =>
+            t.id === turnId ? { ...t, preBranchSummary: summary } : t
+          ),
+        }))
+      );
+    },
+    [projects]
   );
 
   /** 文档问答：同名项目（论文: xxx）不存在则创建，然后开新 turn。
@@ -963,6 +1094,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sendMessage,
     busy,
     openBranchTurn,
+    openDivergeTurn,
+    setBranchPoint,
+    summarizePreBranch,
     profile,
     setProfile,
     thoughtNodes,

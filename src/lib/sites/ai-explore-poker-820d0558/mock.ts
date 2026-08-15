@@ -741,6 +741,32 @@ const FOLLOW_UP_RE =
 export function generateReply(question: string, history: ReplyMessage[] = []): string {
   const q = question.trim();
 
+  /* ---- 验证意图（离线知识库直接应答；BYOK 模式由真实模型自然回答） ---- */
+
+  // "请问当前的相关主题是什么？" → 用上下文里的主话题作答。
+  if (/当前.*主题/.test(q) && /是什么/.test(q)) {
+    const topic = history.length ? topicFromHistory(history) : null;
+    if (topic) {
+      return `当前对话的主题是 **${topic.term}**。\n\n${topic.summary}\n\n> 想换个方向？点击任意加粗术语开卡片深挖，或用 🪢 发散卡片开平行会话（不影响当前对话）。`;
+    }
+    return `目前还没有明确的主题。你可以直接问一个概念（如 **量子纠缠**、**叠加态**、**梯度下降**），我会给出带可点击术语的讲解。`;
+  }
+
+  // "请问我们目前为止进行了哪些对话内容？请分条陈述。" → 分条列出最近对话。
+  if (/目前为止.*对话|进行了哪些对话|分条陈述/.test(q)) {
+    const topic = history.length ? topicFromHistory(history) : null;
+    const items = history.slice(-8).map((m, i) => {
+      const who = m.role === "user" ? "我" : "AI";
+      const text = m.content.replace(/^>\s?/gm, "").replace(/\s+/g, " ").trim();
+      return `${i + 1}. **${who}**：${text.slice(0, 100)}${text.length > 100 ? "…" : ""}`;
+    });
+    return [
+      `到目前为止，我们一共进行了 ${history.length} 条对话${topic ? `，主题围绕 **${topic.term}**` : ""}：`,
+      items.length ? items.join("\n") : "（还没有对话内容）",
+      `> 需要更完整的梳理？可以在分支卡片上点 📋 按钮总结分支点前的上游对话。`,
+    ].join("\n\n");
+  }
+
   const list = (items: { term: string; hint?: string }[]) =>
     items.map((t, i) => `${i + 1}. **${t.term}**${t.hint ? `（${t.hint}）` : ""}`).join("\n");
 

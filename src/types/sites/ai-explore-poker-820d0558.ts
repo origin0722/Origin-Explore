@@ -59,6 +59,11 @@ export interface CardRef {
   title: string;
 }
 
+/** 轮次类型：root = 普通轮次 · branch = 分支卡片轮次 · diverge = 发散卡片轮次。
+    发散卡片 = 关联想法的平行会话（不影响当前对话），树中与来源卡片同层、位于其右侧；
+    分支卡片 = 继承上游分支点前的对话历史 + 上游卡片主题的平行分支。 */
+export type TurnKind = "root" | "branch" | "diverge";
+
 export interface Turn {
   id: string;
   title: string;
@@ -67,8 +72,17 @@ export interface Turn {
   favorite?: boolean;
   /** 未读（新回复到达时未在视野内）；轮次导航节点圆点 + 右键手动切换 */
   unread?: boolean;
+  /** 轮次类型（缺省 = root，旧数据兼容） */
+  kind?: TurnKind;
   /** 分支来源轮次 id（另起炉灶的上游）；缺省 = 顺序上一轮。用于轮次有向图 */
   parentTurnId?: string | null;
+  /** 分支卡片：分支点下标——上游轮次 messages 中"这条消息之后"开始分叉。
+      缺省 = 创建分支时上游轮次的最后一条消息下标。分割线画在该消息之后。 */
+  branchPointIndex?: number;
+  /** 分支卡片：上游分支点前对话的本地总结缓存（懒生成，summarizePreBranch 写入） */
+  preBranchSummary?: string;
+  /** 发散卡片：来源轮次 id（树中渲染在来源卡片节点右侧、同一层级） */
+  divergeSourceId?: string;
   /** 本轮对话中点击过的术语卡片（探索路径），按点击顺序；
       parentTerm = 打开这张卡片时所在的父卡片术语（null = 从主对话点开） */
   explored?: { term: string; kind: TermKind; at: number; parentTerm: string | null }[];

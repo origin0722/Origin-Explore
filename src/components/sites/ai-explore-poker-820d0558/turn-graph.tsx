@@ -4,12 +4,21 @@
  * Explore — TurnTree（轮次导航卡片树，透明浮层）
  * 借鉴原站卡片树：树状列表常显标题，缩进 + 引导线表达关系——
  *  - 根行 = 轮次（○ 节点 + 标题 + ⭐ 收藏 + 未读绿点），按时间纵排；
+ *  - 发散卡片轮次（kind="diverge"）紧跟在来源轮次之后、**同一层级**，横向右移一档
+ *    （🪢 虚线引导），即"位于来源卡片右侧"；
  *  - 分支轮次（parentTurnId）嵌套在来源轮次之下，⬇️ 前缀；
  *  - 术语卡片按探索链条缩进挂在所属轮次下（↗️ 子 / ➡️ 关联 / ⬇️ 分支图标）；
  *  - 点击轮次跳转、点击卡片重开卡片、右键轮次切换未读。
  */
 import { useMemo } from "react";
-import { ArrowDown, ArrowRight, ArrowUpRight, Star, type LucideIcon } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUpRight,
+  Star,
+  Waypoints,
+  type LucideIcon,
+} from "lucide-react";
 import type { Turn } from "@/types/sites/ai-explore-poker-820d0558";
 import { useApp } from "./app-context";
 
@@ -57,21 +66,33 @@ interface TreeRow {
   depth: number;
   turn?: Turn;
   card?: { term: string; kind: TermKindLike; turnId: string };
+  /** 发散卡片轮次：与来源卡片同层、渲染在来源右侧（横向右移一档） */
+  diverge?: boolean;
 }
 
 function buildRows(turns: Turn[]): TreeRow[] {
   const byId = new Map(turns.map((t) => [t.id, t]));
   const children = new Map<string, Turn[]>();
+  const diverges = new Map<string, Turn[]>();
   for (const t of turns) {
     if (t.parentTurnId && byId.has(t.parentTurnId)) {
       const list = children.get(t.parentTurnId) ?? [];
       list.push(t);
       children.set(t.parentTurnId, list);
     }
+    if (t.kind === "diverge" && t.divergeSourceId && byId.has(t.divergeSourceId)) {
+      const list = diverges.get(t.divergeSourceId) ?? [];
+      list.push(t);
+      diverges.set(t.divergeSourceId, list);
+    }
   }
   const rows: TreeRow[] = [];
   const pushTurn = (t: Turn, depth: number) => {
     rows.push({ key: `t-${t.id}`, depth, turn: t });
+    // 发散卡片：与来源卡片同一层级，紧跟其后、横向右移一档。
+    for (const d of diverges.get(t.id) ?? []) {
+      rows.push({ key: `d-${d.id}`, depth, turn: d, diverge: true });
+    }
     for (const chain of explorationChains(t.explored ?? [])) {
       chain.forEach((e, k) => {
         rows.push({
@@ -83,7 +104,13 @@ function buildRows(turns: Turn[]): TreeRow[] {
     }
     for (const c of children.get(t.id) ?? []) pushTurn(c, depth + 1);
   };
-  turns.filter((t) => !t.parentTurnId || !byId.has(t.parentTurnId)).forEach((t) => pushTurn(t, 0));
+  turns
+    .filter(
+      (t) =>
+        (!t.parentTurnId || !byId.has(t.parentTurnId)) &&
+        !(t.kind === "diverge" && t.divergeSourceId && byId.has(t.divergeSourceId))
+    )
+    .forEach((t) => pushTurn(t, 0));
   return rows;
 }
 
@@ -113,6 +140,7 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnTre
           <div
             key={row.key}
             data-turn-node={row.turn.id}
+            data-diverge={row.diverge || undefined}
             role="treeitem"
             onClick={() => onJump(row.turn!.id)}
             onContextMenu={(e) => {
@@ -121,20 +149,38 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnTre
             }}
             className="group flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-1.5 transition-colors hover:bg-item-std-hover"
             style={{
-              paddingLeft: 10 + row.depth * 18,
-              borderLeft: row.depth ? "1px solid rgba(19,228,37,0.18)" : undefined,
-              marginLeft: row.depth ? 10 : 0,
+              paddingLeft: row.diverge ? 10 + row.depth * 18 + 22 : 10 + row.depth * 18,
+              borderLeft: row.diverge
+                ? "1px dashed rgba(186,142,255,0.45)"
+                : row.depth
+                  ? "1px solid rgba(19,228,37,0.18)"
+                  : undefined,
+              marginLeft: row.diverge ? 16 : row.depth ? 10 : 0,
             }}
+            title={row.diverge ? "发散卡片：来源卡片的平行会话（不影响原对话）" : undefined}
           >
-            <span
-              className={`h-3 w-3 shrink-0 rounded-full border ${
-                row.turn.favorite ? "border-brand bg-brand" : "border-brand bg-brand/25"
-              }`}
-            />
+            {row.diverge ? (
+              <Waypoints
+                size={13}
+                strokeWidth={2.4}
+                className="shrink-0 text-[#ba8eff]"
+                aria-label="发散卡片"
+              />
+            ) : (
+              <span
+                className={`h-3 w-3 shrink-0 rounded-full border ${
+                  row.turn.favorite ? "border-brand bg-brand" : "border-brand bg-brand/25"
+                }`}
+              />
+            )}
             {row.turn.parentTurnId && (
               <ArrowDown size={12} className="shrink-0 text-brand/80" aria-label="分支轮次" />
             )}
-            <span className="min-w-0 flex-1 truncate text-[13px] text-text-secondary group-hover:text-primary">
+            <span
+              className={`min-w-0 flex-1 truncate text-[13px] group-hover:text-primary ${
+                row.diverge ? "text-[#ba8eff]" : "text-text-secondary"
+              }`}
+            >
               {row.turn.title}
             </span>
             {row.turn.favorite && <Star size={12} className="shrink-0 text-brand" fill="currentColor" />}
