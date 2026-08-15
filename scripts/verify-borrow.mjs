@@ -78,9 +78,10 @@ await page.evaluateOnNewDocument((seedStr) => {
 await page.goto("http://localhost:3000", { waitUntil: "networkidle0", timeout: 30000 });
 await sleep(800);
 
-// A1. welcome tagline (borrowed opener)
+// A1. welcome view: taglines moved into the guide modal — home stays minimal
 const welcomeText = await page.evaluate(() => document.body.textContent || "");
-log("A1. welcome tagline shows borrowed opener:", welcomeText.includes("摆脱线性聊天框的限制"));
+log("A1. welcome tagline moved off the home page:",
+  !welcomeText.includes("摆脱线性聊天框的限制") && welcomeText.includes("如何使用"));
 
 // A2. guide modal from the chat empty state
 await page.evaluate(() => {

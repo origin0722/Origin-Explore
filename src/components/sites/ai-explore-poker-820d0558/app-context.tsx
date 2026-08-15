@@ -37,6 +37,7 @@ import {
   makeDemoProject,
   makeDemoTurn,
   TERM_TREE,
+  THEME_META_COLORS,
   themeId,
 } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 
@@ -410,9 +411,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, documents, folders, smartMode, byokModels]);
 
-  // Theme → <html data-theme> (runtime re-skin).
+  // Theme → <html data-theme> (runtime re-skin) + browser chrome color.
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", themeId(settings.theme));
+    const id = themeId(settings.theme);
+    document.documentElement.setAttribute("data-theme", id);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", THEME_META_COLORS[id] ?? "#101010");
   }, [settings.theme]);
 
   const setSettings = useCallback((partial: Partial<ChatSettings>) => {

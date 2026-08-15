@@ -133,7 +133,7 @@
    Explore — site design tokens (semantic, tailwind v4 @theme)
    The @theme tokens are var() references so [data-theme] on
    <html> can re-skin the whole app at runtime (theme switching).
-   Palette implemented: default + midnight-forest; others pending.
+   Palettes: default (黑绿) + white-blue (白蓝).
    ============================================================ */
 @theme inline {
   --color-bg: var(--bg);
@@ -142,6 +142,7 @@
   --color-primary: var(--text-primary);
   --color-brand: var(--brand);
   --color-brandtw: var(--brandtw);
+  --color-brand-fg: var(--brand-fg);
   --color-card-std: var(--card-std);
   --color-card-floating: var(--card-floating);
   --color-btn-std: var(--btn-std);
@@ -189,6 +190,8 @@
 [data-theme="default"] {
   --bg: #101010;
   --brand: #13e425;
+  --brand-rgb: 19, 228, 37;
+  --brand-fg: #000000;
   --brandtw: rgba(19, 228, 37, 0.8);
   --card-std: #181818;
   --card-floating: #3c3c3c;
@@ -224,45 +227,47 @@
   --shadow-brandtw-value: 0 0 16px rgba(19, 228, 37, 0.2);
 }
 
-[data-theme="midnight-forest"] {
-  --bg: #0a0f0d;
-  --brand: #3ddc84;
-  --brandtw: rgba(61, 220, 132, 0.8);
-  --card-std: #101612;
-  --card-floating: #1c241f;
-  --btn-std: #24302a;
-  --btn-std-hover: #2e3c34;
-  --btn-control: #26322c;
-  --btn-control-hover: #32423a;
-  --btn-selector: #24302a;
-  --btn-inputarea: #3ddc84;
-  --btn-inputarea-transparent-hover: rgba(255, 255, 255, 0.07);
-  --btn-floating: rgba(28, 36, 31, 0.92);
-  --btn-floating-hover: rgba(38, 50, 44, 0.92);
-  --item-std: rgba(255, 255, 255, 0.05);
-  --item-std-active: rgba(255, 255, 255, 0.11);
-  --item-std-hover: rgba(255, 255, 255, 0.08);
-  --modal-std: #131a16;
-  --modal-floating: #1a231d;
-  --overlay-modal: rgba(0, 0, 0, 0.6);
-  --usermsg: rgba(61, 220, 132, 0.13);
-  --text-primary: #e8f0ea;
-  --text-secondary: #c6d2c9;
-  --text-tertiary: #8fa399;
-  --text-quaternary: #6b7d73;
-  --text-header-secondary: #dbe8de;
-  --text-turn-title: #dfe9e1;
-  --text-icon-secondary: #8aa093;
-  --text-content: #dce8df;
-  --border-std: rgba(255, 255, 255, 0.1);
-  --border-divider: rgba(255, 255, 255, 0.06);
-  --border-turn-std: rgba(255, 255, 255, 0.08);
-  --inputarea: #0e1511;
-  --shadow-brand-value: 0 0 24px rgba(61, 220, 132, 0.3);
-  --shadow-brandtw-value: 0 0 16px rgba(61, 220, 132, 0.18);
+[data-theme="white-blue"] {
+  --bg: #f5f7fb;
+  --brand: #2563eb;
+  --brand-rgb: 37, 99, 235;
+  --brand-fg: #ffffff;
+  --brandtw: rgba(37, 99, 235, 0.8);
+  --card-std: #ffffff;
+  --card-floating: #e9edf5;
+  --btn-std: #e9edf5;
+  --btn-std-hover: #dde3ee;
+  --btn-control: #e3e8f2;
+  --btn-control-hover: #d5dce9;
+  --btn-selector: #e9edf5;
+  --btn-inputarea: #2563eb;
+  --btn-inputarea-transparent-hover: rgba(15, 23, 42, 0.06);
+  --btn-floating: rgba(255, 255, 255, 0.92);
+  --btn-floating-hover: rgba(233, 237, 245, 0.92);
+  --item-std: rgba(15, 23, 42, 0.045);
+  --item-std-active: rgba(37, 99, 235, 0.1);
+  --item-std-hover: rgba(15, 23, 42, 0.07);
+  --modal-std: #ffffff;
+  --modal-floating: #f8fafd;
+  --overlay-modal: rgba(15, 23, 42, 0.35);
+  --usermsg: rgba(37, 99, 235, 0.1);
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-tertiary: #64748b;
+  --text-quaternary: #94a3b8;
+  --text-header-secondary: #1e293b;
+  --text-turn-title: #1e293b;
+  --text-icon-secondary: #64748b;
+  --text-content: #1e293b;
+  --border-std: rgba(15, 23, 42, 0.12);
+  --border-divider: rgba(15, 23, 42, 0.08);
+  --border-turn-std: rgba(15, 23, 42, 0.1);
+  --inputarea: #ffffff;
+  --shadow-brand-value: 0 0 24px rgba(37, 99, 235, 0.3);
+  --shadow-brandtw-value: 0 0 16px rgba(37, 99, 235, 0.16);
 }
 
-/* The clone is a dark-only app — override the shadcn template defaults */
+/* 语义色桥接：把站点 token 映射到 shadcn 默认 tokens（随 [data-theme] 切换） */
 :root {
   --background: var(--bg);
   --foreground: var(--text-primary);
@@ -355,7 +360,7 @@ body {
 .scrollbar-inputarea::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 9999px; }
 .scrollbar-card-neon::-webkit-scrollbar { width: 6px; }
 .scrollbar-card-neon::-webkit-scrollbar-track { background: transparent; }
-.scrollbar-card-neon::-webkit-scrollbar-thumb { background: rgba(19, 228, 37, 0.35); border-radius: 9999px; }
+.scrollbar-card-neon::-webkit-scrollbar-thumb { background: rgba(var(--brand-rgb), 0.35); border-radius: 9999px; }
 .nav-scroll::-webkit-scrollbar { width: 4px; }
 .nav-scroll::-webkit-scrollbar-track { background: transparent; }
 .nav-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 9999px; }
@@ -517,8 +522,8 @@ body {
 
 .is-mobile-card .markdown-content h1 { margin-top: 0.6em; }
 
-/* 文本选中（引用回答）：品牌绿淡染 */
+/* 文本选中（引用回答）：品牌色淡染（随主题切换） */
 ::selection {
-  background: rgba(19, 228, 37, 0.28);
-  color: #ffffff;
+  background: rgba(var(--brand-rgb), 0.28);
+  color: var(--text-primary);
 }

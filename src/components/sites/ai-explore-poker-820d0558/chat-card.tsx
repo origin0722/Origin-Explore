@@ -295,7 +295,7 @@ function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect,
             onClick={send}
             disabled={!input.trim() || busy}
             aria-label="发送"
-            className="h-9 w-9 rounded-full bg-btn-inputarea text-black flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
+            className="h-9 w-9 rounded-full bg-btn-inputarea text-brand-fg flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
           >
             {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} strokeWidth={2.5} />}
           </button>
@@ -944,7 +944,7 @@ export function ChatCard() {
                     style={{
                       fontSize: `${titleSize}px`,
                       lineHeight: 1,
-                      textShadow: "0 0 24px rgba(19, 228, 37, 0.35)",
+                      textShadow: "0 0 24px rgba(var(--brand-rgb), 0.35)",
                     }}
                   >
                     Explore

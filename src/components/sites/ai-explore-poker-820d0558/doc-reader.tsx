@@ -274,7 +274,7 @@ function TermPanel({ term, candidate, doc, onClose, onAsk }: TermPanelProps) {
             )}
             <button
               onClick={() => onAsk(term)}
-              className="w-full mt-3 py-2 rounded-full bg-brand text-black text-sm font-medium hover:opacity-90 transition-opacity"
+              className="w-full mt-3 py-2 rounded-full bg-brand text-brand-fg text-sm font-medium hover:opacity-90 transition-opacity"
             >
               问 AI：这是什么？
             </button>

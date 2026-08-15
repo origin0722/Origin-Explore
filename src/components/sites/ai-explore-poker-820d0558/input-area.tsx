@@ -253,7 +253,7 @@ export function InputArea() {
             onClick={handleSend}
             disabled={(!text.trim() && quotes.length === 0) || busy}
             aria-label="发送"
-            className="h-8 w-8 sm:h-[34px] sm:w-[34px] rounded-full bg-btn-inputarea text-black flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            className="h-8 w-8 sm:h-[34px] sm:w-[34px] rounded-full bg-btn-inputarea text-brand-fg flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             {busy ? (
               <Loader2 size={16} className="animate-spin" />
@@ -267,8 +267,8 @@ export function InputArea() {
       {/* self-contained keyframes (no globals.css edits) */}
       <style>{`
         @keyframes inputarea-breathe {
-          0%, 100% { border-color: rgba(19, 228, 37, 0.3); }
-          50% { border-color: rgba(19, 228, 37, 0.8); }
+          0%, 100% { border-color: rgba(var(--brand-rgb), 0.3); }
+          50% { border-color: rgba(var(--brand-rgb), 0.8); }
         }
         .inputarea-breathe { animation: inputarea-breathe 2.2s ease-in-out infinite; }
         @keyframes inputarea-pop {

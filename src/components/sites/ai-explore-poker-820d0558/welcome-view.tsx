@@ -10,7 +10,6 @@ import { useEffect, useState } from "react";
 import {
   BookOpen,
   Compass,
-  HelpCircle,
   Highlighter,
   Monitor,
   Network,
@@ -57,7 +56,7 @@ const GUIDE_STEPS: GuideStep[] = [
 ];
 
 export function WelcomeView() {
-  const { openModal, projects, loadSampleProject } = useApp();
+  const { openModal, projects } = useApp();
   const [helpOpen, setHelpOpen] = useState(false);
   const isFirstRun = projects.length === 0;
 
@@ -79,37 +78,20 @@ export function WelcomeView() {
         style={{
           fontSize: "clamp(3rem, 8vw, 7rem)",
           lineHeight: 1,
-          textShadow: "0 0 24px rgba(19, 228, 37, 0.35)",
+          textShadow: "0 0 24px rgba(var(--brand-rgb), 0.35)",
         }}
       >
         Explore
       </h1>
 
-      {/* Tagline */}
-      <p className="mt-4 max-w-md px-6 text-center text-base text-text-secondary">
-        AI 结构化思维与知识探索工具 —— 哪里不懂点哪里，一棵属于你的知识树。
-      </p>
-      <p className="mt-2 max-w-md px-6 text-center text-sm text-text-tertiary">
-        摆脱线性聊天框的限制，实现多层级对话——复杂讨论在这里完全展开。
-      </p>
-
-      {/* Actions */}
-      <div className="mt-8 flex items-center gap-4">
+      {/* Actions（定位语已移入使用指南弹窗，主页保持极简） */}
+      <div className="mt-10 flex items-center justify-center">
         <button
           type="button"
           onClick={() => setHelpOpen(true)}
-          className="cursor-pointer rounded-full bg-btn-std px-6 py-2 text-primary transition-colors hover:bg-btn-std-hover"
+          className="cursor-pointer rounded-full bg-btn-std px-9 py-2.5 text-[15px] text-primary transition-colors hover:bg-btn-std-hover"
         >
           如何使用
-        </button>
-        <button
-          type="button"
-          onClick={loadSampleProject}
-          aria-label="加载示例项目"
-          title="加载示例项目"
-          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-btn-std text-text-icon-secondary transition-colors hover:bg-btn-std-hover hover:text-primary"
-        >
-          <HelpCircle size={20} />
         </button>
       </div>
 
@@ -137,7 +119,7 @@ export function WelcomeView() {
           <ol className="mt-3 grid grid-cols-1 gap-2.5 md:grid-cols-2">
             {GUIDE_STEPS.map((s, i) => (
               <li key={s.title} className="flex items-start gap-3 rounded-xl bg-item-std px-3.5 py-3">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-black">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-brand-fg">
                   {i + 1}
                 </span>
                 <div className="min-w-0">
@@ -206,7 +188,7 @@ export function WelcomeView() {
               }}
               className="mt-7 w-full cursor-pointer rounded-full bg-btn-std px-6 py-3 text-[15px] text-primary transition-colors hover:bg-btn-std-hover"
             >
-              查看完整引导
+              继续
             </button>
           </div>
         </div>

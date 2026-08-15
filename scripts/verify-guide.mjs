@@ -48,9 +48,9 @@ ok("G1. 如何使用弹层放大（max-w-2xl）且含 8 项能力",
   !!pop && pop.hasMaxW2xl && pop.items === 8 && pop.w > 600, pop);
 ok("G2. 能力描述不再截断", !!pop && !pop.truncated);
 
-// G3: 查看完整引导 → 使用指南弹窗
+// G3: 继续 → 使用指南弹窗
 await page.evaluate(() => {
-  [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("查看完整引导"))?.click();
+  [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "继续")?.click();
 });
 await sleep(500);
 const guide = await page.evaluate(() => document.body.textContent ?? "");
@@ -60,6 +60,25 @@ const hasKept = guide.includes("曾经在单线程对话中迷失的复杂讨论
 const noCards = !guide.includes("智能标注") && !guide.includes("子卡片") && !guide.includes("分支卡片");
 ok("G3. 使用指南：两句话 + 保留句 + 无功能卡片",
   hasHero && hasTag2 && hasKept && noCards, { hasHero, hasTag2, hasKept, noCards });
+
+// G4. 主页极简：标语删除、问号按钮删除、如何使用按钮相对内容区居中
+await page.evaluate(() => {
+  [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("开始探索"))?.click();
+});
+await sleep(400);
+const home = await page.evaluate(() => {
+  const btn = [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("如何使用"));
+  const r = btn?.getBoundingClientRect();
+  const dlg = document.querySelector("[data-dialog-root]")?.getBoundingClientRect();
+  const dlgCx = dlg ? dlg.left + dlg.width / 2 : window.innerWidth / 2;
+  return {
+    taglineGone: !document.body.textContent?.includes("哪里不懂点哪里"),
+    questionGone: !document.querySelector('[aria-label="加载示例项目"]'),
+    centered: !!r && !!dlg && Math.abs(r.left + r.width / 2 - dlgCx) < 4,
+  };
+});
+ok("G4. 主页极简 + 按钮居中（标语/问号已删）",
+  home.taglineGone && home.questionGone && home.centered, home);
 
 await browser.close();
 console.log("DONE");

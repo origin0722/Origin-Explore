@@ -153,7 +153,7 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnTre
               borderLeft: row.diverge
                 ? "1px dashed rgba(186,142,255,0.45)"
                 : row.depth
-                  ? "1px solid rgba(19,228,37,0.18)"
+                  ? "1px solid rgba(var(--brand-rgb), 0.18)"
                   : undefined,
               marginLeft: row.diverge ? 16 : row.depth ? 10 : 0,
             }}
@@ -197,7 +197,7 @@ export function TurnGraph({ turns, onJump, onToggleUnread, onOpenCard }: TurnTre
             className="flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-1.5 transition-colors hover:bg-item-std-hover"
             style={{
               paddingLeft: 10 + row.depth * 18,
-              borderLeft: "1px solid rgba(19,228,37,0.18)",
+              borderLeft: "1px solid rgba(var(--brand-rgb), 0.18)",
               marginLeft: 10,
             }}
           >

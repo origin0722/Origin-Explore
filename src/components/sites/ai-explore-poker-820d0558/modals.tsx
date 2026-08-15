@@ -485,7 +485,7 @@ export function SettingsModal() {
                           setByokOpen(false);
                           showToast("已添加 BYOK 模型");
                         }}
-                        className="text-xs text-black bg-brand hover:opacity-90 rounded-full px-4 py-1.5 font-medium transition-opacity"
+                        className="text-xs text-brand-fg bg-brand hover:opacity-90 rounded-full px-4 py-1.5 font-medium transition-opacity"
                       >
                         添加
                       </button>
@@ -639,7 +639,7 @@ export function SettingsModal() {
           <p className="text-xs text-text-tertiary">设置仅保存在本地（演示）</p>
           <button
             onClick={save}
-            className="bg-brand text-black font-bold rounded-full px-5 py-2 hover:opacity-90 transition-opacity"
+            className="bg-brand text-brand-fg font-bold rounded-full px-5 py-2 hover:opacity-90 transition-opacity"
           >
             保存
           </button>
@@ -799,7 +799,7 @@ export function OnboardingWizard() {
         ) : (
           <button
             onClick={finish}
-            className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-brand flex items-center justify-center text-black shadow-lg hover:scale-105 transition-transform"
+            className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-brand flex items-center justify-center text-brand-fg shadow-lg hover:scale-105 transition-transform"
             aria-label="完成"
           >
             <Check size={28} strokeWidth={3} />
@@ -918,7 +918,7 @@ export function ProfileModal() {
               </div>
               <button
                 onClick={save}
-                className="w-full py-2.5 rounded-full bg-brand text-black font-bold hover:opacity-90 transition-opacity"
+                className="w-full py-2.5 rounded-full bg-brand text-brand-fg font-bold hover:opacity-90 transition-opacity"
               >
                 保存并登录
               </button>

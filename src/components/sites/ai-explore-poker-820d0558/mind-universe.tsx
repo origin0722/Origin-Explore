@@ -16,14 +16,22 @@ import type { ThoughtNode } from "@/types/sites/ai-explore-poker-820d0558";
 import { useApp } from "./app-context";
 
 const RADIUS = 2.6;
-const LINE_COLOR = "#13e425";
 
-/** Brand colors per node category. */
-function categoryColor(category: string): string {
-  if (category === "主题") return "#13e425";
+/** 从当前主题（<html data-theme>）解析品牌色；SSR 时回退黑绿。 */
+function brandColor(): string {
+  if (typeof document === "undefined") return "#13e425";
+  return (
+    getComputedStyle(document.documentElement).getPropertyValue("--brand").trim() ||
+    "#13e425"
+  );
+}
+
+/** Brand colors per node category ("主题"/默认随主题品牌色). */
+function categoryColor(category: string, brand: string): string {
+  if (category === "主题") return brand;
   if (category === "概念") return "#4d9fff";
   if (category === "疑问") return "#ffb84d";
-  return "#13e425";
+  return brand;
 }
 
 function formatTime(ts: number): string {
@@ -99,9 +107,11 @@ function ancestorChain(node: ThoughtNode, nodes: ThoughtNode[]): ThoughtNode[] {
 function ConstellationLines({
   positions,
   edges,
+  color,
 }: {
   positions: THREE.Vector3[];
   edges: Array<[number, number]>;
+  color: string;
 }) {
   const line = useMemo(() => {
     const pts: THREE.Vector3[] = [];
@@ -111,12 +121,12 @@ function ConstellationLines({
     const geometry = new THREE.BufferGeometry();
     geometry.setFromPoints(pts);
     const material = new THREE.LineBasicMaterial({
-      color: LINE_COLOR,
+      color,
       transparent: true,
       opacity: 0.3,
     });
     return new THREE.Line(geometry, material);
-  }, [positions, edges]);
+  }, [positions, edges, color]);
 
   // Created manually — dispose with the component.
   useEffect(
@@ -235,21 +245,23 @@ function NodeSphere({ node, position, color, delay, onSelect }: NodeSphereProps)
 function NodeGroup({
   nodes,
   onSelect,
+  brand,
 }: {
   nodes: ThoughtNode[];
   onSelect: (node: ThoughtNode) => void;
+  brand: string;
 }) {
   const positions = useMemo(() => fibPositions(nodes.length), [nodes]);
   const edges = useMemo(() => buildRelationEdges(nodes), [nodes]);
   return (
     <group>
-      <ConstellationLines positions={positions} edges={edges} />
+      <ConstellationLines positions={positions} edges={edges} color={brand} />
       {nodes.map((n, i) => (
         <NodeSphere
           key={n.id}
           node={n}
           position={positions[i]}
-          color={categoryColor(n.category)}
+          color={categoryColor(n.category, brand)}
           delay={i * 120}
           onSelect={onSelect}
         />
@@ -294,6 +306,7 @@ export function MindUniverse({ onClose }: { onClose: () => void }) {
   const [mounted, setMounted] = useState(false);
   const [selected, setSelected] = useState<ThoughtNode | null>(null);
   const gestureRef = useRef<Gesture>({ downX: 0, downY: 0, moved: 0 });
+  const brand = useMemo(() => brandColor(), []);
 
   // SSR safety: Canvas must not render during server render.
   useEffect(() => {
@@ -325,9 +338,9 @@ export function MindUniverse({ onClose }: { onClose: () => void }) {
       >
         <color attach="background" args={["#05080a"]} />
         <ambientLight intensity={0.4} />
-        <pointLight position={[4, 6, 4]} intensity={30} color="#13e425" />
+        <pointLight position={[4, 6, 4]} intensity={30} color={brand} />
         <PointStars />
-        {validated.length > 0 && <NodeGroup nodes={validated} onSelect={setSelected} />}
+        {validated.length > 0 && <NodeGroup nodes={validated} onSelect={setSelected} brand={brand} />}
         <BackdropDeselect gestureRef={gestureRef} onDeselect={() => setSelected(null)} />
         <OrbitControls
           enablePan={false}

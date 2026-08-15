@@ -233,7 +233,7 @@ export function MindscapePanel({ thoughts, onClose }: MindscapePanelProps) {
             type="button"
             onClick={handleSubmit}
             disabled={!input.trim() || validatingAdd}
-            className="inline-flex items-center gap-1.5 bg-brand text-black text-sm font-medium rounded-full px-4 py-1.5 disabled:opacity-40 transition-opacity"
+            className="inline-flex items-center gap-1.5 bg-brand text-brand-fg text-sm font-medium rounded-full px-4 py-1.5 disabled:opacity-40 transition-opacity"
           >
             {validatingAdd && <Loader2 size={14} className="animate-spin" />}
             验证并添加
