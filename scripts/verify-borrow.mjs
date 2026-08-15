@@ -93,7 +93,7 @@ await page.evaluate(() => {
 await sleep(600);
 const guideText = await page.evaluate(() => document.body.textContent || "");
 log("A2. guide modal shows borrowed content:",
-  ["智能标注", "子卡片", "关联卡片", "分支卡片", "文档阅读", "思维宇宙", "引用回答", "探索路径", "个性化", "开始探索"]
+  ["AI 结构化思维与知识探索工具", "摆脱线性聊天框的限制，实现多层级对话", "曾经在单线程对话中迷失的复杂讨论", "开始探索"]
     .every((s) => guideText.includes(s)));
 await page.evaluate(() => {
   [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("开始探索"))?.click();

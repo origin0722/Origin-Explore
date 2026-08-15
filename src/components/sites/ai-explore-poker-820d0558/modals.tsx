@@ -933,67 +933,14 @@ export function ProfileModal() {
 }
 
 /* ------------------------------------------------------------------ */
-/* GuideModal — 使用指南（借鉴原站 How to Use 应用介绍）                */
+/* GuideModal — 使用指南（极简版：定位语 + 核心主张，功能清单见"如何使用"） */
 /* ------------------------------------------------------------------ */
-
-const GUIDE_ITEMS: { icon: string; title: string; desc: string }[] = [
-  {
-    icon: "✨",
-    title: "智能标注",
-    desc: "回复里的加粗术语都带下划线，点击即可展开解释卡片，继续追问深挖。",
-  },
-  {
-    icon: "↗️",
-    title: "子卡片",
-    desc: "把上游卡片的标题作为背景主题，向下深挖背景知识。",
-  },
-  {
-    icon: "➡️",
-    title: "关联卡片",
-    desc: "把上游卡片的标题作为相关主题，横向对比发散。",
-  },
-  {
-    icon: "⬇️",
-    title: "分支卡片",
-    desc: "继承上游卡片主题与分支点之前的对话历史，另起炉灶；点分支轮次右上角的 ⛓ 可查看并调整分支点，📋 可总结分支点前的对话。",
-  },
-  {
-    icon: "🪢",
-    title: "发散卡片",
-    desc: "有想探讨的关联想法？开一张发散卡片——平行会话不打断当前对话，在卡片树中位于来源卡片右侧同一层级。",
-  },
-  {
-    icon: "📄",
-    title: "文档阅读",
-    desc: "导入文献高效阅读：划词即问，哪里不懂点哪里。",
-  },
-  {
-    icon: "🌌",
-    title: "思维宇宙",
-    desc: "用自己的话表达理解，AI 验证后整合成你的知识星球——只连接真实关系。",
-  },
-  {
-    icon: "💬",
-    title: "引用回答",
-    desc: "选中 AI 回复文本即可引用，支持多条引用，精确管理对话上下文。",
-  },
-  {
-    icon: "🧭",
-    title: "探索路径",
-    desc: "每轮对话记录点开的词条卡片，深挖链条清晰可见，点击可重开。",
-  },
-  {
-    icon: "🎨",
-    title: "个性化",
-    desc: "选择你的主题与语言，进入心流状态。",
-  },
-];
 
 export function GuideModal() {
   const { closeModal } = useApp();
   return (
     <ModalShell onClose={() => closeModal("guide")} zIndex="z-[100]">
-      <div className="w-[92%] max-w-[560px] max-h-[82vh] bg-modal-std rounded-2xl shadow-2xl relative flex flex-col overflow-hidden border border-std">
+      <div className="w-[92%] max-w-[620px] max-h-[82vh] bg-modal-std rounded-2xl shadow-2xl relative flex flex-col overflow-hidden border border-std">
         <button
           onClick={() => closeModal("guide")}
           aria-label="关闭"
@@ -1002,28 +949,21 @@ export function GuideModal() {
           <X size={18} />
         </button>
 
-        <div className="overflow-y-auto scrollbar-card-std px-6 sm:px-8 py-7">
-          <h2 className="text-xl font-bold text-primary">使用指南</h2>
-          <p className="mt-2 text-sm leading-6 text-text-secondary">
-            在这里，摆脱线性聊天框的限制，实现多层级对话——曾经在单线程对话中迷失的复杂讨论，现在可以完全展开。
+        <div className="overflow-y-auto scrollbar-card-std px-7 sm:px-10 py-9">
+          <h2 className="text-2xl font-bold text-primary">使用指南</h2>
+
+          <p className="mt-6 text-lg leading-8 text-primary">
+            AI 结构化思维与知识探索工具 —— 哪里不懂点哪里，一棵属于你的知识树。
+          </p>
+          <p className="mt-2 text-base leading-7 text-text-secondary">
+            摆脱线性聊天框的限制，实现多层级对话——复杂讨论在这里完全展开。
           </p>
 
-          <ul className="mt-5 grid grid-cols-1 gap-2.5">
-            {GUIDE_ITEMS.map((f) => (
-              <li
-                key={f.title}
-                className="flex items-start gap-3.5 rounded-xl bg-item-std px-4 py-3"
-              >
-                <span className="mt-0.5 shrink-0 text-lg leading-none" aria-hidden>
-                  {f.icon}
-                </span>
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-text-secondary">{f.title}</div>
-                  <div className="mt-0.5 text-xs leading-snug text-text-tertiary">{f.desc}</div>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-7 rounded-2xl border border-brand/20 bg-brand/[0.05] px-5 py-4">
+            <p className="text-sm leading-6 text-text-secondary">
+              在这里，摆脱线性聊天框的限制，实现多层级对话——曾经在单线程对话中迷失的复杂讨论，现在可以完全展开。
+            </p>
+          </div>
         </div>
 
         <div className="shrink-0 border-t border-divider px-6 py-4">

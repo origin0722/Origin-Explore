@@ -167,33 +167,33 @@ export function WelcomeView() {
             role="dialog"
             aria-modal="true"
             aria-label="如何使用"
-            className="w-full max-w-md rounded-2xl border border-std bg-modal-floating p-6 shadow-card"
+            className="w-full max-w-2xl max-h-[85%] overflow-y-auto scrollbar-card-std rounded-2xl border border-std bg-modal-floating p-7 sm:p-9 shadow-card"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-primary">如何使用</h2>
+              <h2 className="text-xl font-semibold text-primary">如何使用</h2>
               <button
                 type="button"
                 onClick={() => setHelpOpen(false)}
                 aria-label="关闭"
-                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-item-std-hover hover:text-primary"
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-item-std-hover hover:text-primary"
               >
-                <X size={18} />
+                <X size={19} />
               </button>
             </div>
-            <p className="mt-1 text-sm text-text-tertiary">
+            <p className="mt-2 text-sm text-text-tertiary">
               八个核心能力，一步步搭起你的知识树：
             </p>
-            <ul className="mt-5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {FEATURES.map((f) => (
                 <li
                   key={f.label}
-                  className="flex items-start gap-3 rounded-xl bg-item-std px-3.5 py-3"
+                  className="flex items-start gap-3.5 rounded-xl bg-item-std px-4 py-3.5"
                 >
-                  <f.icon size={18} className="mt-0.5 shrink-0 text-brand" strokeWidth={1.8} />
+                  <f.icon size={20} className="mt-0.5 shrink-0 text-brand" strokeWidth={1.8} />
                   <div className="min-w-0">
-                    <div className="text-sm font-medium text-text-secondary">{f.label}</div>
-                    <div className="mt-0.5 truncate text-xs text-text-tertiary">{f.desc}</div>
+                    <div className="text-[15px] font-medium text-text-secondary">{f.label}</div>
+                    <div className="mt-1 text-sm leading-snug text-text-tertiary">{f.desc}</div>
                   </div>
                 </li>
               ))}
@@ -204,7 +204,7 @@ export function WelcomeView() {
                 setHelpOpen(false);
                 openModal("guide");
               }}
-              className="mt-6 w-full cursor-pointer rounded-full bg-btn-std px-6 py-2.5 text-sm text-primary transition-colors hover:bg-btn-std-hover"
+              className="mt-7 w-full cursor-pointer rounded-full bg-btn-std px-6 py-3 text-[15px] text-primary transition-colors hover:bg-btn-std-hover"
             >
               查看完整引导
             </button>
