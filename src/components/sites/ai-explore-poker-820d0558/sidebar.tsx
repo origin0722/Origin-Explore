@@ -456,12 +456,12 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
             </button>
             <button
               aria-label="智能模式"
-              title="AI 智能模式（结合你的档案/思维宇宙/术语掌握度个性化回答）"
+              title="AI 智能模式（常驻聊天回复尾部附个性化注记；个人记忆本身在所有对话生效，可在设置 → 个人记忆管理）"
               onClick={(e) => {
                 e.stopPropagation();
-                if (smartMode) return; // 已开启：按钮无动作，不再误导性提示
+                if (smartMode) return; // 已开启：按钮无动作
                 toggleSmartMode();
-                showToast("已开启 AI 智能模式：常驻对话将结合你的探索档案回答");
+                showToast("已开启 AI 智能模式：常驻对话回复将附个性化注记");
               }}
               className={`p-1 rounded-md transition-colors ${
                 smartMode ? "bg-card-floating text-brand" : "text-text-tertiary hover:text-primary hover:bg-item-std-hover"

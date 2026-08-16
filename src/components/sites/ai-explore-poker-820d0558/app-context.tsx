@@ -21,6 +21,7 @@ import type {
   ChatProject,
   ChatSettings,
   DocumentItem,
+  MemoryItem,
   Message,
   ModelInfo,
   Profile,
@@ -207,6 +208,12 @@ export interface AppState {
   /** 本地档案（"登录"） */
   profile: Profile | null;
   setProfile(p: Profile | null): void;
+  /** 个人记忆（"关于我"的事实，AI 回答时参考；手动添加 + 自动汇总） */
+  memories: MemoryItem[];
+  addMemory(text: string, category?: string): void;
+  removeMemory(id: string): void;
+  /** 个人记忆注入用的 system 提示（无记忆时为 null）；所有对话/卡片内提问共用 */
+  memorySystemPrompt: string | null;
   /** 思维宇宙节点 */
   thoughtNodes: ThoughtNode[];
   /** 从对话/文档收录：pending 状态，待面板验证 */
@@ -281,6 +288,7 @@ interface PersistedState {
   thoughtNodes?: ThoughtNode[];
   termStates?: Record<string, TermState>;
   profile?: Profile | null;
+  memories?: MemoryItem[];
   documents?: DocumentItem[];
   folders?: string[];
   smartMode?: boolean;
@@ -359,11 +367,49 @@ function buildDivergePrompt(
 /** 智能模式个性化上下文（常驻聊天专属，deliverReply 消费）：
     用户档案称呼 + 思维宇宙已收录概念 + 术语掌握度（已掌握/曾提问）。
     返回 BYOK system 提示；无任何个性化数据时返回 null（不注入）。 */
-function buildSmartContext(
+/** 构建"个人记忆"上下文：手动记忆 + 档案称呼 + 思维宇宙概念 + 术语掌握度。
+    注入所有对话（不再限于常驻聊天/智能模式）；无任何记忆时返回 null。 */
+function buildMemoryContext(
+  profile: Profile | null,
+  memories: MemoryItem[],
+  thoughtNodes: ThoughtNode[],
+  termStates: Record<string, TermState>
+): { system: string } | null {
+  const mastered = Object.entries(termStates)
+    .filter(([, s]) => s === "mastered")
+    .map(([t]) => t);
+  const asked = Object.entries(termStates)
+    .filter(([, s]) => s === "asked")
+    .map(([t]) => t);
+  const concepts = thoughtNodes
+    .filter((n) => n.status !== "pending")
+    .slice(0, 8)
+    .map((n) => n.subject);
+  const manual = memories.filter((m) => m.source === "manual").map((m) => m.text);
+  const name = profile?.name;
+  if (!name && mastered.length === 0 && asked.length === 0 && concepts.length === 0 && manual.length === 0) {
+    return null;
+  }
+  const lines: string[] = [];
+  if (name) lines.push(`- 用户称呼：${name}`);
+  if (manual.length) lines.push(`- 用户告诉过你的关于自己的事：${manual.slice(0, 12).join("；")}`);
+  if (concepts.length) lines.push(`- 用户思维宇宙已收录概念：${concepts.join("、")}`);
+  if (mastered.length) lines.push(`- 用户已掌握术语：${mastered.slice(0, 8).join("、")}`);
+  if (asked.length) lines.push(`- 用户曾提问术语：${asked.slice(0, 8).join("、")}`);
+  const system =
+    `以下是你对用户的了解（个人记忆，来自用户本机）：\n` +
+    lines.join("\n") +
+    `\n回答时自然地参考这些信息：可用用户已掌握的概念作类比、回顾用户曾提问的术语、贴合用户告诉你的背景；不要编造记忆之外的信息。`;
+  return { system };
+}
+
+/** 智能模式尾部注记（仅常驻聊天 + smartMode 开启时附在回复末尾）。
+    与全局记忆（system 注入）解耦：记忆对所有对话生效，注记是常驻聊天的额外提示。 */
+function buildSmartNote(
   profile: Profile | null,
   thoughtNodes: ThoughtNode[],
   termStates: Record<string, TermState>
-): { system: string; note: string } | null {
+): string {
   const mastered = Object.entries(termStates)
     .filter(([, s]) => s === "mastered")
     .map(([t]) => t);
@@ -374,19 +420,6 @@ function buildSmartContext(
     .filter((n) => n.status !== "pending")
     .slice(0, 6)
     .map((n) => n.subject);
-  const name = profile?.name;
-  if (!name && mastered.length === 0 && asked.length === 0 && concepts.length === 0) {
-    return null;
-  }
-  const lines: string[] = [];
-  if (name) lines.push(`- 用户称呼：${name}`);
-  if (concepts.length) lines.push(`- 用户思维宇宙已收录概念：${concepts.join("、")}`);
-  if (mastered.length) lines.push(`- 用户已掌握术语：${mastered.slice(0, 8).join("、")}`);
-  if (asked.length) lines.push(`- 用户曾提问术语：${asked.slice(0, 8).join("、")}`);
-  const system =
-    `你正在与用户进行常驻对话（AI 智能模式已开启）。以下是你对用户的了解：\n` +
-    lines.join("\n") +
-    `\n请据此个性化回答：可用用户已掌握的概念作类比，对曾提问的术语适度回顾，并给出下一步深挖建议；不要编造档案中不存在的信息。`;
   const parts: string[] = [];
   if (mastered.length) parts.push(`你已掌握：${mastered.slice(0, 6).join("、")}`);
   if (concepts.length) parts.push(`思维宇宙已收录：${concepts.slice(0, 4).join("、")}`);
@@ -394,7 +427,7 @@ function buildSmartContext(
   if (parts.length) note += `${parts.join("；")}。`;
   if (asked.length) note += `你曾问过「${asked[0]}」，可以再展开深挖。`;
   note += `我会结合你的探索档案继续为你讲解。`;
-  return { system, note };
+  return note;
 }
 
 interface SearchResult {
@@ -458,6 +491,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ChatCard 据此做贴底跟随与未读判定——不再假设"流式目标 = 最后一个 turn"。 */
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(boot.profile ?? null);
+  const [memories, setMemories] = useState<MemoryItem[]>(boot.memories ?? []);
   const [thoughtNodes, setThoughtNodes] = useState<ThoughtNode[]>(boot.thoughtNodes ?? []);
   const [termStates, setTermStates] = useState<Record<string, TermState>>(
     boot.termStates ?? {}
@@ -522,6 +556,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           thoughtNodes,
           termStates,
           profile,
+          memories,
           documents,
           folders,
           smartMode,
@@ -534,7 +569,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, 500);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, documents, folders, smartMode, byokModels]);
+  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, memories, documents, folders, smartMode, byokModels]);
 
   // Theme → <html data-theme> (runtime re-skin) + browser chrome color.
   useEffect(() => {
@@ -646,6 +681,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         documents,
         folders,
         profile,
+        memories,
         settings,
       },
     };
@@ -656,7 +692,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     a.download = `explore-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [projects, thoughtNodes, termStates, documents, folders, profile, settings]);
+  }, [projects, thoughtNodes, termStates, documents, folders, profile, memories, settings]);
 
   /** 全量恢复/导入：
       - 新版备份包（app==="explore-backup"）：按 id 合并（备份胜出），项目/思维节点/文档/文件夹/术语状态/档案/设置
@@ -701,6 +737,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         (f): f is string => typeof f === "string" && !!f.trim()
       );
       const termIn = d.termStates && typeof d.termStates === "object" ? (d.termStates as Record<string, TermState>) : {};
+      const memoriesIn = (Array.isArray(d.memories) ? d.memories : []).filter(
+        (m): m is MemoryItem => !!m && typeof m === "object" && !!m.text
+      );
 
       // 按 id 合并（备份胜出）；保留备份之后新建的内容。
       setProjects((list) => {
@@ -720,6 +759,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       setFolders((list) => [...new Set([...list, ...foldersIn])]);
       setTermStates((s) => ({ ...s, ...termIn }));
+      setMemories((list) => {
+        const map = new Map(list.map((m) => [m.id, m]));
+        for (const m of memoriesIn) if (m.id) map.set(m.id, m);
+        // 无 id 的旧格式条目按文本去重并入
+        const byText = new Map(list.map((m) => [m.text, m]));
+        for (const m of memoriesIn) if (!m.id) byText.set(m.text, m);
+        return [...map.values(), ...[...byText.values()].filter((m) => !map.has(m.id))];
+      });
       if (d.profile) setProfile(d.profile as Profile);
       if (d.settings && typeof d.settings === "object") {
         setSettingsState((s) => ({ ...DEFAULT_SETTINGS, ...s, ...(d.settings as ChatSettings) }));
@@ -777,6 +824,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
   const turns = useMemo(() => activeProject?.turns ?? [], [activeProject]);
   const activeTurn = useMemo(() => turns[turns.length - 1] ?? null, [turns]);
+
+  /** 个人记忆 system 提示（所有对话/卡片内提问共用；无记忆 = null） */
+  const memorySystemPrompt = useMemo(
+    () => buildMemoryContext(profile, memories, thoughtNodes, termStates)?.system ?? null,
+    [profile, memories, thoughtNodes, termStates]
+  );
 
   /** Append a turn (user message + optional mock AI reply) to a project. */
   const appendTurn = useCallback(
@@ -1069,11 +1122,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const byok = byokModels.find(
           (m) => m.id === settings.activeModelId && m.provider === "BYOK"
         );
-        // 智能模式（仅常驻聊天）：注入个性化上下文——用户档案 + 思维宇宙 + 术语掌握度。
-        // BYOK 走 system 消息注入个性化上下文。
-        const smart =
+        // 个人记忆：所有对话都注入（手动记忆 + 档案 + 思维宇宙 + 术语掌握度），
+        // 让 AI 的回答贴合用户；无任何记忆时为 null 不注入。
+        const memory = memorySystemPrompt ? { system: memorySystemPrompt } : null;
+        // 智能模式注记：仅常驻聊天 + 开关开启时，成功回复尾部附加个性化说明。
+        const smartNote =
           smartMode && targetId === RESIDENT_CHAT_ID
-            ? buildSmartContext(profile, thoughtNodes, termStates)
+            ? buildSmartNote(profile, thoughtNodes, termStates)
             : null;
         // 联网搜索（开关开启）：先取实时结果再组上下文——
         // 注入 prompt 引导基于结果回答并注明来源。
@@ -1109,7 +1164,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         streamOpenAICompatible(
           byok,
           [
-            ...(smart ? [{ role: "system" as const, content: smart.system }] : []),
+            ...(memory ? [{ role: "system" as const, content: memory.system }] : []),
             ...(searchPrompt
               ? [{ role: "user" as const, content: searchPrompt }]
               : []),
@@ -1127,6 +1182,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
             window.clearTimeout(timer);
             markIdle();
             setStreamingTurnId((cur) => (cur === turnId ? null : cur));
+            if (smartNote) {
+              setLastAssistantContent(targetId, acc + smartNote, turnId);
+            }
             onDone?.();
           })
           .catch((err: unknown) => {
@@ -1162,6 +1220,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLastAssistantContent,
       streamReply,
       markIdle,
+      memorySystemPrompt,
       smartMode,
       profile,
       thoughtNodes,
@@ -1711,6 +1770,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [documents, docInterpretingIds, byokModels, settings.activeModelId]
   );
 
+  /** 个人记忆：手动添加"关于我"的事实（去重：同文本不再重复添加） */
+  const addMemory = useCallback((text: string, category?: string) => {
+    const t = text.trim();
+    if (!t) return;
+    setMemories((list) =>
+      list.some((m) => m.text === t) ? list : [...list, { id: uid(), text: t, category: category?.trim() || undefined, source: "manual", createdAt: Date.now() }]
+    );
+  }, []);
+
+  const removeMemory = useCallback((id: string) => {
+    setMemories((list) => list.filter((m) => m.id !== id));
+  }, []);
+
   const addThoughtNode = useCallback(
     (subject: string, content: string, category = "概念", parentSubject: string | null = null) => {
       setThoughtNodes((list) => [
@@ -1801,6 +1873,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     summarizePreBranch,
     profile,
     setProfile,
+    memories,
+    addMemory,
+    removeMemory,
+    memorySystemPrompt,
     thoughtNodes,
     addThoughtNode,
     recordExploration,

@@ -11,6 +11,7 @@ import {
   BookMarked,
   BookOpen,
   Bot,
+  Brain,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -294,6 +295,7 @@ async function testByokConnection(
 const NAV_ITEMS: { id: string; label: string; icon: typeof Bot }[] = [
   { id: "models", label: "AI 模型", icon: Bot },
   { id: "allocation", label: "模型分配", icon: Layers },
+  { id: "memory", label: "个人记忆", icon: Brain },
   { id: "theme", label: "颜色主题", icon: Palette },
   { id: "shortcuts", label: "快捷键", icon: Keyboard },
   { id: "auto", label: "自动行为", icon: Zap },
@@ -404,7 +406,21 @@ function ModelRow({
 }
 
 export function SettingsModal() {
-  const { settings, setSettings, closeModal, openModal, byokModels, addByokModel, removeByokModel } =
+  const {
+    settings,
+    setSettings,
+    closeModal,
+    openModal,
+    byokModels,
+    addByokModel,
+    removeByokModel,
+    profile,
+    memories,
+    addMemory,
+    removeMemory,
+    termStates,
+    thoughtNodes,
+  } =
     useApp();
   const [draft, setDraft] = useState<ChatSettings>(settings);
   const [section, setSection] = useState("models");
@@ -444,6 +460,21 @@ export function SettingsModal() {
     const res = await testByokConnection(m.baseUrl, m.apiKey);
     setTestResults((r) => ({ ...r, [m.id]: res }));
     setTestingId(null);
+  };
+
+  // 个人记忆：手动添加输入
+  const [memoryText, setMemoryText] = useState("");
+  const [memoryCat, setMemoryCat] = useState("");
+
+  const submitMemory = () => {
+    if (!memoryText.trim()) {
+      showToast("请填写要记住的内容");
+      return;
+    }
+    addMemory(memoryText, memoryCat || undefined);
+    setMemoryText("");
+    setMemoryCat("");
+    showToast("✓ 已记住");
   };
 
   const update = (p: Partial<ChatSettings>) =>
@@ -797,6 +828,119 @@ export function SettingsModal() {
                       onChange={(v) => update({ autoTitleEnabled: v })}
                     />
                   </div>
+                </div>
+              </div>
+            )}
+
+            {section === "memory" && (
+              <div>
+                <h4 className="text-sm font-semibold text-text-header-secondary mb-1">
+                  个人记忆
+                </h4>
+                <p className="text-xs text-text-tertiary mb-4">
+                  AI 在<span className="text-brand">所有对话</span>中都会参考以下信息回答，让回复更贴合你。数据仅存本机。
+                </p>
+
+                {/* 手动添加 */}
+                <div className="p-3 bg-modal-floating border border-std rounded-xl space-y-2">
+                  <div className="text-sm text-primary">添加「关于我」的事实</div>
+                  <input
+                    value={memoryText}
+                    onChange={(e) => setMemoryText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") submitMemory();
+                    }}
+                    placeholder="如：我是一名机器学习工程师 / 我喜欢读科幻小说"
+                    className="w-full bg-inputarea border border-std rounded-lg px-3 py-2 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
+                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={memoryCat}
+                      onChange={(e) => setMemoryCat(e.target.value)}
+                      placeholder="分类（可选）：职业 / 兴趣 / 背景"
+                      className="flex-1 min-w-0 bg-inputarea border border-std rounded-lg px-3 py-2 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
+                    />
+                    <button
+                      onClick={submitMemory}
+                      className="shrink-0 text-xs text-brand-fg bg-brand hover:opacity-90 rounded-full px-4 py-2 font-medium transition-opacity"
+                    >
+                      记住
+                    </button>
+                  </div>
+                </div>
+
+                {/* 手动记忆列表 */}
+                {memories.filter((m) => m.source === "manual").length > 0 && (
+                  <div className="mt-4">
+                    <div className="text-xs text-text-tertiary mb-2">手动记忆（{memories.filter((m) => m.source === "manual").length}）</div>
+                    <ul className="space-y-1.5">
+                      {memories
+                        .filter((m) => m.source === "manual")
+                        .map((m) => (
+                          <li
+                            key={m.id}
+                            className="flex items-start gap-2 rounded-xl bg-item-std px-3 py-2"
+                          >
+                            <span className="flex-1 min-w-0 text-sm text-text-secondary">
+                              {m.category && (
+                                <span className="mr-1.5 rounded border border-std px-1.5 text-[10px] text-text-tertiary">
+                                  {m.category}
+                                </span>
+                              )}
+                              {m.text}
+                            </span>
+                            <button
+                              onClick={() => removeMemory(m.id)}
+                              aria-label="删除这条记忆"
+                              title="删除"
+                              className="shrink-0 rounded p-1 text-text-quaternary transition-colors hover:bg-item-std-hover hover:text-destructive"
+                            >
+                              <X size={13} />
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 自动记忆（来自账户/掌握度/思维宇宙） */}
+                <div className="mt-5">
+                  <div className="text-xs text-text-tertiary mb-2">
+                    自动记忆（AI 从你的使用中了解到的）
+                  </div>
+                  <ul className="space-y-1.5">
+                    {profile?.name && (
+                      <li className="flex items-center gap-2 rounded-xl bg-item-std px-3 py-2 text-sm text-text-secondary">
+                        <Star size={13} className="text-brand shrink-0" />
+                        你的称呼：{profile.name}
+                      </li>
+                    )}
+                    {Object.entries(termStates)
+                      .filter(([, s]) => s === "mastered")
+                      .slice(0, 10)
+                      .map(([t]) => (
+                        <li key={t} className="flex items-center gap-2 rounded-xl bg-item-std px-3 py-2 text-sm text-text-secondary">
+                          <Check size={13} className="text-brand shrink-0" />
+                          已掌握术语：{t}
+                        </li>
+                      ))}
+                    {thoughtNodes
+                      .filter((n) => n.status !== "pending")
+                      .slice(0, 10)
+                      .map((n) => (
+                        <li key={n.id} className="flex items-center gap-2 rounded-xl bg-item-std px-3 py-2 text-sm text-text-secondary">
+                          <Sparkles size={13} className="text-brand shrink-0" />
+                          思维宇宙概念：{n.subject}
+                        </li>
+                      ))}
+                    {!profile?.name &&
+                      Object.values(termStates).filter((s) => s === "mastered").length === 0 &&
+                      thoughtNodes.filter((n) => n.status !== "pending").length === 0 && (
+                        <li className="rounded-xl border border-dashed border-std px-3 py-3 text-center text-xs text-text-tertiary">
+                          暂无自动记忆——去对话里标记「已掌握」术语、收录思维宇宙概念，或完善账户档案
+                        </li>
+                      )}
+                  </ul>
                 </div>
               </div>
             )}

@@ -367,6 +367,7 @@ export function ChatCard() {
     pendingQuote,
     setPendingQuote,
     setAppNotice,
+    memorySystemPrompt,
     toggleFavorite,
     setTurnUnread,
     focusTurn,
@@ -879,6 +880,7 @@ export function ChatCard() {
       (m) => m.id === settings.activeModelId && m.provider === "BYOK"
     );
     const context: { role: string; content: string }[] = [
+      ...(memorySystemPrompt ? [{ role: "system" as const, content: memorySystemPrompt }] : []),
       {
         role: "user",
         content: `我们正在深挖概念「${item.node.term}」（路径：${item.path}）。请用中文回答，重要术语用 **加粗** 标记，方便继续深挖。`,
