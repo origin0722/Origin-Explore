@@ -252,23 +252,27 @@ function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect,
 
   // 卡内 markdown：**加粗术语** → 可点击，继续开子卡片深挖。
   // 嵌套加粗 / 链接内的加粗回退为普通 <strong>（避免 button-in-button / button-in-a 非法嵌套）。
-  const mdComponents = {
-    a: LinkWrap,
-    strong: ({ node, children }: { node?: unknown; children?: ReactNode }) => {
-      const text = toTerm(children).trim();
-      const inLink = useContext(InLinkContext);
-      if (!text || inLink || hasNestedStrong(node)) return <strong>{children}</strong>;
-      return (
-        <button
-          type="button"
-          className="term-chip font-semibold cursor-pointer text-brand underline decoration-brand/50 decoration-[1.5px] underline-offset-2 hover:decoration-brand transition-colors duration-300"
-          onClick={() => onTermClick(text)}
-        >
-          {children}
-        </button>
-      );
-    },
-  };
+  // useMemo：避免每次渲染重建 components 对象导致 ReactMarkdown 子树全量重渲染。
+  const mdComponents = useMemo(
+    () => ({
+      a: LinkWrap,
+      strong: ({ node, children }: { node?: unknown; children?: ReactNode }) => {
+        const text = toTerm(children).trim();
+        const inLink = useContext(InLinkContext);
+        if (!text || inLink || hasNestedStrong(node)) return <strong>{children}</strong>;
+        return (
+          <button
+            type="button"
+            className="term-chip font-semibold cursor-pointer text-brand underline decoration-brand/50 decoration-[1.5px] underline-offset-2 hover:decoration-brand transition-colors duration-300"
+            onClick={() => onTermClick(text)}
+          >
+            {children}
+          </button>
+        );
+      },
+    }),
+    [onTermClick]
+  );
 
   return (
     <div className="flex flex-col h-full overflow-hidden rounded-2xl">
@@ -554,10 +558,16 @@ export function ChatCard() {
   }, [lastMsgLen, turns, view, streamingTurnId]);
 
   // 新回复完成时，若目标轮次不在当前视图视野内 → 标记未读。
+  // 修：流式结束路径里 streamingTurnId 与 busy 同批提交（结束即清空），effect 读它永远是 null——
+  // 改为 busy 期间用 ref 缓存最后流式目标，busy 回落时从 ref 取。
   const prevBusy = useRef(false);
+  const lastStreamingTurn = useRef<string | null>(null);
+  if (busy && streamingTurnId) lastStreamingTurn.current = streamingTurnId;
   useEffect(() => {
     if (prevBusy.current && !busy) {
-      const last = streamingTurnId ? turns.find((t) => t.id === streamingTurnId) ?? null : null;
+      const lastId = lastStreamingTurn.current;
+      lastStreamingTurn.current = null;
+      const last = lastId ? turns.find((t) => t.id === lastId) ?? null : null;
       if (last) {
         if (last.kind === "diverge") {
           // 发散流式卡：创建时必已聚焦到平行视图 → 视为可见。
@@ -578,7 +588,7 @@ export function ChatCard() {
       }
     }
     prevBusy.current = busy;
-  }, [busy, turns, view, setTurnUnread, streamingTurnId]);
+  }, [busy, turns, view, setTurnUnread]);
 
   /* --- 视图切换：主流 ↔ 平行组（同级滑动） --- */
 
@@ -968,6 +978,17 @@ export function ChatCard() {
     const emptyMsg: Message = { id: uid(), role: "assistant", content: "", createdAt: Date.now() };
     patch(key, (i) => ({ ...i, messages: [...i.messages, emptyMsg] }));
     let acc = "";
+    // 渲染节流（同 deliverReply）：40ms 合并写入，结束强制 flush
+    let lastFlush = 0;
+    const flushPatch = () => {
+      patch(key, (i) => ({
+        ...i,
+        messages: i.messages.map((m, mi) =>
+          mi === i.messages.length - 1 ? { ...m, content: acc } : m
+        ),
+      }));
+      lastFlush = Date.now();
+    };
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 15000);
     streamOpenAICompatible(
@@ -975,18 +996,15 @@ export function ChatCard() {
       context,
       (delta) => {
         acc += delta;
-        patch(key, (i) => ({
-          ...i,
-          messages: i.messages.map((m, mi) =>
-            mi === i.messages.length - 1 ? { ...m, content: acc } : m
-          ),
-        }));
+        const now = Date.now();
+        if (now - lastFlush >= 40) flushPatch();
       },
       controller.signal,
       () => window.clearTimeout(timer)
     )
       .then(() => {
         window.clearTimeout(timer);
+        flushPatch(); // 强制 flush 最后一节
         patch(key, (i) => ({ ...i, busy: false }));
         remember(acc);
         clearInflight();
@@ -1002,7 +1020,7 @@ export function ChatCard() {
             mi === i.messages.length - 1 ? { ...m, content: fallback } : m
           ),
         }));
-        remember(fallback);
+        // 失败不写 autoAskCache：错误文本不应被缓存为"术语知识"（本会话内可重试）
         clearInflight();
       });
   };
@@ -1152,7 +1170,9 @@ export function ChatCard() {
 
   return (
     <div
-      className="text-primary relative h-full w-full transition-[height] duration-300 ease-in-out"
+      className={`text-primary relative h-full w-full transition-[height] duration-300 ease-in-out ${
+        busy ? "streaming-active" : ""
+      }`}
       style={{
         maxWidth: "min(990px, 100%)",
         height: minimized ? 48 : "100%",
@@ -1418,9 +1438,19 @@ export function ChatCard() {
                       <button
                         type="button"
                         onClick={() => {
-                          const kids = turns.filter(
-                            (t) => t.parentTurnId === turn.id || t.divergeSourceId === turn.id
-                          ).length;
+                          // 递归子树计数（与 removeTurn 的级联删除一致）
+                          const countSubtree = (id: string, seen: Set<string>): number => {
+                            if (seen.has(id)) return 0;
+                            seen.add(id);
+                            let n = 0;
+                            for (const t of turns) {
+                              if (t.parentTurnId === id || t.divergeSourceId === id) {
+                                n += 1 + countSubtree(t.id, seen);
+                              }
+                            }
+                            return n;
+                          };
+                          const kids = countSubtree(turn.id, new Set());
                           const ok = window.confirm(
                             `删除卡片「${turn.title}」？${kids > 0 ? `其 ${kids} 张分支/发散卡片将一并删除。` : ""}`
                           );

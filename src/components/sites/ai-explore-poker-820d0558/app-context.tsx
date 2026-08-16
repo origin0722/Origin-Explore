@@ -188,6 +188,8 @@ export interface AppState {
       继续在发散卡片下方对话，而不是弹回主对话流。 */
   sendInTurn(turnId: string, text: string, images?: AttachedImage[]): void;
   busy: boolean;
+  /** 停止所有进行中的流式生成（AbortController 贯通） */
+  stopStreaming(): void;
   /** 当前流式回复的目标轮次 id（null = 无流式；并发时 = 最近启动者）。
       ChatCard 用它做贴底跟随与未读判定，而非假设目标 = 最后一个 turn。 */
   streamingTurnId: string | null;
@@ -497,6 +499,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const busy = busyCount > 0;
   const markBusy = useCallback(() => setBusyCount((c) => c + 1), []);
   const markIdle = useCallback(() => setBusyCount((c) => Math.max(0, c - 1)), []);
+  /** 活跃流式请求的 AbortController 集合（停止生成按钮贯通） */
+  const activeControllersRef = useRef<Set<AbortController>>(new Set());
+  const stopStreaming = useCallback(() => {
+    for (const c of activeControllersRef.current) c.abort();
+    activeControllersRef.current.clear();
+  }, []);
   /** 当前流式回复的目标轮次（并发时记录最近启动者；结束只清自己的）。
       ChatCard 据此做贴底跟随与未读判定——不再假设"流式目标 = 最后一个 turn"。 */
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
@@ -733,6 +741,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         messages: Array.isArray(t.messages)
           ? t.messages.map((m) => ({ ...m, id: m.id || uid() }))
           : [],
+        // 树结构字段全量保留：分支/发散/探索路径/收藏/未读/分支点/上下文
+        kind: t.kind,
+        parentTurnId: t.parentTurnId ?? null,
+        branchPointIndex: t.branchPointIndex,
+        branchContext: t.branchContext,
+        divergeSourceId: t.divergeSourceId,
+        divergeContext: t.divergeContext,
+        explored: t.explored,
+        favorite: t.favorite,
+        unread: t.unread,
+        preBranchSummary: t.preBranchSummary,
       });
       const projectsIn = (Array.isArray(d.projects) ? d.projects : [])
         .filter((p): p is ChatProject => !!p && typeof p === "object")
@@ -955,6 +974,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ? null
           : cur
       );
+      // 补充清理：流式目标/聚焦请求/卡片打开请求/摘要缓存指向被删卡时重置
+      setStreamingTurnId((cur) => (cur && doomed.has(cur) ? null : cur));
+      setFocusRequest((cur) => (cur && doomed.has(cur.turnId) ? null : cur));
+      setCardOpenRequest((cur) => (cur && doomed.has(cur.turnId) ? null : cur));
+      setTurnSummaries((s) => {
+        const next = { ...s };
+        for (const id of doomed) delete next[id];
+        return next;
+      });
     },
     [projects]
   );
@@ -1179,6 +1207,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         // ---- 视觉决策：主模型多模态 / 路由识图 / 未配置拦截 ----
         const controller = new AbortController();
+        activeControllersRef.current.add(controller);
+        const done = () => activeControllersRef.current.delete(controller);
         const visionModel = settings.visionModelId
           ? byokModels.find((m) => m.id === settings.visionModelId && m.vision) ?? null
           : null;
@@ -1196,6 +1226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               : "当前模型不支持图片，且未配置视觉模型：请在 设置 → AI 模型 添加一个视觉模型（如 GLM-4V-Flash）"
           );
           markIdle();
+          done();
           setStreamingTurnId((cur) => (cur === turnId ? null : cur));
           return;
         }
@@ -1234,6 +1265,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const timer = window.setTimeout(() => controller.abort(), 15000);
         appendAssistantMessage(targetId, turnId); // SSE 直接往这条消息里流
         let acc = "";
+        // 渲染节流：SSE delta 高频到达时合并写入（40ms），流结束强制 flush——
+        // 避免每 delta 全量 setProjects 造成的流式重渲染风暴。
+        let lastFlush = 0;
+        const flushContent = () => {
+          setLastAssistantContent(targetId, acc, turnId);
+          lastFlush = Date.now();
+        };
         streamOpenAICompatible(
           byok,
           [
@@ -1246,7 +1284,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ],
           (delta) => {
             acc += delta;
-            setLastAssistantContent(targetId, acc, turnId);
+            const now = Date.now();
+            if (now - lastFlush >= 40) flushContent();
           },
           controller.signal,
           () => window.clearTimeout(timer)
@@ -1254,14 +1293,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           .then(() => {
             window.clearTimeout(timer);
             markIdle();
+            done();
             setStreamingTurnId((cur) => (cur === turnId ? null : cur));
-            if (smartNote) {
-              setLastAssistantContent(targetId, acc + smartNote, turnId);
-            }
+            // 强制 flush 最后一节（含智能模式注记）
+            setLastAssistantContent(targetId, smartNote ? acc + smartNote : acc, turnId);
             onDone?.();
           })
           .catch((err: unknown) => {
             window.clearTimeout(timer);
+            done();
             const why =
               err instanceof Error && err.name === "AbortError"
                 ? "请求超时"
@@ -1354,9 +1394,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
 
       // 最近对话历史（当前问题单独传）。
-      // 平行会话（diverge）是独立线程：不进入主对话流上下文，避免主题漂移。
+      // 平行/分支会话是独立线程：不进入主对话流上下文，避免主题漂移。
       const history = turns
-        .filter((t) => t.kind !== "diverge")
+        .filter((t) => t.kind !== "diverge" && t.kind !== "branch")
         .flatMap((t) => t.messages)
         .slice(-12)
         .map((m) => ({ role: m.role, content: m.content, images: m.images }));
@@ -1407,6 +1447,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       );
       // 上下文：分支卡 = 分支点前上游切片 + 深挖路径 + 卡内最近消息
       // （分割线位置即继承边界；调整分支点后自动按新切片，无需重生成旧回答）；
+      // 发散卡 = 来源锚点上下文（持久化 divergeContext）+ 卡内最近消息；
       // 其余轮次（含发散卡）取该轮次前序消息。
       const history =
         turn.kind === "branch" && turn.branchContext
@@ -1417,9 +1458,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 .slice(-8)
                 .map((m) => ({ role: m.role, content: m.content, images: m.images })),
             ]
-          : turn.messages
-              .slice(-12)
-              .map((m) => ({ role: m.role, content: m.content, images: m.images }));
+          : turn.kind === "diverge" && turn.divergeContext
+            ? [
+                {
+                  role: "user" as const,
+                  content: `本发散对话源自「${turn.divergeContext.sourceTitle}」${turn.divergeContext.anchorText ? `，其中提到：「${turn.divergeContext.anchorText}」` : ""}。请结合这一语境继续回答。`,
+                },
+                ...turn.messages
+                  .slice(-12)
+                  .map((m) => ({ role: m.role, content: m.content, images: m.images })),
+              ]
+            : turn.messages
+                .slice(-12)
+                .map((m) => ({ role: m.role, content: m.content, images: m.images }));
       markBusy();
       deliverReply(content, history, proj.id, undefined, turnId, images);
     },
@@ -1436,18 +1487,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
       sourceTurnId?: string,
       targetProjectId?: string
     ): { id: string; created: boolean } => {
-      // 去重：同一来源轮次 + 同一标题的分支卡片已存在 → 复用，不新建重复节点。
-      if (sourceTurnId) {
-        const existing = projects
-          .flatMap((p) => p.turns)
-          .find((t) => t.kind === "branch" && t.parentTurnId === sourceTurnId && t.title === title);
-        if (existing) return { id: existing.id, created: false };
+      // 无 BYOK 守卫：先拦截再建卡（避免"先建卡后失败"的幽灵空卡）。
+      const byok = byokModels.find(
+        (m) => m.id === settings.activeModelId && m.provider === "BYOK"
+      );
+      if (!byok || !byok.apiKey || !byok.baseUrl || !byok.modelId) {
+        setAppNotice("请先在设置 → AI 模型中配置 API 模型");
+        return { id: "", created: false };
       }
       let targetId = targetProjectId ?? activeProjectId;
       if (!targetId) {
         const p: ChatProject = { ...makeDemoProject(), id: uid(), title: "Untitled" };
         setProjects((list) => [p, ...list]);
         targetId = p.id;
+      }
+      // 去重：同一来源轮次 + 同一标题的分支卡片已存在 → 复用（只搜目标项目内，
+      // 跨项目同名会返回错误项目的 turn → 聚焦请求被静默丢弃）。
+      if (sourceTurnId) {
+        const existing = projects
+          .find((p) => p.id === targetId)
+          ?.turns.find(
+            (t) => t.kind === "branch" && t.parentTurnId === sourceTurnId && t.title === title
+          );
+        if (existing) return { id: existing.id, created: false };
       }
       const turnId = appendTurn(targetId, title, `继续深挖：${title}`);
       // 分支标记（kind + parentTurnId + 默认分支点）：新 turn 的 parentTurnId 指向发起分支的轮次。
@@ -1459,7 +1521,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const point = source ? Math.max(source.messages.length - 1, 0) : -1;
       const sourceSlice =
         source && point >= 0 ? source.messages.slice(0, point + 1) : [];
-      if (sourceTurnId || source) {
+      // 仅当真实存在上游轮次时才标 branch（sourceTurnId 存在但找不到来源 → 不标，
+      // 避免孤儿分支卡在树里挂空）
+      if (source) {
         const defaultPoint = source
           ? Math.max(source.messages.length - 1, 0)
           : 0;
@@ -1506,7 +1570,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deliverReply(`继续深挖：${title}`, ctx, targetId, undefined, turnId);
       return { id: turnId, created: true };
     },
-    [activeProjectId, projects, appendTurn, recordExploration, deliverReply, markBusy]
+    [activeProjectId, projects, appendTurn, recordExploration, deliverReply, markBusy, byokModels, settings.activeModelId, setAppNotice]
   );
 
   /** 发散卡片：以术语开"平行会话"（kind="diverge"）。
@@ -1521,16 +1585,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       anchor?: { sourceTitle: string; anchorText?: string },
       targetProjectId?: string
     ): { id: string; created: boolean } => {
-      const existing = projects
-        .flatMap((p) => p.turns)
-        .find((t) => t.kind === "diverge" && t.divergeSourceId === sourceTurnId && t.title === title);
-      if (existing) return { id: existing.id, created: false };
+      // 无 BYOK 守卫：先拦截再建卡（避免"先建卡后失败"的幽灵空卡）。
+      const byok = byokModels.find(
+        (m) => m.id === settings.activeModelId && m.provider === "BYOK"
+      );
+      if (!byok || !byok.apiKey || !byok.baseUrl || !byok.modelId) {
+        setAppNotice("请先在设置 → AI 模型中配置 API 模型");
+        return { id: "", created: false };
+      }
       let targetId = targetProjectId ?? activeProjectId;
       if (!targetId) {
         const p: ChatProject = { ...makeDemoProject(), id: uid(), title: "Untitled" };
         setProjects((list) => [p, ...list]);
         targetId = p.id;
       }
+      // 去重只搜目标项目内（跨项目同名发散会返回错误项目的 turn → 聚焦请求被静默丢弃）
+      const existing = projects
+        .find((p) => p.id === targetId)
+        ?.turns.find(
+          (t) => t.kind === "diverge" && t.divergeSourceId === sourceTurnId && t.title === title
+        );
+      if (existing) return { id: existing.id, created: false };
       const turnId = appendTurn(targetId, title, `发散话题：${title}（平行会话）`);
       setProjects((list) =>
         list.map((p) =>
@@ -1539,7 +1614,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 ...p,
                 turns: p.turns.map((t) =>
                   t.id === turnId
-                    ? { ...t, kind: "diverge" as const, divergeSourceId: sourceTurnId }
+                    ? {
+                        ...t,
+                        kind: "diverge" as const,
+                        divergeSourceId: sourceTurnId,
+                        // 持久化来源锚点：发散对话追问时注入，保持父语境
+                        divergeContext: anchor
+                          ? { sourceTitle: anchor.sourceTitle, anchorText: anchor.anchorText }
+                          : undefined,
+                      }
                     : t
                 ),
               }
@@ -1552,39 +1635,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deliverReply(`发散话题：${title}`, ctx, targetId, undefined, turnId);
       return { id: turnId, created: true };
     },
-    [activeProjectId, projects, appendTurn, deliverReply, markBusy]
+    [activeProjectId, projects, appendTurn, deliverReply, markBusy, byokModels, settings.activeModelId, setAppNotice]
   );
 
   /** 调整分支卡片的分支点（上游轮次 messages 下标；分割线画在该消息之后）。
       同时失效 preBranchSummary 缓存 + 按新分支点重算 branchContext.slice——
       分支卡内续问的上下文立即与新的分割线一致（闭环：调整分支点 → 续问即按新边界）。 */
-  const setBranchPoint = useCallback((turnId: string, index: number) => {
-    setProjects((list) =>
-      list.map((p) => ({
-        ...p,
-        turns: p.turns.map((t) => {
-          if (t.id !== turnId) return t;
-          const i = Math.max(index, 0);
-          const src = t.parentTurnId
-            ? p.turns.find((x) => x.id === t.parentTurnId) ?? null
-            : null;
-          const newSlice = src
-            ? src.messages
-                .slice(0, i + 1)
-                .map((m) => ({ role: m.role, content: m.content }))
-            : [];
-          return {
-            ...t,
-            branchPointIndex: i,
-            preBranchSummary: undefined,
-            branchContext: t.branchContext
-              ? { ...t.branchContext, slice: newSlice }
-              : undefined,
-          };
-        }),
-      }))
-    );
-  }, []);
+  const setBranchPoint = useCallback(
+    (turnId: string, index: number) => {
+      // 父轮次可能不在同一项目（异常数据/旧备份）：先全局定位，缺失时提示而非静默空上下文。
+      const branch = projects.flatMap((p) => p.turns).find((t) => t.id === turnId);
+      const parentId = branch?.parentTurnId;
+      const source = parentId
+        ? projects.flatMap((p) => p.turns).find((t) => t.id === parentId) ?? null
+        : null;
+      if (parentId && !source) {
+        setAppNotice("⚠️ 找不到该分支的上游轮次，无法调整分支点");
+        return;
+      }
+      const i = Math.max(index, 0);
+      const newSlice = source
+        ? source.messages.slice(0, i + 1).map((m) => ({ role: m.role, content: m.content }))
+        : [];
+      setProjects((list) =>
+        list.map((p) => ({
+          ...p,
+          turns: p.turns.map((t) => {
+            if (t.id !== turnId) return t;
+            return {
+              ...t,
+              branchPointIndex: i,
+              preBranchSummary: undefined,
+              branchContext: t.branchContext
+                ? { ...t.branchContext, slice: newSlice }
+                : undefined,
+            };
+          }),
+        }))
+      );
+    },
+    [projects, setAppNotice]
+  );
 
   /** 分支卡片：生成并缓存"分支点前上游对话"总结（启发式，无 API 依赖）。 */
   const summarizePreBranch = useCallback(
@@ -1906,93 +1997,185 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveDocIdState((cur) => (cur === id ? null : cur));
   }, []);
 
-  const value: AppState = {
-    settings,
-    setSettings,
-    projects,
-    activeProjectId,
-    createProject,
-    selectProject,
-    selectResident,
-    deleteProject,
-    renameProject,
-    folders,
-    createFolder,
-    removeFolder,
-    moveProjectToFolder,
-    smartMode,
-    toggleSmartMode,
-    importProject,
-    exportBackup,
-    importBackup,
-    byokModels,
-    addByokModel,
-    removeByokModel,
-    collapsed,
-    toggleSidebar,
-    mindscapeOpen,
-    setMindscapeOpen,
-    modals,
-    openModal,
-    closeModal,
-    turns,
-    activeTurn,
-    sendMessage,
-    parallelSendTarget,
-    setParallelSendTarget,
-    sendInTurn,
-    sendDocQuestion,
-    interpretDocument,
-    docInterpretingIds,
-    treeFocus,
-    setTreeFocus,
-    busy,
-    streamingTurnId,
-    openBranchTurn,
-    openDivergeTurn,
-    setBranchPoint,
-    summarizePreBranch,
-    profile,
-    setProfile,
-    memories,
-    addMemory,
-    removeMemory,
-    memorySystemPrompt,
-    thoughtNodes,
-    addThoughtNode,
-    recordExploration,
-    validateThoughtNode,
-    removeThoughtNode,
-    termStates,
-    markTermState,
-    documents,
-    addDocument,
-    removeDocument,
-    activeDocId,
-    setActiveDocId,
-    pendingQuote,
-    setPendingQuote,
-    setTurnUnread,
-    toggleFavorite,
-    removeTurn,
-    clearResidentChat,
-    focusTurn,
-    clearFocusRequest,
-    focusRequest,
-    cardOpenRequest,
-    requestCardOpen,
-    clearCardOpenRequest,
-    turnSummaries,
-    summarizingTurnId,
-    summarizeTurn,
-    openDocQuestion,
-    openDocBranch,
-    openDocDiverge,
-    universeOpen,
-    setUniverseOpen,
-    appNotice,
-    setAppNotice,
-  };
+  // context value 记忆化：避免每次渲染重建对象导致全部消费组件重渲染
+  // （流式每 delta 只变 projects，其余 state 引用稳定）
+  const value = useMemo<AppState>(
+    () => ({
+      settings,
+      setSettings,
+      projects,
+      activeProjectId,
+      createProject,
+      selectProject,
+      selectResident,
+      deleteProject,
+      renameProject,
+      folders,
+      createFolder,
+      removeFolder,
+      moveProjectToFolder,
+      smartMode,
+      toggleSmartMode,
+      importProject,
+      exportBackup,
+      importBackup,
+      byokModels,
+      addByokModel,
+      removeByokModel,
+      collapsed,
+      toggleSidebar,
+      mindscapeOpen,
+      setMindscapeOpen,
+      modals,
+      openModal,
+      closeModal,
+      turns,
+      activeTurn,
+      sendMessage,
+      parallelSendTarget,
+      setParallelSendTarget,
+      sendInTurn,
+      sendDocQuestion,
+      interpretDocument,
+      docInterpretingIds,
+      treeFocus,
+      setTreeFocus,
+      busy,
+      stopStreaming,
+      streamingTurnId,
+      openBranchTurn,
+      openDivergeTurn,
+      setBranchPoint,
+      summarizePreBranch,
+      profile,
+      setProfile,
+      memories,
+      addMemory,
+      removeMemory,
+      memorySystemPrompt,
+      thoughtNodes,
+      addThoughtNode,
+      recordExploration,
+      validateThoughtNode,
+      removeThoughtNode,
+      termStates,
+      markTermState,
+      documents,
+      addDocument,
+      removeDocument,
+      activeDocId,
+      setActiveDocId,
+      pendingQuote,
+      setPendingQuote,
+      setTurnUnread,
+      toggleFavorite,
+      removeTurn,
+      clearResidentChat,
+      focusTurn,
+      clearFocusRequest,
+      focusRequest,
+      cardOpenRequest,
+      requestCardOpen,
+      clearCardOpenRequest,
+      turnSummaries,
+      summarizingTurnId,
+      summarizeTurn,
+      openDocQuestion,
+      openDocBranch,
+      openDocDiverge,
+      universeOpen,
+      setUniverseOpen,
+      appNotice,
+      setAppNotice,
+    }),
+    [
+      settings,
+      projects,
+      activeProjectId,
+      folders,
+      smartMode,
+      byokModels,
+      collapsed,
+      mindscapeOpen,
+      modals,
+      turns,
+      activeTurn,
+      parallelSendTarget,
+      docInterpretingIds,
+      treeFocus,
+      busy,
+      streamingTurnId,
+      stopStreaming,
+      profile,
+      memories,
+      memorySystemPrompt,
+      thoughtNodes,
+      termStates,
+      documents,
+      activeDocId,
+      pendingQuote,
+      focusRequest,
+      cardOpenRequest,
+      turnSummaries,
+      summarizingTurnId,
+      universeOpen,
+      appNotice,
+      createProject,
+      selectProject,
+      selectResident,
+      deleteProject,
+      renameProject,
+      createFolder,
+      removeFolder,
+      moveProjectToFolder,
+      toggleSmartMode,
+      importProject,
+      exportBackup,
+      importBackup,
+      addByokModel,
+      removeByokModel,
+      toggleSidebar,
+      setMindscapeOpen,
+      openModal,
+      closeModal,
+      sendMessage,
+      setParallelSendTarget,
+      sendInTurn,
+      sendDocQuestion,
+      interpretDocument,
+      setTreeFocus,
+      openBranchTurn,
+      openDivergeTurn,
+      setBranchPoint,
+      summarizePreBranch,
+      setProfile,
+      addMemory,
+      removeMemory,
+      addThoughtNode,
+      recordExploration,
+      validateThoughtNode,
+      removeThoughtNode,
+      markTermState,
+      addDocument,
+      removeDocument,
+      setActiveDocId,
+      setPendingQuote,
+      setTurnUnread,
+      toggleFavorite,
+      removeTurn,
+      clearResidentChat,
+      focusTurn,
+      clearFocusRequest,
+      clearCardOpenRequest,
+      requestCardOpen,
+      summarizeTurn,
+      openDocQuestion,
+      openDocBranch,
+      openDocDiverge,
+      setUniverseOpen,
+      setAppNotice,
+    ]
+  );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

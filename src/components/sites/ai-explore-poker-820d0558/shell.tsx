@@ -11,6 +11,7 @@
  * shared contract — this file only assembles layout + viewport behavior.
  */
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { BrainCircuit, ChevronLeft, Menu } from "lucide-react";
 
 import { useApp } from "./app-context";
@@ -21,7 +22,11 @@ import { TurnGraphPanel } from "./turn-graph";
 import { InputArea } from "./input-area";
 import { MindscapePanel } from "./mindscape-panel";
 import { DocLibrary, DocReader } from "./doc-reader";
-import { MindUniverse } from "./mind-universe";
+// 3D 思维宇宙按需加载（three.js 不进首屏 bundle）
+const MindUniverse = dynamic(() => import("./mind-universe").then((m) => m.MindUniverse), {
+  ssr: false,
+  loading: () => null,
+});
 import { OnboardingWizard, ProfileModal, SettingsModal, UsageDocModal } from "./modals";
 
 /** 全局轻提示（底部 toast）：无 API / 请求失败等状态反馈，3 秒自动消失。 */

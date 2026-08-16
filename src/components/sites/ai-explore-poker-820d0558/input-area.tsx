@@ -12,9 +12,9 @@ import {
   ChevronDown,
   Globe,
   ImagePlus,
-  Loader2,
   Paperclip,
   Send,
+  Square,
   X,
   Zap,
 } from "lucide-react";
@@ -39,6 +39,7 @@ export function InputArea() {
     activeDocId,
     documents,
     busy,
+    stopStreaming,
     setActiveDocId,
     byokModels,
     pendingQuote,
@@ -430,16 +431,17 @@ export function InputArea() {
             <Paperclip size={16} />
           </button>
 
-          {/* send */}
+          {/* send / 停止生成 */}
           <button
             type="button"
-            onClick={handleSend}
-            disabled={(!text.trim() && quotes.length === 0 && images.length === 0) || busy || noModel}
-            aria-label="发送"
+            onClick={busy ? stopStreaming : handleSend}
+            disabled={(!busy && !text.trim() && quotes.length === 0 && images.length === 0) || noModel}
+            aria-label={busy ? "停止生成" : "发送"}
+            title={busy ? "停止生成" : "发送"}
             className="h-8 w-8 sm:h-[34px] sm:w-[34px] rounded-full bg-btn-inputarea text-brand-fg flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             {busy ? (
-              <Loader2 size={16} className="animate-spin" />
+              <Square size={14} strokeWidth={2.5} fill="currentColor" />
             ) : (
               <Send size={16} strokeWidth={2.5} />
             )}

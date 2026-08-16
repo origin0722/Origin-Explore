@@ -707,7 +707,8 @@ body {
 .markdown-content p { margin-bottom: 1.5em; }
 .markdown-content > *:first-child { margin-top: 0; }
 .markdown-content > *:last-child { margin-bottom: 0; }
-.markdown-content > * { animation: fadeIn 1000ms ease-in-out; }
+/* 流式场景：段落频繁重组，淡入从 1s 缩短到 150ms 避免反复重播长动画 */
+.markdown-content > * { animation: fadeIn 150ms ease-in-out; }
 .markdown-content img {
   max-width: 100%;
   border-radius: 0.5rem;
@@ -717,6 +718,9 @@ body {
   stroke: currentColor !important;
   fill: currentColor !important;
 }
+
+/* 流式期间禁用 markdown 入场动画（感知流畅度） */
+.streaming-active .markdown-content > * { animation: none; }
 
 /* compact variant used inside mindscape tooltips / small surfaces */
 .mind-md .markdown-content p { margin: 0 0 0.35em; }
@@ -994,7 +998,8 @@ body {
 /* 无障碍补齐：术语卡层叠进出场等动画在 reduced-motion 下瞬时完成。 */
 @media (prefers-reduced-motion: reduce) {
   .entering-cascade,
-  .exiting-cascade {
+  .exiting-cascade,
+  .markdown-content > * {
     animation-duration: 1ms;
     animation-iteration-count: 1;
   }

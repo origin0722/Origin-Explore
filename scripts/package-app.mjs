@@ -31,6 +31,15 @@ if (fs.existsSync("public")) {
 }
 console.log(`staged: ${STAGING} (server.js=${fs.existsSync(`${STAGING}/server.js`)}, node_modules=${fs.existsSync(`${STAGING}/node_modules`)})`);
 
+// 运行时瘦身：删除 staging 中用不到的 sharp/@img（图标脚本才用，服务器不加载）
+for (const p of ["node_modules/sharp", "node_modules/@img"]) {
+  const target = `${STAGING}/${p}`;
+  if (fs.existsSync(target)) {
+    fs.rmSync(target, { recursive: true, force: true });
+    console.log(`staging: removed ${p}`);
+  }
+}
+
 step("4/4 electron-builder portable");
 execSync("npx electron-builder --win portable", { stdio: "inherit" });
 

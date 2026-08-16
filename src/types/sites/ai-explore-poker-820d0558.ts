@@ -112,6 +112,12 @@ export interface Turn {
   };
   /** 发散卡片：来源轮次 id（树中渲染在来源卡片节点右侧、同一层级） */
   divergeSourceId?: string;
+  /** 发散卡片：来源锚点上下文（来源主题 + 术语所在段落）——追问时注入保持父语境，
+      与 branchContext 对齐（发散对话的"持久化锚点"）。 */
+  divergeContext?: {
+    sourceTitle: string;
+    anchorText?: string;
+  };
   /** 本轮对话中点击过的术语卡片（探索路径），按点击顺序；
       parentTerm = 打开这张卡片时所在的父卡片术语（null = 从主对话点开） */
   explored?: { term: string; kind: TermKind; at: number; parentTerm: string | null }[];
