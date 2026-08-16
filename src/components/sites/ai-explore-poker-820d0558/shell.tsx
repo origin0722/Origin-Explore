@@ -172,9 +172,7 @@ export function AppShell() {
               </div>
             </div>
             <div
-              className={`relative w-full max-w-[990px] flex-shrink-0 ${dialogLeftMl} ${
-                activeProjectId == null ? "max-sm:hidden" : ""
-              }`}
+              className={`relative w-full max-w-[990px] flex-shrink-0 ${dialogLeftMl}`}
             >
               {activeDocId == null && <InputArea />}
 

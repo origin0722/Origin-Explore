@@ -56,18 +56,15 @@ export function MindscapePanel({ thoughts, onClose }: MindscapePanelProps) {
     validateThoughtNode,
     removeThoughtNode,
     setUniverseOpen,
+    setAppNotice,
   } = useApp();
 
   const [isMobile, setIsMobile] = useState(false);
   const [input, setInput] = useState("");
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [validatingAdd, setValidatingAdd] = useState(false);
-  const [toast, setToast] = useState<{ kind: "success" | "error"; text: string } | null>(
-    null
-  );
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -82,16 +79,14 @@ export function MindscapePanel({ thoughts, onClose }: MindscapePanelProps) {
   useEffect(
     () => () => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     },
     []
   );
 
+  // 统一走全局底部提示（避免多套 toast 同位置堆叠）
   const showToast = useCallback((kind: "success" | "error", text: string) => {
-    setToast({ kind, text });
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(null), 2000);
-  }, []);
+    setAppNotice(kind === "success" ? text : text);
+  }, [setAppNotice]);
 
   // Non-empty prop overrides context; empty/absent falls back to useApp().
   const list = thoughts && thoughts.length > 0 ? thoughts : thoughtNodes;
@@ -240,17 +235,6 @@ export function MindscapePanel({ thoughts, onClose }: MindscapePanelProps) {
           </button>
         </div>
       </div>
-      {toast && (
-        <div
-          className={`pointer-events-none absolute bottom-24 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs shadow-card backdrop-blur animate-[fadeIn_200ms_ease-out] ${
-            toast.kind === "success"
-              ? "border-brand/40 bg-universe-panel/95 text-brand"
-              : "border-destructive/40 bg-universe-panel/95 text-destructive"
-          }`}
-        >
-          {toast.text}
-        </div>
-      )}
     </>
   );
 

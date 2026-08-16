@@ -6,7 +6,7 @@
  * 状态全部来自 useApp()（无 props）；折叠态仅显示 44×44 图标块。
  * 视觉自由发挥，结构按 02-sidebar.md。
  */
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import {
   BookMarked,
   BookOpen,
@@ -72,6 +72,7 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
     turnSummaries,
     summarizingTurnId,
     summarizeTurn,
+    setAppNotice,
   } = useApp();
 
   /** 有效展开态：shell 的 hover 临时展开（折叠窄条碰触即展）优先；
@@ -83,8 +84,6 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   const [favOpen, setFavOpen] = useState(true);
   const [menuFor, setMenuFor] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
@@ -93,18 +92,8 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
   const docUploadRef = useRef<HTMLInputElement>(null);
   const [docUploading, setDocUploading] = useState(false);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 1800);
-  };
-
-  useEffect(
-    () => () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-    },
-    []
-  );
+  // 统一走全局底部提示（避免多套 toast 同位置堆叠）
+  const showToast = (msg: string) => setAppNotice(msg);
 
   const startRename = (id: string, current: string) => {
     setMenuFor(null);
@@ -802,13 +791,6 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
         onChange={handleDocFiles}
         className="hidden"
       />
-
-      {/* 演示提示 */}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-card-floating border border-std shadow-card px-4 py-2 text-sm text-primary whitespace-nowrap">
-          {toast}
-        </div>
-      )}
     </aside>
   );
 }

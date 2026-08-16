@@ -245,7 +245,7 @@ function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect,
           m.role === "user" ? (
             <div key={m.id} className="flex flex-col items-end gap-2 mt-3">
               <div className="bg-usermsg shadow-usermsg rounded-usermsg px-3 py-2 relative max-w-[90%]">
-                <span className="text-text-content whitespace-pre-wrap select-none">{m.content}</span>
+                <span className="text-text-content whitespace-pre-wrap">{m.content}</span>
               </div>
             </div>
           ) : (
@@ -399,8 +399,6 @@ export function ChatCard() {
   const autoAskCache = useRef(new Map<string, Message[]>());
   /** 正在飞行中的自动问（term），防止并发重复请求。 */
   const autoAskInflight = useRef(new Set<string>());
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   /** term card closing animation state (exit class applied, then unmount) */
   const [termClosing, setTermClosing] = useState<string | null>(null);
@@ -450,7 +448,6 @@ export function ChatCard() {
   useEffect(() => {
     return () => {
       if (hlTimeout.current) clearTimeout(hlTimeout.current);
-      if (toastTimeout.current) clearTimeout(toastTimeout.current);
       if (slideTimer.current) clearTimeout(slideTimer.current);
     };
   }, []);
@@ -702,11 +699,8 @@ export function ChatCard() {
     clearCardOpenRequest();
   }, [cardOpenRequest, clearCardOpenRequest]);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    if (toastTimeout.current) clearTimeout(toastTimeout.current);
-    toastTimeout.current = setTimeout(() => setToast(null), 2400);
-  };
+  // 统一走全局底部提示（避免多套 toast 同位置堆叠）
+  const showToast = (msg: string) => setAppNotice(msg);
 
   // 项目标题不再置顶显示（连续对话易偏离首条消息标题）；侧边栏与导出仍用 activeProject.title。
   const fmtTs = (ts: number) =>
@@ -1732,13 +1726,6 @@ export function ChatCard() {
                   );
                 })}
               </>
-            )}
-
-            {/* toast：独立于卡片栈渲染——分支流程会关栈，toast 不能因此被卸载 */}
-            {toast && (
-              <div className="absolute left-1/2 bottom-6 -translate-x-1/2 z-[60] bg-modal-floating border border-std shadow-card rounded-full px-4 py-2 text-xs text-brand whitespace-nowrap pointer-events-none">
-                {toast}
-              </div>
             )}
 
             {/* 轮次导航卡片树已移至 shell 右侧独立区域（对话框与思维宇宙之间） */}

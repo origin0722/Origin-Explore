@@ -13,7 +13,6 @@
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ChangeEvent,
 } from "react";
@@ -103,23 +102,11 @@ function KindBadge({ kind }: { kind: DocumentItem["kind"] }) {
    ============================================================ */
 
 export function DocLibrary() {
-  const { documents, addDocument, removeDocument, setActiveDocId, interpretDocument } = useApp();
+  const { documents, addDocument, removeDocument, setActiveDocId, interpretDocument, setAppNotice } = useApp();
   const [parsing, setParsing] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 1800);
-  };
-
-  useEffect(
-    () => () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-    },
-    []
-  );
+  // 统一走全局底部提示（避免多套 toast 同位置堆叠）
+  const showToast = (msg: string) => setAppNotice(msg);
 
   /** 逐文件解析（顺序处理），解析全部在本地完成 */
   const handleFiles = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -231,12 +218,6 @@ export function DocLibrary() {
               </p>
             </div>
           ))}
-        </div>
-      )}
-
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-card-floating border border-std shadow-card px-4 py-2 text-sm text-primary whitespace-nowrap">
-          {toast}
         </div>
       )}
     </div>
