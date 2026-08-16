@@ -12,7 +12,7 @@
  * - 渲染进程崩溃自动重载（指数退避，避免 reload 风暴）。
  * - 全链路日志写入 userData/explore.log。
  */
-const { app, BrowserWindow, utilityProcess, dialog } = require("electron");
+const { app, BrowserWindow, utilityProcess, dialog, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const http = require("node:http");
@@ -233,8 +233,13 @@ app.whenReady().then(async () => {
     win.loadFile(loadingHtml).catch(() => {});
   }
 
-  // 导航/弹窗边界：只允许本地页面，禁止 window.open 与外部跳转。
-  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  // 导航/弹窗边界：新窗口一律拦截；外部 https 链接（如侧边栏 GitHub 入口）用系统浏览器打开。
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("https://")) {
+      shell.openExternal(url).catch(() => {});
+    }
+    return { action: "deny" };
+  });
   win.webContents.on("will-navigate", (e, url) => {
     try {
       const u = new URL(url);
