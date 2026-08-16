@@ -20,6 +20,7 @@ import {
   Eye,
   FolderTree,
   GitBranch,
+  Info,
   Keyboard,
   Layers,
   Loader2,
@@ -300,6 +301,7 @@ const NAV_ITEMS: { id: string; label: string; icon: typeof Bot }[] = [
   { id: "theme", label: "颜色主题", icon: Palette },
   { id: "shortcuts", label: "快捷键", icon: Keyboard },
   { id: "auto", label: "自动行为", icon: Zap },
+  { id: "about", label: "关于", icon: Info },
 ];
 
 function ModelRow({
@@ -468,6 +470,31 @@ export function SettingsModal() {
   // 个人记忆：手动添加输入
   const [memoryText, setMemoryText] = useState("");
   const [memoryCat, setMemoryCat] = useState("");
+
+  // 关于：版本检查
+  const [checkingVersion, setCheckingVersion] = useState(false);
+  const [versionInfo, setVersionInfo] = useState<{
+    current: string;
+    latest: string | null;
+    hasUpdate: boolean;
+    releaseUrl: string | null;
+    publishedAt: string | null;
+  } | null>(null);
+  const [versionError, setVersionError] = useState<string | null>(null);
+
+  const checkVersion = async () => {
+    setCheckingVersion(true);
+    setVersionError(null);
+    try {
+      const res = await fetch("/api/version");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setVersionInfo((await res.json()) as typeof versionInfo);
+    } catch {
+      setVersionError("检查失败：无法连接更新服务");
+    } finally {
+      setCheckingVersion(false);
+    }
+  };
 
   const submitMemory = () => {
     if (!memoryText.trim()) {
@@ -907,6 +934,74 @@ export function SettingsModal() {
                       on={draft.autoTitleEnabled}
                       onChange={(v) => update({ autoTitleEnabled: v })}
                     />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {section === "about" && (
+              <div>
+                <h4 className="text-sm font-semibold text-text-header-secondary mb-3">
+                  关于
+                </h4>
+                <div className="p-3 px-4 bg-modal-floating border border-std rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <div className="text-sm text-primary">OriginExplore</div>
+                      <p className="text-xs text-text-tertiary mt-0.5">
+                        AI 结构化思维与知识探索工具
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-std px-2.5 py-1 text-xs text-text-secondary">
+                      v{versionInfo?.current ?? "1.0.0"}
+                    </span>
+                  </div>
+                  <div className="border-t border-divider pt-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={checkVersion}
+                        disabled={checkingVersion}
+                        className="text-xs text-brand-fg bg-brand hover:opacity-90 rounded-full px-4 py-1.5 font-medium transition-opacity disabled:opacity-50"
+                      >
+                        {checkingVersion ? "检查中…" : "检查更新"}
+                      </button>
+                      <a
+                        href="https://github.com/origin0722/Origin-Explore"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-text-tertiary hover:text-primary transition-colors"
+                      >
+                        项目主页 ↗
+                      </a>
+                    </div>
+                    {versionError && (
+                      <p className="mt-2 text-xs text-destructive">{versionError}</p>
+                    )}
+                    {versionInfo?.hasUpdate && versionInfo.latest && (
+                      <div className="mt-2 rounded-lg border border-brand/40 bg-brand/10 px-3 py-2">
+                        <p className="text-xs text-brand">
+                          🎉 发现新版本 v{versionInfo.latest}
+                          {versionInfo.publishedAt
+                            ? `（发布于 ${new Date(versionInfo.publishedAt).toLocaleDateString("zh-CN")}）`
+                            : ""}
+                        </p>
+                        <a
+                          href={versionInfo.releaseUrl ?? "https://github.com/origin0722/Origin-Explore/releases"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-block text-xs text-brand underline underline-offset-2 hover:opacity-80"
+                        >
+                          前往 GitHub 下载 →
+                        </a>
+                      </div>
+                    )}
+                    {versionInfo && !versionInfo.hasUpdate && (
+                      <p className="mt-2 text-xs text-text-tertiary">
+                        {versionInfo.latest
+                          ? `已是最新版本（v${versionInfo.current}）`
+                          : "尚未发布任何 Release"}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

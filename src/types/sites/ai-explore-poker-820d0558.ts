@@ -123,6 +123,23 @@ export interface Turn {
   explored?: { term: string; kind: TermKind; at: number; parentTerm: string | null }[];
 }
 
+/** 术语卡片栈条目（卡片内对话；termStack 持久化，刷新/切视图不丢）。
+    busy 为 UI 态，落盘时置 false。 */
+export interface StackItem {
+  node: TermNode;
+  /** unique per push, re-triggers the enter animation on each layer */
+  key: string;
+  /** 卡片内自己的对话 */
+  messages: Message[];
+  /** 深挖路径（根 → … → 本卡），给 AI 当上下文 */
+  path: string;
+  busy: boolean;
+  /** 来源轮次（记录探索路径用） */
+  sourceTurnId: string;
+  /** 打开本卡时所在的父卡片术语；null = 从主对话点开（收录进思维宇宙时用于真实连线） */
+  parentSubject: string | null;
+}
+
 export interface ChatProject extends Project {
   turns: Turn[];
   /** 常驻聊天标记：固定的跨项目会话，不可删除、不进项目列表 */
@@ -234,6 +251,7 @@ export interface BackupEnvelope {
     folders: string[];
     profile: Profile | null;
     memories?: MemoryItem[];
+    termStack?: StackItem[];
     settings: ChatSettings;
   };
 }

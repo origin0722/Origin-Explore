@@ -38,7 +38,7 @@ import {
 import { useApp, streamOpenAICompatible } from "./app-context";
 import { explorationChains, type ExploreEntry } from "./turn-graph";
 import { findTerm, GLOSSARY } from "@/lib/sites/ai-explore-poker-820d0558/mock";
-import type { AttachedImage, Message, TermNode, Turn } from "@/types/sites/ai-explore-poker-820d0558";
+import type { AttachedImage, Message, StackItem, TermNode, Turn } from "@/types/sites/ai-explore-poker-820d0558";
 
 const uid = () => "m-" + Math.random().toString(36).slice(2, 10);
 
@@ -402,25 +402,12 @@ function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect,
 /* ChatCard                                                            */
 /* ------------------------------------------------------------------ */
 
-interface StackItem {
-  node: TermNode;
-  /** unique per push, re-triggers the enter animation on each layer */
-  key: string;
-  /** 卡片内自己的对话 */
-  messages: Message[];
-  /** 深挖路径（根 → … → 本卡），给 AI 当上下文 */
-  path: string;
-  busy: boolean;
-  /** 来源轮次（记录探索路径用） */
-  sourceTurnId: string;
-  /** 打开本卡时所在的父卡片术语；null = 从主对话点开（收录进思维宇宙时用于真实连线） */
-  parentSubject: string | null;
-}
-
 export function ChatCard() {
   const {
     turns,
     busy,
+    mainBusy,
+    isTurnBusy,
     streamingTurnId,
     projects,
     activeProjectId,
@@ -453,6 +440,8 @@ export function ChatCard() {
     clearResidentChat,
     cardOpenRequest,
     clearCardOpenRequest,
+    termStack,
+    setTermStack,
   } = useApp();
 
   const [minimized, setMinimized] = useState(false);
@@ -465,8 +454,6 @@ export function ChatCard() {
   const [branchDrafts, setBranchDrafts] = useState<Record<string, string>>({});
   const [hlTerm, setHlTerm] = useState<string | null>(null);
   const hlTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** recursive term-card stack: index 0 = clicked term, deeper layers = child cards */
-  const [termStack, setTermStack] = useState<StackItem[]>([]);
   const stackSeq = useRef(0);
   /** 未知词条自动问 AI 的会话级缓存（term → 卡片消息）。
       探索路径/主对话重复打开同一未知词条时直接读缓存，不再发 API 请求（省 token）。 */
@@ -1619,7 +1606,7 @@ export function ChatCard() {
                             if (e.key === "Enter" && !e.shiftKey) {
                               e.preventDefault();
                               const body = (branchDrafts[turn.id] ?? "").trim();
-                              if (!body || busy) return;
+                              if (!body || isTurnBusy(turn.id)) return;
                               sendInTurn(turn.id, body);
                               setBranchDrafts((d) => ({ ...d, [turn.id]: "" }));
                             }
@@ -1631,11 +1618,11 @@ export function ChatCard() {
                           type="button"
                           onClick={() => {
                             const body = (branchDrafts[turn.id] ?? "").trim();
-                            if (!body || busy) return;
+                            if (!body || isTurnBusy(turn.id)) return;
                             sendInTurn(turn.id, body);
                             setBranchDrafts((d) => ({ ...d, [turn.id]: "" }));
                           }}
-                          disabled={!((branchDrafts[turn.id] ?? "").trim()) || busy}
+                          disabled={!((branchDrafts[turn.id] ?? "").trim()) || isTurnBusy(turn.id)}
                           aria-label="发送"
                           title="发送（Enter）"
                           className="h-9 w-9 shrink-0 rounded-full bg-btn-inputarea text-brand-fg flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"

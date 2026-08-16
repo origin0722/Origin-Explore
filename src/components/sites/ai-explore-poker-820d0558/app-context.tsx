@@ -26,6 +26,7 @@ import type {
   Message,
   ModelInfo,
   Profile,
+  StackItem,
   TermKind,
   TermNode,
   TermState,
@@ -188,8 +189,14 @@ export interface AppState {
       继续在发散卡片下方对话，而不是弹回主对话流。 */
   sendInTurn(turnId: string, text: string, images?: AttachedImage[]): void;
   busy: boolean;
+  /** 主对话流（root 轮次）是否在流式——主输入框守卫用（发散卡流式不影响主输入） */
+  mainBusy: boolean;
+  /** 指定轮次是否在流式（线程级输入锁） */
+  isTurnBusy(id: string): boolean;
   /** 停止所有进行中的流式生成（AbortController 贯通） */
   stopStreaming(): void;
+  /** 停止指定轮次的流式生成（分目标停止） */
+  stopTurn(id: string): void;
   /** 当前流式回复的目标轮次 id（null = 无流式；并发时 = 最近启动者）。
       ChatCard 用它做贴底跟随与未读判定，而非假设目标 = 最后一个 turn。 */
   streamingTurnId: string | null;
@@ -226,6 +233,9 @@ export interface AppState {
   removeMemory(id: string): void;
   /** 个人记忆注入用的 system 提示（无记忆时为 null）；所有对话/卡片内提问共用 */
   memorySystemPrompt: string | null;
+  /** 术语卡片栈（持久化：刷新/切视图不丢；busy 为 UI 态不落盘） */
+  termStack: StackItem[];
+  setTermStack(s: StackItem[] | ((prev: StackItem[]) => StackItem[])): void;
   /** 思维宇宙节点 */
   thoughtNodes: ThoughtNode[];
   /** 从对话/文档收录：pending 状态，待面板验证 */
@@ -301,6 +311,7 @@ interface PersistedState {
   termStates?: Record<string, TermState>;
   profile?: Profile | null;
   memories?: MemoryItem[];
+  termStack?: StackItem[];
   documents?: DocumentItem[];
   folders?: string[];
   smartMode?: boolean;
@@ -317,6 +328,26 @@ function loadState(): PersistedState {
   } catch {
     return {};
   }
+}
+
+/** 术语卡栈落盘/恢复的净化：busy 置 false、messages 补 id、过滤无 node 的项。 */
+function sanitizeTermStack(stack: StackItem[] | undefined, projects: ChatProject[]): StackItem[] {
+  if (!Array.isArray(stack)) return [];
+  const knownTurnIds = new Set(projects.flatMap((p) => p.turns.map((t) => t.id)));
+  const out: StackItem[] = [];
+  for (const item of stack) {
+    if (!item || typeof item !== "object" || !item.node || !item.key) continue;
+    // 来源轮次已不存在（导入旧备份/数据异常）→ 丢弃整个栈（引导安全守卫）
+    if (item.sourceTurnId && !knownTurnIds.has(item.sourceTurnId)) return [];
+    out.push({
+      ...item,
+      busy: false,
+      messages: Array.isArray(item.messages)
+        ? item.messages.map((m) => ({ ...m, id: m.id || uid() }))
+        : [],
+    });
+  }
+  return out;
 }
 
 /** 分支卡片"分支点前对话"总结：上游主题 + 分支点 + 涉及术语 + 逐条陈述（消息截断）。
@@ -493,23 +524,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
     login: false,
     docs: false,
   });
-  // busy 引用计数：并行流（如主对话流式期间从术语卡开发散/分支）各自 +1/-1，
-  // 任一流结束不提前解锁输入（修：单布尔在多流并发时被先结束的流提前置 false）。
-  const [busyCount, setBusyCount] = useState(0);
-  const busy = busyCount > 0;
-  const markBusy = useCallback(() => setBusyCount((c) => c + 1), []);
-  const markIdle = useCallback(() => setBusyCount((c) => Math.max(0, c - 1)), []);
-  /** 活跃流式请求的 AbortController 集合（停止生成按钮贯通） */
-  const activeControllersRef = useRef<Set<AbortController>>(new Set());
+  // 线程级 busy：按轮次（key = turnId）记录流式中的目标——
+  // 主流式期间发散卡/分支卡可继续输入（全局锁改线程级）。
+  const [busyTurnIds, setBusyTurnIds] = useState<string[]>([]);
+  /** 全局 busy（任一线程流式中）——流式动画抑制/未读下降沿检测用 */
+  const busy = busyTurnIds.length > 0;
+  const markBusy = useCallback(
+    (key: string) => setBusyTurnIds((l) => (l.includes(key) ? l : [...l, key])),
+    []
+  );
+  const markIdle = useCallback(
+    (key: string) => setBusyTurnIds((l) => l.filter((k) => k !== key)),
+    []
+  );
+  /** 活跃流式请求：key(turnId) → AbortController 集合（分目标停止） */
+  const activeControllersRef = useRef<Map<string, Set<AbortController>>>(new Map());
+  const stopTurn = useCallback((key: string) => {
+    const set = activeControllersRef.current.get(key);
+    if (set) {
+      for (const c of set) c.abort();
+      activeControllersRef.current.delete(key);
+    }
+  }, []);
   const stopStreaming = useCallback(() => {
-    for (const c of activeControllersRef.current) c.abort();
+    for (const set of activeControllersRef.current.values()) {
+      for (const c of set) c.abort();
+    }
     activeControllersRef.current.clear();
   }, []);
+  /** 主对话流（root 轮次）是否在流式——主输入框守卫用 */
+  const mainBusy = useMemo(
+    () =>
+      busyTurnIds.some((id) => {
+        const t = projects.flatMap((p) => p.turns).find((x) => x.id === id);
+        return !t || t.kind !== "diverge"; // 无记录视为 root（保守）
+      }),
+    [busyTurnIds, projects]
+  );
+  const isTurnBusy = useCallback(
+    (id: string) => busyTurnIds.includes(id),
+    [busyTurnIds]
+  );
   /** 当前流式回复的目标轮次（并发时记录最近启动者；结束只清自己的）。
       ChatCard 据此做贴底跟随与未读判定——不再假设"流式目标 = 最后一个 turn"。 */
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(boot.profile ?? null);
   const [memories, setMemories] = useState<MemoryItem[]>(boot.memories ?? []);
+  /** 术语卡片栈（持久化；sanitize：busy 置 false、来源轮次不存在则清空） */
+  const [termStack, setTermStack] = useState<StackItem[]>(() =>
+    sanitizeTermStack(boot.termStack, boot.projects ?? [])
+  );
   const [thoughtNodes, setThoughtNodes] = useState<ThoughtNode[]>(boot.thoughtNodes ?? []);
   const [termStates, setTermStates] = useState<Record<string, TermState>>(
     boot.termStates ?? {}
@@ -575,6 +639,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           termStates,
           profile,
           memories,
+          termStack: sanitizeTermStack(termStack, projects),
           documents,
           folders,
           smartMode,
@@ -587,7 +652,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, 500);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, memories, documents, folders, smartMode, byokModels]);
+  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, memories, termStack, documents, folders, smartMode, byokModels]);
 
   // Theme → <html data-theme> (runtime re-skin) + browser chrome color.
   useEffect(() => {
@@ -700,6 +765,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         folders,
         profile,
         memories,
+        termStack: sanitizeTermStack(termStack, projects),
         settings,
       },
     };
@@ -710,7 +776,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     a.download = `explore-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [projects, thoughtNodes, termStates, documents, folders, profile, memories, settings]);
+  }, [projects, thoughtNodes, termStates, documents, folders, profile, memories, termStack, settings]);
 
   /** 全量恢复/导入：
       - 新版备份包（app==="explore-backup"）：按 id 合并（备份胜出），项目/思维节点/文档/文件夹/术语状态/档案/设置
@@ -796,6 +862,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         for (const m of memoriesIn) if (!m.id) byText.set(m.text, m);
         return [...map.values(), ...[...byText.values()].filter((m) => !map.has(m.id))];
       });
+      // 术语卡栈恢复：基于"现有 + 备份"的项目做 sanitize（来源轮次不存在则清空）
+      setTermStack(sanitizeTermStack(d.termStack, [...projects, ...projectsIn]));
       if (d.profile) setProfile(d.profile as Profile);
       if (d.settings && typeof d.settings === "object") {
         setSettingsState((s) => ({ ...DEFAULT_SETTINGS, ...s, ...(d.settings as ChatSettings) }));
@@ -805,7 +873,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         message: `已恢复备份：${projectsIn.length} 个项目 · ${thoughtIn.length} 个思维节点 · ${docsIn.length} 个文档`,
       };
     },
-    [importProject]
+    [importProject, projects]
   );
 
   const addByokModel = useCallback(
@@ -1137,6 +1205,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ) => {
       if (opts?.append !== false) appendAssistantMessage(targetId, turnId);
       const prefix = opts?.prefix ?? "";
+      const streamKey = turnId ?? targetId;
       let pos = 0;
       const step = 16;
       const timer = window.setInterval(() => {
@@ -1144,7 +1213,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setLastAssistantContent(targetId, prefix + reply.slice(0, pos), turnId);
         if (pos >= reply.length) {
           window.clearInterval(timer);
-          markIdle();
+          markIdle(streamKey);
           setStreamingTurnId((cur) => (cur === turnId ? null : cur));
           onDone?.();
         }
@@ -1168,6 +1237,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       images?: AttachedImage[]
     ) => {
       void (async () => {
+        const streamKey = turnId ?? targetId;
         const byok = byokModels.find(
           (m) => m.id === settings.activeModelId && m.provider === "BYOK"
         );
@@ -1201,14 +1271,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!byok || !byok.apiKey || !byok.baseUrl || !byok.modelId) {
           // 未配置 API：不生成回复，提示去配置（输入区在无 API 时已禁用，这里是兜底）。
           setAppNotice("请先在设置 → AI 模型中配置 API 模型");
-          markIdle();
+          markIdle(streamKey);
           setStreamingTurnId((cur) => (cur === turnId ? null : cur));
           return;
         }
         // ---- 视觉决策：主模型多模态 / 路由识图 / 未配置拦截 ----
         const controller = new AbortController();
-        activeControllersRef.current.add(controller);
-        const done = () => activeControllersRef.current.delete(controller);
+        if (!activeControllersRef.current.has(streamKey)) {
+          activeControllersRef.current.set(streamKey, new Set());
+        }
+        activeControllersRef.current.get(streamKey)!.add(controller);
+        const done = () => {
+          const set = activeControllersRef.current.get(streamKey);
+          if (set) {
+            set.delete(controller);
+            if (set.size === 0) activeControllersRef.current.delete(streamKey);
+          }
+        };
         const visionModel = settings.visionModelId
           ? byokModels.find((m) => m.id === settings.visionModelId && m.vision) ?? null
           : null;
@@ -1225,7 +1304,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               ? "视觉模式已关闭：可在 设置 → AI 模型 → 视觉模式 开启"
               : "当前模型不支持图片，且未配置视觉模型：请在 设置 → AI 模型 添加一个视觉模型（如 GLM-4V-Flash）"
           );
-          markIdle();
+          markIdle(streamKey);
           done();
           setStreamingTurnId((cur) => (cur === turnId ? null : cur));
           return;
@@ -1292,7 +1371,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         )
           .then(() => {
             window.clearTimeout(timer);
-            markIdle();
+            markIdle(streamKey);
             done();
             setStreamingTurnId((cur) => (cur === turnId ? null : cur));
             // 强制 flush 最后一节（含智能模式注记）
@@ -1346,7 +1425,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const sendMessage = useCallback(
     (text: string, images?: AttachedImage[]) => {
       const content = text.trim();
-      if ((!content && !images?.length) || busy) return;
+      if ((!content && !images?.length) || mainBusy) return;
       // 无 API 守卫（输入区已禁用，这里是兜底）：不发消息、不建空轮次。
       const byok = byokModels.find(
         (m) => m.id === settings.activeModelId && m.provider === "BYOK"
@@ -1387,7 +1466,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           )
         );
       }
-      markBusy();
+      markBusy(turnId);
       const done = () => {
         // 发消息后自动折叠侧边栏（桌面端）
         if (wasDesktop) setCollapsed(true);
@@ -1405,7 +1484,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // 写入目标不随"最后一个 turn"漂移（修双流覆写）。
       deliverReply(content, history, targetId, done, turnId, images);
     },
-    [activeProjectId, busy, appendTurn, settings.autoTitleEnabled, turns, deliverReply, focusTurn, markBusy, byokModels, settings.activeModelId]
+    [activeProjectId, mainBusy, appendTurn, settings.autoTitleEnabled, turns, deliverReply, focusTurn, markBusy, byokModels, settings.activeModelId]
   );
 
   /** 在指定轮次内继续提问（消息级顺延）：
@@ -1414,7 +1493,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const sendInTurn = useCallback(
     (turnId: string, text: string, images?: AttachedImage[]) => {
       const content = text.trim();
-      if ((!content && !images?.length) || busy) return;
+      if ((!content && !images?.length) || isTurnBusy(turnId)) return;
       const proj = projects.find((p) => p.turns.some((t) => t.id === turnId));
       const turn = proj?.turns.find((t) => t.id === turnId);
       if (!proj || !turn) return;
@@ -1471,10 +1550,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
             : turn.messages
                 .slice(-12)
                 .map((m) => ({ role: m.role, content: m.content, images: m.images }));
-      markBusy();
+      markBusy(turnId);
       deliverReply(content, history, proj.id, undefined, turnId, images);
     },
-    [projects, busy, deliverReply, markBusy]
+    [projects, isTurnBusy, deliverReply, markBusy]
   );
 
   /** 分支卡片：以术语开新 turn，继承上游卡片主题与分支点之前的对话历史。
@@ -1558,7 +1637,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // 新 turn 的探索路径从该分支术语起算（继承上下文另起炉灶）。
       recordExploration(turnId, title, "branch", null);
       setMindscapeOpen(false);
-      markBusy();
+      markBusy(turnId);
       const ctx: { role: string; content: string }[] = [
         {
           role: "user",
@@ -1630,7 +1709,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         )
       );
       setMindscapeOpen(false);
-      markBusy();
+      markBusy(turnId);
       const ctx = [{ role: "user", content: buildDivergePrompt(title, anchor) }];
       deliverReply(`发散话题：${title}`, ctx, targetId, undefined, turnId);
       return { id: turnId, created: true };
@@ -1725,7 +1804,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const turnId = appendTurn(pid, term, question);
       setActiveDocId(null); // 回到对话视图看回答
       focusTurn(pid, turnId); // 树聚焦 + 滚动定位到新卡
-      markBusy();
+      markBusy(turnId);
       const truncated = doc ? doc.content.length > 8000 : false;
       const history = [
         {
@@ -1832,7 +1911,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const turnId = appendTurn(pid, title, content);
       setActiveDocId(null); // 回对话视图看回答
       focusTurn(pid, turnId); // 树聚焦 + 滚动定位到新卡
-      markBusy();
+      markBusy(turnId);
       const truncated = doc.content.length > 8000;
       const history = [
         {
@@ -2041,7 +2120,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       treeFocus,
       setTreeFocus,
       busy,
+      mainBusy,
+      isTurnBusy,
       stopStreaming,
+      stopTurn,
       streamingTurnId,
       openBranchTurn,
       openDivergeTurn,
@@ -2052,6 +2134,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       memories,
       addMemory,
       removeMemory,
+      termStack,
+      setTermStack,
       memorySystemPrompt,
       thoughtNodes,
       addThoughtNode,
@@ -2104,10 +2188,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       docInterpretingIds,
       treeFocus,
       busy,
+      mainBusy,
+      isTurnBusy,
       streamingTurnId,
       stopStreaming,
+      stopTurn,
       profile,
       memories,
+      termStack,
       memorySystemPrompt,
       thoughtNodes,
       termStates,

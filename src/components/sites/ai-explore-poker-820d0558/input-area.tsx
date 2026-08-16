@@ -39,7 +39,10 @@ export function InputArea() {
     activeDocId,
     documents,
     busy,
+    mainBusy,
+    isTurnBusy,
     stopStreaming,
+    stopTurn,
     setActiveDocId,
     byokModels,
     pendingQuote,
@@ -78,6 +81,14 @@ export function InputArea() {
       给用户明确提示，避免"视图被意外弹出"。 */
   const onSourceCardInParallel =
     treeFocus?.groupSourceId != null && treeFocus.cardId === treeFocus.groupSourceId;
+
+  /** 线程级 busy：按当前发送目标计算（文档视图→全局 busy；平行→该卡；否则→主流） */
+  const targetBusy = activeDoc ? busy : parallelTurn ? isTurnBusy(parallelTurn.id) : mainBusy;
+  /** 停止当前目标：平行→停该卡；否则→停主流（文档视图全停） */
+  const stopTarget = () => {
+    if (parallelTurn) stopTurn(parallelTurn.id);
+    else stopStreaming();
+  };
 
   // 收到"引用"（来自聊天区选中文本）→ 收进引用列表（支持多条）。
   useEffect(() => {
@@ -162,7 +173,7 @@ export function InputArea() {
 
   const handleSend = useCallback(() => {
     const body = text.trim();
-    if ((!body && quotes.length === 0 && images.length === 0) || busy) return;
+    if ((!body && quotes.length === 0 && images.length === 0) || targetBusy) return;
     if (noModel) {
       setAppNotice("请先在设置 → AI 模型中配置 API 模型");
       return;
@@ -195,7 +206,7 @@ export function InputArea() {
         el.style.height = el.scrollHeight + "px";
       }
     });
-  }, [text, quotes, images, busy, noModel, activeDoc, parallelTurn, sendInTurn, sendDocQuestion, sendMessage, setAppNotice]);
+  }, [text, quotes, images, targetBusy, noModel, activeDoc, parallelTurn, sendInTurn, sendDocQuestion, sendMessage, setAppNotice]);
 
   // Ctrl+Enter (default) or plain Enter when settings.sendShortcut === "enter".
   // Shift+Enter always inserts a newline.
@@ -228,7 +239,7 @@ export function InputArea() {
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         className={`relative bg-inputarea shadow-card border-2 border-std rounded-[28px] p-3 gap-3 flex flex-col w-full max-w-[900px] transition-colors focus-within:border-brand/50 ${
-          busy ? "border-brand/60 inputarea-breathe" : ""
+          targetBusy ? "border-brand/60 inputarea-breathe" : ""
         } ${dragOver ? "border-brand/80 ring-2 ring-brand/30" : ""}`}
       >
         {/* transient hint (document library) */}
@@ -434,13 +445,13 @@ export function InputArea() {
           {/* send / 停止生成 */}
           <button
             type="button"
-            onClick={busy ? stopStreaming : handleSend}
-            disabled={(!busy && !text.trim() && quotes.length === 0 && images.length === 0) || noModel}
-            aria-label={busy ? "停止生成" : "发送"}
-            title={busy ? "停止生成" : "发送"}
+            onClick={targetBusy ? stopTarget : handleSend}
+            disabled={(!targetBusy && !text.trim() && quotes.length === 0 && images.length === 0) || noModel}
+            aria-label={targetBusy ? "停止生成" : "发送"}
+            title={targetBusy ? "停止生成" : "发送"}
             className="h-8 w-8 sm:h-[34px] sm:w-[34px] rounded-full bg-btn-inputarea text-brand-fg flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
-            {busy ? (
+            {targetBusy ? (
               <Square size={14} strokeWidth={2.5} fill="currentColor" />
             ) : (
               <Send size={16} strokeWidth={2.5} />
