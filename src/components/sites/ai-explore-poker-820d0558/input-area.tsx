@@ -5,7 +5,7 @@
  * Bottom-centered chat input: model selector, attach hint, auto-grow textarea, send.
  * State flows through AppContext (useApp); no local backend.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import {
   Check,
@@ -17,7 +17,6 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { OFFLINE_MODEL } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 import { useApp } from "./app-context";
 
 export function InputArea() {
@@ -37,6 +36,8 @@ export function InputArea() {
     byokModels,
     pendingQuote,
     setPendingQuote,
+    setAppNotice,
+    openModal,
   } = useApp();
   const [text, setText] = useState("");
   const [quotes, setQuotes] = useState<string[]>([]);
@@ -46,9 +47,11 @@ export function InputArea() {
   const rootRef = useRef<HTMLDivElement>(null);
   const hintTimer = useRef<number | undefined>(undefined);
 
-  const allModels = useMemo(() => [OFFLINE_MODEL, ...byokModels], [byokModels]);
+  const allModels = byokModels;
   const activeModel = allModels.find((m) => m.id === settings.activeModelId);
-  const modelName = activeModel?.name ?? settings.activeModelId;
+  const modelName = activeModel?.name ?? "未配置模型";
+  /** 无可用 API 模型：输入区整体禁用，引导去设置配置。 */
+  const noModel = allModels.length === 0 || !activeModel;
 
   /** 平行视图发送目标：聚焦发散卡时，消息顺延进该平行对话（不弹回主对话流）。 */
   const parallelTurn = parallelSendTarget
@@ -94,6 +97,10 @@ export function InputArea() {
   const handleSend = useCallback(() => {
     const body = text.trim();
     if ((!body && quotes.length === 0) || busy) return;
+    if (noModel) {
+      setAppNotice("请先在设置 → AI 模型中配置 API 模型");
+      return;
+    }
     const content =
       (quotes.length ? quotes.map((q) => `> ${q}`).join("\n") + "\n\n" : "") + body;
     // 三态路由（文档视图 > 平行顺延 > 主流新建）：
@@ -117,7 +124,7 @@ export function InputArea() {
         el.style.height = el.scrollHeight + "px";
       }
     });
-  }, [text, quotes, busy, activeDoc, parallelTurn, sendInTurn, sendDocQuestion, sendMessage]);
+  }, [text, quotes, busy, noModel, activeDoc, parallelTurn, sendInTurn, sendDocQuestion, sendMessage, setAppNotice]);
 
   // Ctrl+Enter (default) or plain Enter when settings.sendShortcut === "enter".
   // Shift+Enter always inserts a newline.
@@ -184,14 +191,22 @@ export function InputArea() {
           <div className="relative min-w-0 max-w-[160px] sm:max-w-[220px] flex-shrink-0">
             <button
               type="button"
-              onClick={() => setModelOpen((v) => !v)}
+              onClick={() => {
+                if (noModel) {
+                  openModal("settings");
+                  return;
+                }
+                setModelOpen((v) => !v);
+              }}
               aria-haspopup="listbox"
               aria-expanded={modelOpen}
-              className="flex items-center justify-between gap-1 text-sm bg-btn-selector shadow-selector rounded-[16px] px-2.5 py-1.5 min-w-0 w-full"
+              className={`flex items-center justify-between gap-1 text-sm bg-btn-selector shadow-selector rounded-[16px] px-2.5 py-1.5 min-w-0 w-full ${
+                noModel ? "border border-brand/40 text-brand" : ""
+              }`}
             >
               <span className="flex items-center gap-1.5 min-w-0 select-none">
                 <Zap size={13} className="text-brand flex-shrink-0" />
-                <span className="truncate">{modelName}</span>
+                <span className="truncate">{noModel ? "配置 API 模型" : modelName}</span>
               </span>
               <ChevronDown
                 size={14}
@@ -201,11 +216,16 @@ export function InputArea() {
               />
             </button>
 
-            {modelOpen && (
+            {modelOpen && !noModel && (
               <div
                 role="listbox"
                 className="inputarea-pop absolute bottom-full left-0 mb-2 z-30 w-[280px] max-w-[80vw] bg-modal-std rounded-xl border border-std shadow-card p-2 max-h-64 overflow-y-auto scrollbar-inputarea"
               >
+                {allModels.length === 0 && (
+                  <div className="px-2.5 py-2 text-sm text-text-tertiary">
+                    暂无模型，请到设置中添加
+                  </div>
+                )}
                 {allModels.map((m) => {
                   const selected = m.id === settings.activeModelId;
                   return (
@@ -258,18 +278,21 @@ export function InputArea() {
             ref={taRef}
             value={text}
             rows={1}
+            disabled={noModel}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder={
-              activeDoc
-                ? `基于《${activeDoc.name}》提问，AI 解读后自动进入对话…`
-                : parallelTurn
-                  ? `在「${parallelTurn.title}」平行对话中继续提问…`
-                  : onSourceCardInParallel
-                    ? "在来源对话输入将回到主对话流新建卡片…"
-                    : "问点什么，开始你的探索…"
+              noModel
+                ? "请先在设置中配置 API 模型…"
+                : activeDoc
+                  ? `基于《${activeDoc.name}》提问，AI 解读后自动进入对话…`
+                  : parallelTurn
+                    ? `在「${parallelTurn.title}」平行对话中继续提问…`
+                    : onSourceCardInParallel
+                      ? "在来源对话输入将回到主对话流新建卡片…"
+                      : "问点什么，开始你的探索…"
             }
-            className="block w-full min-h-0 flex-1 bg-transparent scrollbar-inputarea text-primary text-base leading-5 resize-none outline-none placeholder:text-text-quaternary max-h-[192px] overflow-y-auto px-0 py-1"
+            className="block w-full min-h-0 flex-1 bg-transparent scrollbar-inputarea text-primary text-base leading-5 resize-none outline-none placeholder:text-text-quaternary max-h-[192px] overflow-y-auto px-0 py-1 disabled:opacity-50"
           />
 
           {/* attach — opens the local document library */}
@@ -290,7 +313,7 @@ export function InputArea() {
           <button
             type="button"
             onClick={handleSend}
-            disabled={(!text.trim() && quotes.length === 0) || busy}
+            disabled={(!text.trim() && quotes.length === 0) || busy || noModel}
             aria-label="发送"
             className="h-8 w-8 sm:h-[34px] sm:w-[34px] rounded-full bg-btn-inputarea text-brand-fg flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >

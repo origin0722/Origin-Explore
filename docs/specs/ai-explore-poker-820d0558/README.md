@@ -11,9 +11,11 @@
 
 ### 类型 & Mock 数据（已存在，直接 import，不要重写）
 - `src/types/sites/ai-explore-poker-820d0558.ts` — 全部类型：Project/Turn/Message/ChatProject/ChatSettings/ModelInfo/ThoughtNode(pending|validated)/TermNode(kind: child|related|branch + children 递归)/ThemeOption{id,name}/Profile/DocumentItem/TermState("unseen"|"asked"|"mastered")
-- `src/lib/sites/ai-explore-poker-820d0558/mock.ts` — MODELS(全部解锁) / THEMES({id,name}[] 9 个) / DEFAULT_SETTINGS / MOCK_REPLY_MARKDOWN / TERM_TREE(3 层递归术语树) / findTerm() / genericTermSummary() / GLOSSARY(30 条中英对照) / themeId(name)→data-theme key / isThemeImplemented(name) / makeDemoProject / makeDemoTurn / MINDSCAPE_EMPTY / EMPTY_THOUGHTS
-- `src/lib/sites/ai-explore-poker-820d0558/doc-parser.ts` — extractTextFromFile(file)→{kind,content}（pdf/docx/md/txt/html 客户端解析）、kindFromName、kindLabel、isParseable、splitParagraphs（短块合并）、heuristicInterpret（离线解读回退）
+- `src/lib/sites/ai-explore-poker-820d0558/mock.ts` — MODEL_PRESETS(11 个厂商预设，2026-08 已更新) / THEMES({id,name}[] 9 个) / DEFAULT_SETTINGS / TERM_TREE(3 层递归术语树) / findTerm() / GLOSSARY(中英对照词典) / themeId(name)→data-theme key / isThemeImplemented(name) / makeDemoProject / makeDemoTurn / MINDSCAPE_EMPTY
+- `src/lib/sites/ai-explore-poker-820d0558/doc-parser.ts` — extractTextFromFile(file)→{kind,content}（pdf/docx/md/txt/html 客户端解析）、kindFromName、kindLabel、isParseable、splitParagraphs（短块合并）
 - `src/lib/sites/ai-explore-poker-820d0558/term-detect.ts` — detectTerms(text, limit?)→TermCandidate[]{term,score,kind:"glossary"|"heuristic"}（词典+启发式）
+
+> **无离线知识库**：AI 能力全部走 BYOK（用户自带 OpenAI 兼容 API）；未配置 API 时输入禁用并提示。已移除：`OFFLINE_MODEL`、`generateReply`、`heuristicInterpret`、`genericTermSummary`、启发式智能摘要。
 
 ### 语义类名（globals.css @theme 已生成，直接用）
 - 颜色: `bg-bg`(页底，主题变量) / `bg-brand` `text-brand` `text-brandtw`(品牌绿，主题变量) / `bg-btn-std` `bg-btn-std-hover` / `bg-btn-control` `bg-btn-control-hover` / `bg-btn-selector` / `bg-btn-inputarea`(绿) `bg-btn-inputarea-transparent-hover` / `bg-card-std` / `bg-card-floating` / `bg-modal-std` / `bg-modal-floating` / `bg-item-std` `bg-item-std-active` `bg-item-std-hover` / `bg-usermsg` / `bg-inputarea` / `bg-overlay-modal`
@@ -23,11 +25,11 @@
 - 圆角: `rounded-usermsg`(14px) + 任意值
 - 滚动条: `scrollbar-card-std` `scrollbar-inputarea` `scrollbar-card-neon` `nav-scroll` `no-scrollbar`
 - markdown 渲染: `.markdown-content`（全局已定义排版）+ `.mind-md`（紧凑版）
-- 卡片动画: `.card-container` + `entering-from-bottom`/`exiting-fly-*` 等（globals.css 已定义）
+- 卡片动画: `.card-container` + `entering-cascade`/`exiting-cascade`（globals.css 已定义；其余旧变体已清理）
 - **注意**：`text-content-brand` 不存在，用 `text-brand`
 
 ### AppContext（app-context.tsx 已实现，直接 import { useApp }）
-useApp() 提供: settings/setSettings / projects/activeProjectId/createProject/selectProject/deleteProject / collapsed/toggleSidebar / mindscapeOpen/setMindscapeOpen / universeOpen/setUniverseOpen / modals/openModal/closeModal / turns/activeTurn / sendMessage/busy / **openBranchTurn(title, history?, sourceTurnId?): {id, created}**（分支卡片开新 turn）/ **openDivergeTurn(title, sourceTurnId, anchor?): {id, created}**（发散卡片，anchor 注入来源语境）/ **sendInTurn(turnId, text)**（平行对话内消息级顺延）/ **sendDocQuestion(text)**（基于文档全文提问）/ **interpretDocument(docId, force?)**（AI 解读：分块+双语+整理，流式）/ **docInterpretingIds: string[]** / **parallelSendTarget/setParallelSendTarget**（输入框三路发送目标）/ **treeFocus/setTreeFocus**（卡片树"你在这里"高亮）/ **profile/setProfile** / **thoughtNodes/addThoughtNode(subject,content,category?)/validateThoughtNode(id)/removeThoughtNode(id)** / **termStates/markTermState(term,state)** / **documents/addDocument/removeDocument/activeDocId/setActiveDocId** / **openDocQuestion(term, docName)**（文档问答→自动建"论文：xxx"项目+新 turn）
+useApp() 提供: settings/setSettings / projects/activeProjectId/createProject/selectProject/deleteProject / collapsed/toggleSidebar / mindscapeOpen/setMindscapeOpen / universeOpen/setUniverseOpen / modals/openModal/closeModal / turns/activeTurn / sendMessage/busy / **appNotice/setAppNotice**（全局底部轻提示）/ **openBranchTurn(title, history?, sourceTurnId?): {id, created}**（分支卡片开新 turn）/ **openDivergeTurn(title, sourceTurnId, anchor?): {id, created}**（发散卡片，anchor 注入来源语境）/ **sendInTurn(turnId, text)**（平行对话内消息级顺延）/ **sendDocQuestion(text)**（基于文档全文提问）/ **interpretDocument(docId, force?)**（AI 解读：分块+双语+整理，流式）/ **docInterpretingIds: string[]** / **parallelSendTarget/setParallelSendTarget**（输入框三路发送目标）/ **treeFocus/setTreeFocus**（卡片树"你在这里"高亮）/ **profile/setProfile** / **thoughtNodes/addThoughtNode(subject,content,category?)/validateThoughtNode(id)/removeThoughtNode(id)** / **termStates/markTermState(term,state)** / **documents/addDocument/removeDocument/activeDocId/setActiveDocId** / **openDocQuestion(term, docName)**（文档问答→自动建"论文：xxx"项目+新 turn）
 
 > 交互重设计与文档解读的完整设计见 **r10-parallel-view-doc-interpret.md**（平行视图 / 卡片树 v2 / 文档 AI 解读）。
 

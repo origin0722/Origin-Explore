@@ -7,7 +7,6 @@ import type {
   ChatProject,
   ChatSettings,
   DocumentItem,
-  ModelInfo,
   ModelPreset,
   TermNode,
   ThemeOption,
@@ -16,25 +15,24 @@ import type {
 } from "@/types/sites/ai-explore-poker-820d0558";
 
 /**
- * 内置"离线知识库"——唯一不需要 API 的默认模型；
- * 其余模型由用户通过 BYOK 添加（MODEL_PRESETS 提供一键填充）。
+ * BYOK 预设（OpenAI 兼容接口）：一键填充 API 地址 + 模型 ID。
+ * 模型 ID 与地址按 2026-08 各厂商官方文档核实：
+ * DeepSeek V4（deepseek-chat / deepseek-reasoner 已于 2026-07-24 退役）、
+ * GPT-5.4 系列、Claude Sonnet 4.6（Anthropic 官方 OpenAI SDK 兼容端点）、
+ * Gemini 3.1 / 2.5、Qwen3 Max、GLM-4.6、Kimi K2.5、MiniMax M2.7。
  */
-export const OFFLINE_MODEL: ModelInfo = {
-  id: "offline",
-  name: "离线知识库",
-  provider: "内置",
-  description: "本地知识树，无需 API",
-};
-
-/** BYOK 预设（OpenAI 兼容接口）：一键填充 API 地址 + 模型 ID。 */
 export const MODEL_PRESETS: ModelPreset[] = [
-  { name: "DeepSeek Chat", provider: "DeepSeek", description: "通用对话，性价比高", baseUrl: "https://api.deepseek.com/v1", modelId: "deepseek-chat" },
-  { name: "DeepSeek Reasoner", provider: "DeepSeek", description: "深度推理（思考模式）", baseUrl: "https://api.deepseek.com/v1", modelId: "deepseek-reasoner" },
-  { name: "GPT-4o", provider: "OpenAI", description: "多模态旗舰模型", baseUrl: "https://api.openai.com/v1", modelId: "gpt-4o" },
+  { name: "DeepSeek V4 Pro", provider: "DeepSeek", description: "旗舰推理，1M 上下文", baseUrl: "https://api.deepseek.com/v1", modelId: "deepseek-v4-pro" },
+  { name: "DeepSeek V4 Flash", provider: "DeepSeek", description: "高性价比，低延迟", baseUrl: "https://api.deepseek.com/v1", modelId: "deepseek-v4-flash" },
+  { name: "GPT-5.4", provider: "OpenAI", description: "OpenAI 当前旗舰", baseUrl: "https://api.openai.com/v1", modelId: "gpt-5.4" },
+  { name: "GPT-5.4 mini", provider: "OpenAI", description: "轻量快速，成本低", baseUrl: "https://api.openai.com/v1", modelId: "gpt-5.4-mini" },
+  { name: "Claude Sonnet 4.6", provider: "Anthropic", description: "平衡性能与成本", baseUrl: "https://api.anthropic.com/v1", modelId: "claude-sonnet-4-6" },
+  { name: "Gemini 3.1 Pro", provider: "Google", description: "最新旗舰（预览）", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", modelId: "gemini-3.1-pro-preview" },
   { name: "Gemini 2.5 Flash", provider: "Google", description: "快速多模态", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", modelId: "gemini-2.5-flash" },
-  { name: "Qwen-Max", provider: "阿里云", description: "通义千问旗舰", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", modelId: "qwen-max" },
-  { name: "GLM-4", provider: "智谱 AI", description: "中文友好", baseUrl: "https://open.bigmodel.cn/api/paas/v4", modelId: "glm-4" },
-  { name: "Kimi K2", provider: "月之暗面", description: "超长上下文", baseUrl: "https://api.moonshot.cn/v1", modelId: "kimi-k2-0711-preview" },
+  { name: "Qwen3 Max", provider: "阿里云", description: "通义千问旗舰", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", modelId: "qwen3-max" },
+  { name: "GLM-4.6", provider: "智谱 AI", description: "中文友好", baseUrl: "https://open.bigmodel.cn/api/paas/v4", modelId: "glm-4.6" },
+  { name: "Kimi K2.5", provider: "月之暗面", description: "超长上下文", baseUrl: "https://api.moonshot.cn/v1", modelId: "kimi-k2.5" },
+  { name: "MiniMax M2.7", provider: "MiniMax", description: "新一代推理模型", baseUrl: "https://api.minimax.io/v1", modelId: "MiniMax-M2.7" },
 ];
 
 /** 九种颜色主题：赛博青（默认）、白蓝、暗紫霓虹、琥珀暖橙、纸墨风、品红、森林绿、海洋蓝、玫瑰金。 */
@@ -76,7 +74,7 @@ export const THEME_META_COLORS: Record<string, string> = {
 export const DEFAULT_SETTINGS: ChatSettings = {
   theme: "赛博青",
   language: "zh",
-  activeModelId: "offline",
+  activeModelId: "",
   isWebSearchEnabled: false,
   autoCitationEnabled: true,
   autoTitleInterval: 5,
@@ -86,24 +84,6 @@ export const DEFAULT_SETTINGS: ChatSettings = {
 };
 
 /** A demo conversation used to showcase the knowledge-tree card (mock AI reply). */
-export const MOCK_REPLY_MARKDOWN = `好的，我们来一步步拆解 **量子纠缠**。
-
-## 核心概念
-
-量子纠缠是指两个或多个粒子之间形成的一种**不可分割的关联**：
-无论它们相距多远，对其中一个粒子的测量会瞬间影响另一个粒子的状态。
-
-> 这并非信息传递，而是整体性的体现 —— 纠缠系统不能拆成独立的部分来描述。
-
-### 需要理解的关键术语
-
-1. **叠加态**（Superposition）：粒子同时处于多种状态，直到被测量
-2. **波函数坍缩**（Wavefunction Collapse）：测量使叠加态"选择"一个确定结果
-3. **贝尔不等式**（Bell's Inequality）：区分量子纠缠与经典隐变量的实验判据
-4. **EPR 悖论**（EPR Paradox）：爱因斯坦等人质疑量子力学完备性的思想实验
-5. **量子隐形传态**（Quantum Teleportation）：利用纠缠实现信息传输的协议
-
-> 点击任意术语，我可以为你展开更详细的解释卡片。`;
 
 /**
  * Recursive knowledge tree (3 levels).
@@ -676,173 +656,6 @@ export function findTerm(name: string): TermNode | null {
     return null;
   };
   return walk(TERM_TREE);
-}
-
-/** Generic fallback explanation for terms not in the tree (doc reader etc.). */
-export function genericTermSummary(term: string): string {
-  return `关于 **${term}**\n\n这个词条不在我的内置知识树里。你可以直接在下方输入框提问，我会接着这个话题和你讨论；接入你自己的 API 后，回答会由你的模型生成。`;
-}
-
-/** 回复生成用的历史消息（角色 + 内容）。 */
-export interface ReplyMessage {
-  role: string;
-  content: string;
-}
-
-interface TreeEntry {
-  term: string;
-  summary: string;
-  children: TermNode[];
-  siblings: string[];
-}
-
-/** 术语树扁平索引（模块级，避免每次调用重建）。 */
-const TREE_FLAT: TreeEntry[] = (() => {
-  const flat: TreeEntry[] = [];
-  const walk = (nodes: TermNode[]) => {
-    for (const n of nodes) {
-      flat.push({
-        term: n.term,
-        summary: n.summary,
-        children: n.children ?? [],
-        siblings: nodes.filter((o) => o !== n).map((o) => o.term),
-      });
-      if (n.children) walk(n.children);
-    }
-  };
-  walk(TERM_TREE);
-  return flat;
-})();
-
-/** 从最近的历史消息里找"正在讨论的术语"（倒序扫描；取出现位置最早者，
- *  因为主话题通常在消息开头，避免被"相关概念"里的词抢走）。 */
-function topicFromHistory(history: ReplyMessage[]): TreeEntry | null {
-  for (let i = history.length - 1; i >= 0; i--) {
-    const content = history[i].content;
-    let best: TreeEntry | null = null;
-    let bestIdx = Infinity;
-    for (const node of TREE_FLAT) {
-      const idx = content.indexOf(node.term);
-      if (idx >= 0 && idx < bestIdx) {
-        bestIdx = idx;
-        best = { ...node };
-      }
-    }
-    // 词典词兜底（词不在树里也能当话题）。
-    for (const g of GLOSSARY) {
-      const idx = content.indexOf(g.zh);
-      if (idx >= 0 && idx < bestIdx) {
-        bestIdx = idx;
-        best = { term: g.zh, summary: g.explain, children: [], siblings: [] };
-      }
-    }
-    if (best) return best;
-  }
-  return null;
-}
-
-/** 是否为"追问/继续"类短问句（无新术语时优先接上一轮话题）。 */
-const FOLLOW_UP_RE =
-  /^(那|它|这个|继续|然后|具体|举个|为什么|怎么|是什么|再|还有|详细|展开|例子|嗯|对)/;
-
-/**
- * Generate a contextual mock reply for a user question.
- * - 直接命中知识树/词典术语 → 详细讲解 + 同域相关概念；
- * - 未命中但像是追问 → 接住历史里的话题继续；
- * - 否则给示例引导。
- */
-export function generateReply(question: string, history: ReplyMessage[] = []): string {
-  const q = question.trim();
-
-  /* ---- 验证意图（离线知识库直接应答；BYOK 模式由真实模型自然回答） ---- */
-
-  // "请问当前的相关主题是什么？" → 用上下文里的主话题作答。
-  if (/当前.*主题/.test(q) && /是什么/.test(q)) {
-    const topic = history.length ? topicFromHistory(history) : null;
-    if (topic) {
-      return `当前对话的主题是 **${topic.term}**。\n\n${topic.summary}\n\n> 想换个方向？点击任意加粗术语开卡片深挖，或用 🪢 发散卡片开平行会话（不影响当前对话）。`;
-    }
-    return `目前还没有明确的主题。你可以直接问一个概念（如 **量子纠缠**、**叠加态**、**梯度下降**），我会给出带可点击术语的讲解。`;
-  }
-
-  // "请问我们目前为止进行了哪些对话内容？请分条陈述。" → 分条列出最近对话。
-  if (/目前为止.*对话|进行了哪些对话|分条陈述/.test(q)) {
-    const topic = history.length ? topicFromHistory(history) : null;
-    const items = history.slice(-8).map((m, i) => {
-      const who = m.role === "user" ? "我" : "AI";
-      const text = m.content.replace(/^>\s?/gm, "").replace(/\s+/g, " ").trim();
-      return `${i + 1}. **${who}**：${text.slice(0, 100)}${text.length > 100 ? "…" : ""}`;
-    });
-    return [
-      `到目前为止，我们一共进行了 ${history.length} 条对话${topic ? `，主题围绕 **${topic.term}**` : ""}：`,
-      items.length ? items.join("\n") : "（还没有对话内容）",
-      `> 需要更完整的梳理？可以在分支卡片上点 📋 按钮总结分支点前的上游对话。`,
-    ].join("\n\n");
-  }
-
-  const list = (items: { term: string; hint?: string }[]) =>
-    items.map((t, i) => `${i + 1}. **${t.term}**${t.hint ? `（${t.hint}）` : ""}`).join("\n");
-
-  // Longest tree-term match wins ("波函数坍缩" over "坍缩").
-  const treeHit = TREE_FLAT.filter((t) => q.includes(t.term)).sort(
-    (a, b) => b.term.length - a.term.length
-  )[0];
-
-  // Glossary match (zh or en form).
-  const glossaryHit = GLOSSARY.find(
-    (g) => q.includes(g.zh) || q.toLowerCase().includes(g.en.toLowerCase())
-  );
-
-  if (treeHit) {
-    const childrenBlock = treeHit.children.length
-      ? `\n### 可以继续深挖\n\n${list(
-          treeHit.children.map((c) => ({
-            term: c.term,
-            hint: c.kind === "child" ? "深挖背景" : c.kind === "related" ? "横向对比" : "分支另起",
-          }))
-        )}\n`
-      : "";
-    // 相关概念优先同领域：术语在词典里取邻近词（同域聚类），否则取树内兄弟节点。
-    const gi = GLOSSARY.findIndex((g) => g.zh === treeHit.term);
-    const relatedTerms =
-      gi >= 0
-        ? [gi + 1, gi + 2, gi - 1]
-            .filter((i) => i >= 0 && i < GLOSSARY.length)
-            .slice(0, 3)
-            .map((i) => GLOSSARY[i].zh)
-        : treeHit.siblings.slice(0, 3);
-    const relatedBlock = relatedTerms.length
-      ? `\n### 相关概念\n\n${list(relatedTerms.map((t) => ({ term: t })))}\n`
-      : "";
-    return `好的，我们来拆解 **${treeHit.term}**。\n\n${treeHit.summary}${childrenBlock}${relatedBlock}> 点击任意加粗术语，我可以展开更详细的解释卡片。`;
-  }
-
-  if (glossaryHit) {
-    // Neighbors in the glossary are same-domain terms (physics ↔ ML clusters).
-    const idx = GLOSSARY.indexOf(glossaryHit);
-    const neighbors = [idx + 1, idx + 2, idx - 1]
-      .filter((i) => i >= 0 && i < GLOSSARY.length)
-      .slice(0, 3)
-      .map((i) => GLOSSARY[i].zh);
-    return `好的，我们来聊聊 **${glossaryHit.zh}**。\n\n${glossaryHit.explain}\n\n### 相关概念\n\n${list(neighbors.map((t) => ({ term: t })))}\n\n> 点击任意加粗术语，我可以展开更详细的解释卡片。`;
-  }
-
-  // 上下文记忆：没命中新术语，但像是追问 → 接住上一轮的话题。
-  const topic = history.length ? topicFromHistory(history) : null;
-  if (topic && (q.length <= 12 || FOLLOW_UP_RE.test(q))) {
-    const childrenBlock = topic.children.length
-      ? `\n### 可以继续深挖\n\n${list(
-          topic.children.map((c) => ({
-            term: c.term,
-            hint: c.kind === "child" ? "深挖背景" : c.kind === "related" ? "横向对比" : "分支另起",
-          }))
-        )}\n`
-      : "";
-    return `接着刚才的 **${topic.term}** 继续。\n\n${topic.summary}${childrenBlock}> 点击任意加粗术语继续下钻，也可以换个角度继续问我。`;
-  }
-
-  const samples = ["量子纠缠", "叠加态", "波函数坍缩", "贝尔不等式", "梯度下降", "注意力机制", "Transformer"];
-  return `关于「${q}」，这是个好问题。\n\n在离线演示模式下，我内置了一个 **量子计算 + 机器学习** 的知识树。你可以直接问我下面这些概念，我会给出带可点击术语的讲解：\n\n${list(samples.map((s) => ({ term: s })))}\n\n> 点击任意加粗术语即可展开卡片，一路深挖下去。`;
 }
 
 /**

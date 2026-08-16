@@ -8,14 +8,24 @@
  */
 import { useEffect, useRef, useState } from "react";
 import {
+  BookMarked,
+  BookOpen,
   Bot,
   Check,
   ChevronLeft,
   ChevronRight,
+  Compass,
+  Database,
+  FolderTree,
+  GitBranch,
   Keyboard,
   Layers,
+  Loader2,
+  Network,
+  Orbit,
   Palette,
   Plus,
+  Sparkles,
   Star,
   Trash2,
   X,
@@ -24,11 +34,11 @@ import {
 import { useApp } from "./app-context";
 import {
   MODEL_PRESETS,
-  OFFLINE_MODEL,
   THEMES,
   isThemeImplemented,
 } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 import type {
+  ByokModel,
   ChatSettings,
   ModelInfo,
   ThemeOption,
@@ -60,6 +70,8 @@ function ModalShell({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       className={`fixed inset-0 ${overlay} ${zIndex} flex justify-center items-center transition-opacity`}
       onMouseDown={onClose}
     >
@@ -243,6 +255,42 @@ function AvatarColorPicker({
 /* SettingsModal                                                       */
 /* ------------------------------------------------------------------ */
 
+/** 测试 OpenAI 兼容接口连通性：GET {baseUrl}/models，带 Bearer 认证。
+    返回 { ok, message }；超时/网络/CORS 失败统一转为可读消息。 */
+async function testByokConnection(
+  baseUrl: string,
+  apiKey: string
+): Promise<{ ok: boolean; message: string }> {
+  const url = `${baseUrl.replace(/\/+$/, "")}/models`;
+  const ctrl = new AbortController();
+  const timer = window.setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: ctrl.signal,
+    });
+    if (res.ok) {
+      let count: number | null = null;
+      try {
+        const data = (await res.json()) as { data?: unknown[] };
+        if (Array.isArray(data.data)) count = data.data.length;
+      } catch {
+        /* 无 JSON 也能算连通 */
+      }
+      return {
+        ok: true,
+        message: count != null ? `连接成功（${count} 个模型可用）` : "连接成功",
+      };
+    }
+    return { ok: false, message: `连接失败（HTTP ${res.status}）` };
+  } catch (e) {
+    const why = e instanceof Error && e.name === "AbortError" ? "请求超时" : "网络错误 / 被拦截";
+    return { ok: false, message: `连接失败：${why}` };
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 const NAV_ITEMS: { id: string; label: string; icon: typeof Bot }[] = [
   { id: "models", label: "AI 模型", icon: Bot },
   { id: "allocation", label: "模型分配", icon: Layers },
@@ -256,11 +304,15 @@ function ModelRow({
   selected,
   onSelect,
   onRemove,
+  onTest,
+  testState,
 }: {
   model: ModelInfo;
   selected: boolean;
   onSelect(): void;
   onRemove?: () => void;
+  onTest?: () => void;
+  testState?: { testing: boolean; result: { ok: boolean; message: string } | null };
 }) {
   return (
     <div
@@ -293,30 +345,59 @@ function ModelRow({
           <p className="text-xs text-text-tertiary mt-1 truncate">
             {model.provider} · {model.description}
           </p>
+          {testState?.result && (
+            <p
+              className={`mt-1 text-[11px] ${
+                testState.result.ok ? "text-brand" : "text-destructive"
+              }`}
+            >
+              {testState.result.ok ? "✓ " : "✗ "}
+              {testState.result.message}
+            </p>
+          )}
         </div>
-        {model.provider === "BYOK" && (
-          <span className="flex items-center gap-1 flex-shrink-0 self-center">
-            <span className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5">
-              BYOK
-            </span>
-            {onRemove && (
+        <span className="flex items-center gap-1 flex-shrink-0 self-center">
+          {model.provider === "BYOK" && (
+            <>
               <button
                 type="button"
                 onClick={(e) => {
-                  e.stopPropagation(); // 不触发行选中
-                  if (window.confirm(`删除模型「${model.name}」？密钥将从本机移除。`)) {
-                    onRemove();
-                  }
+                  e.stopPropagation();
+                  onTest?.();
                 }}
-                aria-label={`删除模型 ${model.name}`}
-                title="删除该模型（密钥将从本机移除）"
-                className="w-6 h-6 rounded flex items-center justify-center text-text-tertiary hover:text-destructive transition-colors"
+                disabled={testState?.testing}
+                aria-label={`测试 ${model.name} 连接`}
+                title="测试连接"
+                className="w-6 h-6 rounded flex items-center justify-center text-text-tertiary hover:text-brand transition-colors disabled:opacity-50"
               >
-                <Trash2 size={13} />
+                {testState?.testing ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Zap size={13} />
+                )}
               </button>
-            )}
-          </span>
-        )}
+              <span className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5">
+                BYOK
+              </span>
+            </>
+          )}
+          {model.provider === "BYOK" && onRemove && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation(); // 不触发行选中
+                if (window.confirm(`删除模型「${model.name}」？密钥将从本机移除。`)) {
+                  onRemove();
+                }
+              }}
+              aria-label={`删除模型 ${model.name}`}
+              title="删除该模型（密钥将从本机移除）"
+              className="w-6 h-6 rounded flex items-center justify-center text-text-tertiary hover:text-destructive transition-colors"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </span>
       </div>
     </div>
   );
@@ -334,6 +415,36 @@ export function SettingsModal() {
   const [byokBaseUrl, setByokBaseUrl] = useState("");
   const [byokModelId, setByokModelId] = useState("");
   const [byokKey, setByokKey] = useState("");
+  // 连通性测试：表单草稿测试 + 已保存模型逐行测试
+  const [testingDraft, setTestingDraft] = useState(false);
+  const [draftTestResult, setDraftTestResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<
+    Record<string, { ok: boolean; message: string }>
+  >({});
+
+  const testDraft = async () => {
+    if (!byokBaseUrl.trim() || !byokKey.trim()) {
+      showToast("请先填写 API 地址和 Key");
+      return;
+    }
+    setTestingDraft(true);
+    setDraftTestResult(null);
+    const res = await testByokConnection(byokBaseUrl, byokKey);
+    setDraftTestResult(res);
+    setTestingDraft(false);
+  };
+
+  const testModel = async (m: ByokModel) => {
+    setTestingId(m.id);
+    setTestResults((r) => ({ ...r, [m.id]: null as unknown as { ok: boolean; message: string } }));
+    const res = await testByokConnection(m.baseUrl, m.apiKey);
+    setTestResults((r) => ({ ...r, [m.id]: res }));
+    setTestingId(null);
+  };
 
   const update = (p: Partial<ChatSettings>) =>
     setDraft((d) => ({ ...d, ...p }));
@@ -351,10 +462,10 @@ export function SettingsModal() {
           <h2 className="text-xl font-bold">设置</h2>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => openModal("onboarding")}
+              onClick={() => openModal("docs")}
               className="text-xs text-brand border border-brand/40 rounded-full px-3 py-1.5 hover:bg-brand/10 transition-colors"
             >
-              设置引导
+              使用文档
             </button>
             <button
               onClick={() => closeModal("settings")}
@@ -473,9 +584,27 @@ export function SettingsModal() {
                       className="w-full bg-inputarea border border-std rounded-lg px-3 py-2 outline-none focus:border-brand/50 placeholder:text-text-quaternary text-sm"
                     />
                     <p className="text-[10px] text-text-quaternary leading-4">
-                      请求发往你填的地址（浏览器直连，密钥不出本机）；失败时自动回退离线知识库。
+                      请求发往你填的地址（浏览器直连，密钥不出本机）；添加前可先「测试连接」确认可用。
                     </p>
+                    {draftTestResult && (
+                      <p
+                        className={`text-[11px] ${
+                          draftTestResult.ok ? "text-brand" : "text-destructive"
+                        }`}
+                      >
+                        {draftTestResult.ok ? "✓ " : "✗ "}
+                        {draftTestResult.message}
+                      </p>
+                    )}
                     <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={testDraft}
+                        disabled={testingDraft}
+                        className="text-xs text-text-secondary border border-std rounded-full px-3 py-1.5 hover:border-brand/50 hover:text-primary transition-colors disabled:opacity-50"
+                      >
+                        {testingDraft ? "测试中…" : "测试连接"}
+                      </button>
                       <button
                         onClick={() => {
                           setByokOpen(false);
@@ -519,20 +648,26 @@ export function SettingsModal() {
                   </div>
                 )}
 
-                {[OFFLINE_MODEL, ...byokModels].map((m) => (
+                {byokModels.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-std p-4 text-center text-sm text-text-tertiary">
+                    还没有配置模型 —— 点击上方「添加 BYOK 模型」接入你的 API。
+                  </div>
+                )}
+                {byokModels.map((m) => (
                   <ModelRow
                     key={m.id}
                     model={m}
                     selected={draft.activeModelId === m.id}
                     onSelect={() => update({ activeModelId: m.id })}
-                    onRemove={
-                      m.provider === "BYOK"
-                        ? () => {
-                            removeByokModel(m.id);
-                            showToast("已删除模型");
-                          }
-                        : undefined
-                    }
+                    onRemove={() => {
+                      removeByokModel(m.id);
+                      showToast("已删除模型");
+                    }}
+                    onTest={() => testModel(m)}
+                    testState={{
+                      testing: testingId === m.id,
+                      result: testResults[m.id] ?? null,
+                    }}
                   />
                 ))}
               </div>
@@ -550,8 +685,8 @@ export function SettingsModal() {
                   <div className="flex items-center gap-2 min-w-0">
                     <Star size={12} className="text-brand flex-shrink-0" />
                     <span className="text-sm text-primary truncate">
-                      {[OFFLINE_MODEL, ...byokModels].find((m) => m.id === draft.activeModelId)?.name ??
-                        draft.activeModelId}
+                      {byokModels.find((m) => m.id === draft.activeModelId)?.name ??
+                        (draft.activeModelId ? draft.activeModelId : "未配置模型")}
                     </span>
                   </div>
                   <span className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0">
@@ -967,63 +1102,285 @@ export function ProfileModal() {
 }
 
 /* ------------------------------------------------------------------ */
-/* GuideModal — 使用指南（极简版：定位语 + 核心主张，功能清单见"如何使用"） */
+/* UsageDocModal — 使用文档（合并"如何使用"+"使用指南"的完整教程）       */
+/* 侧边栏「使用文档」入口打开；章节快捷导航 + 可滚动正文。               */
 /* ------------------------------------------------------------------ */
 
-export function GuideModal() {
-  const { closeModal } = useApp();
+const DOC_SECTIONS: { id: string; label: string; icon: typeof Compass }[] = [
+  { id: "welcome", label: "欢迎", icon: Compass },
+  { id: "quickstart", label: "快速开始", icon: Zap },
+  { id: "layers", label: "层级对话", icon: Network },
+  { id: "diverge", label: "发散与分支", icon: GitBranch },
+  { id: "tree", label: "卡片树", icon: FolderTree },
+  { id: "universe", label: "思维宇宙", icon: Orbit },
+  { id: "reading", label: "文档阅读", icon: BookOpen },
+  { id: "smart", label: "智能模式", icon: Sparkles },
+  { id: "data", label: "数据与备份", icon: Database },
+];
+
+function DocCard({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: typeof Compass;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <ModalShell onClose={() => closeModal("guide")} zIndex="z-[100]">
-      <div className="w-[92%] max-w-[620px] max-h-[82vh] bg-modal-std rounded-2xl shadow-2xl relative flex flex-col overflow-hidden border border-std">
-        <button
-          onClick={() => closeModal("guide")}
-          aria-label="关闭"
-          className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-item-std-hover hover:text-primary"
-        >
-          <X size={18} />
-        </button>
+    <div className="rounded-xl border border-std bg-card-std/50 px-4 py-3.5">
+      <p className="flex items-center gap-2 text-sm font-semibold text-primary">
+        <Icon size={15} className="text-brand shrink-0" />
+        {title}
+      </p>
+      <div className="mt-1.5 text-sm leading-6 text-text-secondary">{children}</div>
+    </div>
+  );
+}
 
-        <div className="overflow-y-auto scrollbar-card-std px-7 sm:px-10 py-9">
-          <h2 className="text-2xl font-bold text-primary">使用指南</h2>
+function DocSection({
+  id,
+  title,
+  lead,
+  children,
+}: {
+  id: string;
+  title: string;
+  lead?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={`doc-${id}`} className="scroll-mt-4">
+      <h3 className="flex items-center gap-2 text-lg font-bold text-primary">
+        <span className="h-4 w-1 rounded-full bg-brand" />
+        {title}
+      </h3>
+      {lead && <p className="mt-2 text-sm leading-6 text-text-tertiary">{lead}</p>}
+      <div className="mt-3 space-y-2.5">{children}</div>
+    </section>
+  );
+}
 
-          <p className="mt-6 text-lg leading-8 text-primary">
-            AI 结构化思维与知识探索工具 —— 哪里不懂点哪里，一棵属于你的知识树。
-          </p>
-          <p className="mt-2 text-base leading-7 text-text-secondary">
-            摆脱线性聊天框的限制，实现多层级对话——复杂讨论在这里完全展开。
-          </p>
+export function UsageDocModal() {
+  const { closeModal } = useApp();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-          <div className="mt-7 rounded-2xl border border-brand/20 bg-brand/[0.05] px-5 py-4">
-            <p className="text-sm leading-6 text-text-secondary">
-              在这里，摆脱线性聊天框的限制，实现多层级对话——曾经在单线程对话中迷失的复杂讨论，现在可以完全展开。
-            </p>
-          </div>
+  const jumpTo = (id: string) => {
+    scrollRef.current
+      ?.querySelector(`#doc-${id}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
-          <div className="mt-6 flex flex-col gap-3">
-            <div className="rounded-xl border border-std bg-card-std/50 px-4 py-3 text-sm leading-6 text-text-secondary">
-              <p className="font-semibold text-primary">🪢 发散对话（平行会话）</p>
-              <p className="mt-1">
-                点开加粗术语卡片 →「🪢 发散对话」→ 平行会话从右侧滑入，与当前对话同级、互不打断；可在里面继续提问（顺延进该对话），点「回到主对话」滑回；卡片树中与来源卡同层右侧。
-              </p>
-            </div>
-            <div className="rounded-xl border border-std bg-card-std/50 px-4 py-3 text-sm leading-6 text-text-secondary">
-              <p className="font-semibold text-primary">⛓ 分支卡片（另起炉灶）</p>
-              <p className="mt-1">
-                术语卡片内点「⬇️ 另起炉灶」开分支；分支卡头部 ⛓ 可查看/调整分支点（来源对话里出现「✂️ 在此分支」，分割线随之移动），📋 生成分支点前的上游总结。
-              </p>
-            </div>
-            <div className="rounded-xl border border-std bg-card-std/50 px-4 py-3 text-sm leading-6 text-text-secondary">
-              <p className="font-semibold text-primary">🌲 卡片树（右侧地图）</p>
-              <p className="mt-1">
-                辉光 = 你当前所在卡片；发散组淡染标记平行会话；点击节点跳转，右键切换已读/未读；曲线引导展示发散/分支/术语卡的关系。
-              </p>
-            </div>
-          </div>
+  return (
+    <ModalShell onClose={() => closeModal("docs")} zIndex="z-[100]">
+      <div className="w-[92%] max-w-[880px] h-[85vh] bg-modal-std rounded-2xl shadow-2xl relative flex flex-col overflow-hidden border border-std">
+        {/* 头部 */}
+        <div className="flex items-center justify-between px-6 pt-4 pb-3 border-b border-divider flex-shrink-0">
+          <h2 className="flex items-center gap-2 text-xl font-bold">
+            <BookMarked size={20} className="text-brand" />
+            使用文档
+          </h2>
+          <button
+            onClick={() => closeModal("docs")}
+            aria-label="关闭"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-item-std hover:text-primary"
+          >
+            <X size={16} />
+          </button>
         </div>
 
+        {/* 章节快捷导航 */}
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar px-4 pt-3 pb-2 border-b border-divider flex-shrink-0">
+          {DOC_SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => jumpTo(s.id)}
+              className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full whitespace-nowrap transition-colors bg-btn-std text-text-secondary hover:bg-item-std-active hover:text-primary"
+            >
+              <s.icon size={12} />
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 可滚动正文 */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto scrollbar-card-std px-7 sm:px-10 py-8 space-y-10"
+        >
+          {/* 欢迎 */}
+          <DocSection id="welcome" title="欢迎">
+            <p className="text-base leading-8 text-primary">
+              OriginExplore —— <span className="text-brand font-semibold">AI 结构化思维与知识探索工具</span>
+              。哪里不懂点哪里，把一次对话长成一棵属于你的知识树。
+            </p>
+            <p className="text-sm leading-7 text-text-secondary">
+              与传统聊天框不同，这里每一次「深挖」都会变成独立的卡片，层层展开、互不打断；
+              你走过的探索路径、收录的理解，都会沉淀成可视化的知识网络。
+            </p>
+          </DocSection>
+
+          {/* 快速开始 */}
+          <DocSection
+            id="quickstart"
+            title="快速开始"
+            lead="首次使用请先在「设置 → AI 模型」中配置 API 模型；四步走完第一次探索，约 2 分钟上手："
+          >
+            <DocCard icon={Zap} title="① 输入问题">
+              在底部输入框问点什么（如「什么是量子纠缠？」），AI 会分点作答，把关键术语用
+              <span className="text-brand">加粗</span> 标记——它们就是可点击的「深挖入口」。
+            </DocCard>
+            <DocCard icon={Network} title="② 点击术语深挖">
+              点任意加粗术语，弹出术语卡片：↗️ 深挖背景 · ➡️ 横向对比 · ⬇️ 另起炉灶。
+              每点一步，右侧「卡片树」就长出一个新节点。
+            </DocCard>
+            <DocCard icon={GitBranch} title="③ 发散或分支">
+              想不打断当前对话聊相关话题？用「🪢 发散对话」开平行会话；
+              想基于某个理解重新出发？用「⛓ 分支卡片」另起炉灶。
+            </DocCard>
+            <DocCard icon={Orbit} title="④ 收录进思维宇宙">
+              对某个概念「懂了」时，点卡片上的「收录」，它会被点亮成 3D 星球；
+              打开思维宇宙就能俯瞰你全部的理解。
+            </DocCard>
+          </DocSection>
+
+          {/* 层级对话 */}
+          <DocSection
+            id="layers"
+            title="层级对话"
+            lead="核心交互：AI 回答里的加粗术语，全部可以点开继续深入。"
+          >
+            <DocCard icon={Network} title="↗️ 深挖背景">
+              在术语卡片内继续提问，得到的新回答会作为「子卡片」挂在这层下面，
+              读上游主题层层深入，答案自然连成树。
+            </DocCard>
+            <DocCard icon={Network} title="➡️ 横向对比">
+              让 AI 对比当前术语与相关概念（如「煤炭 vs 石油」），对比结果作为同级卡片展开，
+              并建立关联关系。
+            </DocCard>
+            <DocCard icon={Network} title="⬇️ 另起炉灶（继承上下文）">
+              带着当前对话的上下文开一个新主题，既不完全脱离，也不打断主线；
+              新卡片成为独立轮次，可在其中继续深入。
+            </DocCard>
+            <DocCard icon={Network} title="未读标记">
+              每个轮次都有「已读/未读」状态：卡片树节点右键可切换，点击节点/跳转会清除，
+              帮你标记「还没看完的深挖」。
+            </DocCard>
+          </DocSection>
+
+          {/* 发散与分支 */}
+          <DocSection
+            id="diverge"
+            title="发散与分支"
+            lead="两种「并行展开」的方式，区别在于是否继承历史："
+          >
+            <DocCard icon={GitBranch} title="🪢 发散对话（平行会话）">
+              术语卡片 →「🪢 发散对话」→ 平行会话从右侧滑入，与当前对话同级、互不打断；
+              可在里面继续提问（消息顺延进该平行对话），点「回到主对话」滑回。
+              卡片树中与来源卡同层右侧，用淡染标记。
+            </DocCard>
+            <DocCard icon={GitBranch} title="⛓ 分支卡片（另起炉灶）">
+              术语卡片 →「⬇️ 另起炉灶」开分支；分支卡头部 ⛓ 可查看/调整「分支点」
+              （来源对话里出现「✂️ 在此分支」标记，分割线随分支点移动），
+              📋 可生成分支点前的上游对话总结。
+            </DocCard>
+            <DocCard icon={GitBranch} title="去重保护">
+              同一来源 + 同一标题的发散/分支卡片只会创建一次，重复点开直接跳转到已有卡片，
+              不会产生重复分支。
+            </DocCard>
+          </DocSection>
+
+          {/* 卡片树 */}
+          <DocSection
+            id="tree"
+            title="卡片树（右侧地图）"
+            lead="当前对话的完整导航地图，常驻在对话区右侧。"
+          >
+            <DocCard icon={FolderTree} title="节点与状态">
+              每个节点 = 一轮对话/一张术语卡。辉光节点 = 你当前所在位置；
+              发散组用淡染底色标记；曲线引导线展示发散/分支/术语卡的来源关系。
+            </DocCard>
+            <DocCard icon={FolderTree} title="操作">
+              点击节点跳转到对应卡片；右键切换已读/未读；收藏的轮次会同步出现在侧边栏「收藏」区。
+            </DocCard>
+          </DocSection>
+
+          {/* 思维宇宙 */}
+          <DocSection
+            id="universe"
+            title="思维宇宙"
+            lead="全屏 3D 视图，俯瞰你沉淀下来的全部理解。"
+          >
+            <DocCard icon={Orbit} title="收录与验证">
+              对话/文档里点「收录」后，节点先进入「待验证」；在思维宇宙侧栏确认后点亮成星球。
+            </DocCard>
+            <DocCard icon={Orbit} title="连接链">
+              点击任意星球，右下角显示它的「连接链」（root → … → 本节点）——真实的深挖来源关系，
+              可沿链跳转；拖拽旋转视角，滚轮缩放，空白处点击取消选中。
+            </DocCard>
+            <DocCard icon={Orbit} title="入口">
+              对话框底部中央的 🧠 按钮，或最右侧 20px 折叠条打开「思维宇宙」侧栏。
+            </DocCard>
+          </DocSection>
+
+          {/* 文档阅读 */}
+          <DocSection
+            id="reading"
+            title="文档阅读"
+            lead="上传论文/长文，逐段读懂。"
+          >
+            <DocCard icon={BookOpen} title="上传">
+              侧边栏「本地文档」→「+」上传，支持 PDF / Word / Markdown / TXT / HTML。
+            </DocCard>
+            <DocCard icon={BookOpen} title="划词即问">
+              阅读时选中文字 → 问 AI，会自动创建「论文：xxx」项目并基于文档内容回答。
+            </DocCard>
+            <DocCard icon={BookOpen} title="AI 解读">
+              文档解读视图可让 AI 语义分块 + 双语对照 + 格式工整地重排全文；
+              失败时自动回退本地启发式拆解，结果缓存到文档。
+            </DocCard>
+          </DocSection>
+
+          {/* 智能模式 */}
+          <DocSection
+            id="smart"
+            title="智能模式与联网搜索"
+            lead="常驻聊天专属的个性化能力。"
+          >
+            <DocCard icon={Sparkles} title="AI 智能模式">
+              侧边栏「常驻聊天」旁的 ✨ 开启后，AI 会结合你的个人档案、思维宇宙已收录概念、
+              术语掌握度来回答——用你懂的概念打比方，回顾你问过的话题。
+            </DocCard>
+            <DocCard icon={Sparkles} title="联网搜索">
+              设置 → 自动行为 → 开启「联网搜索」后，不确定的问题会先实时检索网页再回答，
+              并附上来源链接；搜索失败时自动降级为普通回答。
+            </DocCard>
+            <DocCard icon={Sparkles} title="引用回答">
+              选中 AI 回复中的任意文本，可引用到提问框，多条引用叠加提问。
+            </DocCard>
+          </DocSection>
+
+          {/* 数据与备份 */}
+          <DocSection
+            id="data"
+            title="数据与备份"
+            lead="个人工具：所有数据仅保存在本机，不经过任何服务器。"
+          >
+            <DocCard icon={Database} title="备份与恢复">
+              侧边栏顶部「导出完整备份」把所有数据（项目 + 思维宇宙 + 文档 + 设置 + 档案）导出为
+              单个 JSON 文件；「导入项目/恢复备份」按 id 合并还原，兼容旧版项目文件。
+            </DocCard>
+            <DocCard icon={Database} title="数据安全">
+              密钥（BYOK API Key）仅存本机浏览器/应用存储；请求由浏览器直连你填写的 API 地址，
+              不会经过第三方服务器。
+            </DocCard>
+          </DocSection>
+        </div>
+
+        {/* 底部 */}
         <div className="shrink-0 border-t border-divider px-6 py-4">
           <button
-            onClick={() => closeModal("guide")}
+            onClick={() => closeModal("docs")}
             className="w-full cursor-pointer rounded-full bg-btn-std px-6 py-2.5 text-sm text-primary transition-colors hover:bg-btn-std-hover"
           >
             开始探索 🌲

@@ -10,7 +10,7 @@
  * Sibling components consume shared state via useApp() (no props) per the
  * shared contract — this file only assembles layout + viewport behavior.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BrainCircuit, ChevronLeft, Menu } from "lucide-react";
 
 import { useApp } from "./app-context";
@@ -22,7 +22,27 @@ import { InputArea } from "./input-area";
 import { MindscapePanel } from "./mindscape-panel";
 import { DocLibrary, DocReader } from "./doc-reader";
 import { MindUniverse } from "./mind-universe";
-import { OnboardingWizard, ProfileModal, SettingsModal, GuideModal } from "./modals";
+import { OnboardingWizard, ProfileModal, SettingsModal, UsageDocModal } from "./modals";
+
+/** 全局轻提示（底部 toast）：无 API / 请求失败等状态反馈，3 秒自动消失。 */
+function AppNoticeToast() {
+  const { appNotice, setAppNotice } = useApp();
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!appNotice) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setAppNotice(null), 3000);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [appNotice, setAppNotice]);
+  if (!appNotice) return null;
+  return (
+    <div className="fixed bottom-6 left-1/2 z-[110] -translate-x-1/2 rounded-lg border border-std bg-card-floating px-4 py-2 text-sm text-primary shadow-card">
+      {appNotice}
+    </div>
+  );
+}
 
 export function AppShell() {
   const {
@@ -112,9 +132,9 @@ export function AppShell() {
         />
       )}
 
-      {/* ---- Main row：固定让出侧边栏宽度（lg:pl-[225px]），对话框+卡片树
-            保持页面居中，不随侧边栏折叠移动 ---- */}
-      <main className="relative flex min-w-0 flex-1 overflow-hidden lg:pl-[225px]">
+      {/* ---- Main row：固定让出侧边栏宽度（sm 起侧边栏悬浮，内容让位 225px），
+            对话框+卡片树保持页面居中，不随侧边栏折叠移动 ---- */}
+      <main className="relative flex min-w-0 flex-1 overflow-hidden sm:pl-[225px]">
         {/* 对话区（聊天卡片在其中居中，最大 990px） */}
         <div className="relative z-10 flex h-full min-w-0 flex-1 flex-col">
           {/* Mobile hamburger — opens the sidebar drawer */}
@@ -152,23 +172,23 @@ export function AppShell() {
               </div>
             </div>
             <div
-              className={`w-full max-w-[990px] flex-shrink-0 ${dialogLeftMl} ${
+              className={`relative w-full max-w-[990px] flex-shrink-0 ${dialogLeftMl} ${
                 activeProjectId == null ? "max-sm:hidden" : ""
               }`}
             >
               {activeDocId == null && <InputArea />}
+
+              {/* 思维宇宙开关：相对对话框列水平居中（与输入框同轴），浮在输入框上方 */}
+              <button
+                type="button"
+                aria-label={mindscapeOpen ? "关闭思维宇宙" : "打开思维宇宙"}
+                onClick={() => setMindscapeOpen(!mindscapeOpen)}
+                className="absolute -top-[76px] left-1/2 z-20 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full bg-btn-std text-brand shadow-card transition-colors hover:bg-btn-std-hover sm:h-9 sm:w-9"
+              >
+                <BrainCircuit className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+              </button>
             </div>
           </div>
-
-          {/* Centered Mind Universe toggle — bottom-center of the dialog area */}
-          <button
-            type="button"
-            aria-label={mindscapeOpen ? "关闭思维宇宙" : "打开思维宇宙"}
-            onClick={() => setMindscapeOpen(!mindscapeOpen)}
-            className="absolute bottom-[90px] left-1/2 z-20 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full bg-btn-std text-brand shadow-card transition-colors hover:bg-btn-std-hover sm:bottom-[120px] sm:h-9 sm:w-9"
-          >
-            <BrainCircuit className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
-          </button>
 
           {/* ICP footer strip */}
           <div className="pointer-events-none absolute inset-x-0 bottom-1 z-0 select-none text-center text-xs text-text-quaternary">
@@ -201,8 +221,11 @@ export function AppShell() {
       {/* ---- Modals (self-contained; each manages its own close via useApp) ---- */}
       {modals.settings && <SettingsModal />}
       {modals.onboarding && <OnboardingWizard />}
-      {modals.guide && <GuideModal />}
+      {modals.docs && <UsageDocModal />}
       {modals.login && <ProfileModal />}
+
+      {/* ---- 全局轻提示 ---- */}
+      <AppNoticeToast />
         </>
       )}
     </div>

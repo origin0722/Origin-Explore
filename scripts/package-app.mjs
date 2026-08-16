@@ -6,8 +6,13 @@ import fs from "node:fs";
 const step = (msg) => console.log(`\n=== ${msg} ===`);
 const STAGING = ".packaging/next";
 
-step("1/4 生成图标");
-execSync("node scripts/gen-icon.mjs", { stdio: "inherit" });
+step("1/4 图标");
+if (!fs.existsSync("build/icon.png")) {
+  // 无自定义图标时生成默认品牌图标；用户放入 build/icon.png 后不再覆盖。
+  execSync("node scripts/gen-icon.mjs", { stdio: "inherit" });
+} else {
+  console.log("使用现有 build/icon.png（跳过默认图标生成）");
+}
 
 if (!process.env.SKIP_BUILD) {
   step("2/4 next build（standalone）");

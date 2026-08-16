@@ -85,16 +85,3 @@ export function splitParagraphs(content: string): string[] {
   }
   return merged;
 }
-
-/** 离线启发式"AI 解读"回退：语义分块（按空行）+ 每块加小标题 + 清理空白。
-    BYOK 用户走真实 API（可翻译/润色/深度整理），离线只能保证格式工整。 */
-export function heuristicInterpret(content: string): string {
-  const blocks = splitParagraphs(content);
-  const out: string[] = ["# 文档解读（离线整理版）", ""];
-  blocks.forEach((b, i) => {
-    const flat = b.replace(/\s+/g, " ").trim();
-    const title = flat.length > 14 ? flat.slice(0, 14) + "…" : flat || `第 ${i + 1} 块`;
-    out.push(`## ${title}`, "", b, "");
-  });
-  return out.join("\n");
-}

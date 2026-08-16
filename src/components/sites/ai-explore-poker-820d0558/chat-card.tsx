@@ -2,8 +2,8 @@
 
 /**
  * Explore — ChatCard (knowledge card: turn list + message bubbles + recursive term tree)
- * 术语卡片 = 可对话的卡片：点开卡片后可以在卡片内继续向 AI 提问（BYOK 走真实
- * 流式 API，否则离线知识库），回复里的 **加粗术语** 可点击 → 继续开子卡片深挖。
+ * 术语卡片 = 可对话的卡片：点开卡片后可以在卡片内继续向 AI 提问（BYOK 流式 API），
+ * 回复里的 **加粗术语** 可点击 → 继续开子卡片深挖。
  */
 import {
   Fragment,
@@ -24,7 +24,6 @@ import {
   Copy,
   FileText,
   GitFork,
-  HelpCircle,
   Loader2,
   Maximize2,
   Minimize2,
@@ -34,12 +33,11 @@ import {
   Send,
   Star,
   Trash2,
-  Waypoints,
   X,
 } from "lucide-react";
 import { useApp, streamOpenAICompatible } from "./app-context";
 import { explorationChains, type ExploreEntry } from "./turn-graph";
-import { findTerm, generateReply, GLOSSARY } from "@/lib/sites/ai-explore-poker-820d0558/mock";
+import { findTerm, GLOSSARY } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 import type { Message, TermNode, Turn } from "@/types/sites/ai-explore-poker-820d0558";
 
 const uid = () => "m-" + Math.random().toString(36).slice(2, 10);
@@ -265,7 +263,7 @@ function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect,
           <p className="mt-3 text-xs text-text-tertiary">
             {node.summary
               ? "在这个卡片里继续问 AI —— 点击回复中的加粗术语可以继续往下深挖。"
-              : "离线知识库没有这个词条。接入你自己的 API 后，点开卡片会自动问 AI；现在也可以直接在下面输入框提问。"}
+              : "这个词条还没有内容。可以直接在下面输入框提问，AI 会结合当前上下文回答。"}
           </p>
         )}
       </div>
@@ -364,11 +362,11 @@ export function ChatCard() {
     setBranchPoint,
     summarizePreBranch,
     openModal,
-    loadSampleProject,
     byokModels,
     settings,
     pendingQuote,
     setPendingQuote,
+    setAppNotice,
     toggleFavorite,
     setTurnUnread,
     focusTurn,
@@ -843,7 +841,7 @@ export function ChatCard() {
     );
   };
 
-  /** 在卡片内提问：BYOK 走真实流式 API，否则离线知识库；回复写进该卡片。
+  /** 在卡片内提问：BYOK 流式 API；回复写进该卡片。
       `opts.silent`：静默提问（自动问 AI 用）——问题只发给 API，不渲染成对话里的用户消息。
       未知词条（node.summary 为空）的回答会写入会话级缓存（autoAskCache），
       同一词条重复打开直接复用，不再发 API 请求。 */
@@ -895,72 +893,53 @@ export function ChatCard() {
       { role: "user", content: question },
     ];
 
-    if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
-      const emptyMsg: Message = { id: uid(), role: "assistant", content: "", createdAt: Date.now() };
-      patch(key, (i) => ({ ...i, messages: [...i.messages, emptyMsg] }));
-      let acc = "";
-      const controller = new AbortController();
-      const timer = window.setTimeout(() => controller.abort(), 15000);
-      streamOpenAICompatible(
-        byok,
-        context,
-        (delta) => {
-          acc += delta;
-          patch(key, (i) => ({
-            ...i,
-            messages: i.messages.map((m, mi) =>
-              mi === i.messages.length - 1 ? { ...m, content: acc } : m
-            ),
-          }));
-        },
-        controller.signal,
-        () => window.clearTimeout(timer)
-      )
-        .then(() => {
-          window.clearTimeout(timer);
-          patch(key, (i) => ({ ...i, busy: false }));
-          remember(acc);
-          clearInflight();
-        })
-        .catch(() => {
-          window.clearTimeout(timer);
-          const fallback = `> ⚠️ BYOK 请求失败，已回退离线知识库。\n\n${generateReply(question, context)}`;
-          patch(key, (i) => ({
-            ...i,
-            busy: false,
-            messages: i.messages.map((m, mi) =>
-              mi === i.messages.length - 1 ? { ...m, content: fallback } : m
-            ),
-          }));
-          remember(fallback);
-          clearInflight();
-        });
-    } else {
-      // 离线：延迟后生成回复并打字机式写入卡片。
-      window.setTimeout(() => {
-        const reply = generateReply(question, context);
-        const emptyMsg: Message = { id: uid(), role: "assistant", content: "", createdAt: Date.now() };
-        patch(key, (i) => ({ ...i, messages: [...i.messages, emptyMsg] }));
-        let pos = 0;
-        const step = 16;
-        const t = window.setInterval(() => {
-          pos = Math.min(pos + step, reply.length);
-          const partial = reply.slice(0, pos);
-          patch(key, (i) => ({
-            ...i,
-            messages: i.messages.map((m, mi) =>
-              mi === i.messages.length - 1 ? { ...m, content: partial } : m
-            ),
-          }));
-          if (pos >= reply.length) {
-            window.clearInterval(t);
-            patch(key, (i) => ({ ...i, busy: false }));
-            remember(reply);
-            clearInflight();
-          }
-        }, 20);
-      }, 500);
+    if (!byok || !byok.apiKey || !byok.baseUrl || !byok.modelId) {
+      // 未配置 API：卡片内提问不可用，提示去设置配置。
+      setAppNotice("请先在设置 → AI 模型中配置 API 模型");
+      patch(key, (i) => ({ ...i, busy: false }));
+      clearInflight();
+      return;
     }
+    const emptyMsg: Message = { id: uid(), role: "assistant", content: "", createdAt: Date.now() };
+    patch(key, (i) => ({ ...i, messages: [...i.messages, emptyMsg] }));
+    let acc = "";
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 15000);
+    streamOpenAICompatible(
+      byok,
+      context,
+      (delta) => {
+        acc += delta;
+        patch(key, (i) => ({
+          ...i,
+          messages: i.messages.map((m, mi) =>
+            mi === i.messages.length - 1 ? { ...m, content: acc } : m
+          ),
+        }));
+      },
+      controller.signal,
+      () => window.clearTimeout(timer)
+    )
+      .then(() => {
+        window.clearTimeout(timer);
+        patch(key, (i) => ({ ...i, busy: false }));
+        remember(acc);
+        clearInflight();
+      })
+      .catch(() => {
+        window.clearTimeout(timer);
+        setAppNotice("API 请求失败：请检查模型配置或网络");
+        const fallback = `> ⚠️ API 请求失败，请检查 API 地址 / Key 是否正确，或稍后重试。`;
+        patch(key, (i) => ({
+          ...i,
+          busy: false,
+          messages: i.messages.map((m, mi) =>
+            mi === i.messages.length - 1 ? { ...m, content: fallback } : m
+          ),
+        }));
+        remember(fallback);
+        clearInflight();
+      });
   };
 
   /** Bookmark term into the mind universe + mark as mastered.
@@ -1231,19 +1210,10 @@ export function ChatCard() {
                   <div className="flex items-center gap-4">
                     <button
                       type="button"
-                      onClick={() => openModal("guide")}
+                      onClick={() => openModal("docs")}
                       className="cursor-pointer rounded-full bg-btn-std px-6 py-2 font-medium text-primary transition-colors hover:bg-btn-std-hover"
                     >
-                      使用指南
-                    </button>
-                    <button
-                      type="button"
-                      onClick={loadSampleProject}
-                      aria-label="加载示例项目"
-                      title="加载示例项目"
-                      className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-btn-std text-text-icon-secondary transition-colors hover:bg-btn-std-hover hover:text-primary"
-                    >
-                      <HelpCircle size={20} />
+                      使用文档
                     </button>
                   </div>
                 </div>

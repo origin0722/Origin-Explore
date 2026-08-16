@@ -761,66 +761,12 @@ body {
 }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes bar-mount-fade { from { opacity: 0; } }
 
 .new-word-fade-in {
   opacity: 0;
   animation: fadeIn 0.6s ease-in-out forwards;
 }
 
-.card-container.exiting-dissolve { animation: card-dissolve 350ms forwards ease-in-out; }
-@keyframes card-dissolve { to { opacity: 0; transform: translate(-50%, -50%) scale(0.95); } }
-.card-container.exiting-fly-right { animation: card-fly-right 350ms forwards ease-in-out; }
-@keyframes card-fly-right { to { opacity: 0; transform: translate(30%, -50%) scale(1); } }
-.card-container.exiting-fly-left { animation: card-fly-left 350ms forwards ease-in-out; }
-@keyframes card-fly-left { to { opacity: 0; transform: translate(-130%, -50%) scale(1); } }
-.card-container.exiting-fly-up-right { animation: card-fly-up-right 350ms forwards ease-in-out; }
-@keyframes card-fly-up-right { to { opacity: 0; transform: translate(-40%, -55%) scale(1.04) rotate(5deg); } }
-.card-container.exiting-fly-through-right-left { animation: card-fly-through-right-left 350ms forwards ease-in-out; }
-@keyframes card-fly-through-right-left {
-  from { opacity: 0; transform: translate(30%, -50%) scale(1); }
-  50% { opacity: 1; }
-  to { opacity: 0; transform: translate(-130%, -50%) scale(1); }
-}
-.card-container.exiting-fly-through-left-right { animation: card-fly-through-left-right 350ms forwards ease-in-out; }
-@keyframes card-fly-through-left-right {
-  from { opacity: 0; transform: translate(-130%, -50%) scale(1); }
-  50% { opacity: 1; }
-  to { opacity: 0; transform: translate(30%, -50%) scale(1); }
-}
-.card-container.exiting-fly-through-top-bottom { animation: card-fly-through-top-bottom 350ms forwards ease-in-out; }
-@keyframes card-fly-through-top-bottom {
-  from { opacity: 0; transform: translate(-50%, -150%) scale(1); }
-  50% { opacity: 1; }
-  to { opacity: 0; transform: translate(-50%, 50%) scale(1); }
-}
-.card-container.exiting-fly-through-bottom-top { animation: card-fly-through-bottom-top 350ms forwards ease-in-out; }
-@keyframes card-fly-through-bottom-top {
-  from { opacity: 0; transform: translate(-50%, 50%) scale(1); }
-  50% { opacity: 1; }
-  to { opacity: 0; transform: translate(-50%, -150%) scale(1); }
-}
-.card-container.exiting-fly-down { animation: card-fly-down 350ms forwards ease-in-out; }
-@keyframes card-fly-down { to { opacity: 0; transform: translate(-50%, 50%) scale(1); } }
-.card-container.entering-from-bottom { animation: card-enter-from-bottom 350ms forwards ease-in-out; }
-@keyframes card-enter-from-bottom {
-  from { opacity: 0; transform: translate(-50%, 50%) scale(1); }
-  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-}
-/* Right-anchored card entrance (clone's term cards sit at right-2, not centered).
-   The centered variants above bake translate(-50%,-50%) in; using them on an
-   anchored card shifts it off-screen. */
-.card-container.entering-from-right { animation: card-enter-from-right 300ms ease-out; }
-@keyframes card-enter-from-right {
-  from { opacity: 0; transform: translateX(24px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-/* Right-anchored card exit (mirrors the entrance). */
-.card-container.exiting-to-right { animation: card-exit-to-right 280ms ease-in forwards; }
-@keyframes card-exit-to-right {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(32px); }
-}
 /* Centered cascade term cards — exit (pure fade keeps the per-layer inline
    transform so the cascade offsets stay intact while closing). */
 .card-container.exiting-cascade { animation: card-exit-cascade 280ms ease-in forwards; }
@@ -848,61 +794,10 @@ body {
       scale(1);
   }
 }
-.card-container.exiting-fly-up { animation: card-fly-up 350ms forwards ease-in-out; }
-@keyframes card-fly-up { to { opacity: 0; transform: translate(-50%, -150%) scale(1); } }
-.card-container.exiting-up-and-grow { animation: card-exit-up-and-grow 350ms forwards ease-in-out; }
-@keyframes card-exit-up-and-grow { to { opacity: 0; transform: translate(-50%, -150%) scale(1.2); } }
-.card-container.exiting-shrink-out { animation: card-shrink-out 350ms forwards ease-in-out; }
-@keyframes card-shrink-out { from { opacity: 0.8; } to { opacity: 0; transform: translate(-50%, -50%) scale(0.9); } }
-
-.bp-pill-fade-out { animation: bp-pill-fade-out 350ms forwards ease-in-out; }
-@keyframes bp-pill-fade-out { from { opacity: 1; } to { opacity: 0; } }
-
-/* ============================================================
-   streaming border (animated gradient ring while AI is typing)
-   ============================================================ */
-@property --angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
-@keyframes streaming-border-spin { to { --angle: 360deg; } }
-.streaming-border-effect {
-  --color-angle: 0deg;
-  position: relative;
-  border-color: transparent !important;
-}
 
 /* ============================================================
    misc (extracted)
    ============================================================ */
-.flash-left-effect::after,
-.flash-right-effect::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  pointer-events: none;
-  border-radius: inherit;
-  opacity: 0;
-  z-index: 1;
-}
-@keyframes flash-fade {
-  0% { opacity: 0; }
-  33% { opacity: 1; }
-  100% { opacity: 0; }
-}
-.flash-border-normal { animation: flash-normal 1000ms ease-out; }
-.flash-border-turn-favorite { animation: flash-favorite 1000ms ease-out; }
-
-/* branch-point / read-only locked content */
-.bp-locked, .bp-locked *, .ro-locked, .ro-locked * {
-  user-select: none !important;
-  -webkit-user-select: none !important;
-}
-.bp-locked *, .ro-locked * { pointer-events: none !important; }
-.bp-dim-target { transition: opacity 350ms ease-in-out; }
-.bp-dimmed { opacity: 0.35; }
 
 .is-mobile-card .markdown-content h1 { margin-top: 0.6em; }
 
@@ -956,11 +851,6 @@ body {
   33% { transform: translate3d(6%, -8%, 0) scale(1.15); }
   66% { transform: translate3d(-7%, 6%, 0) scale(0.92); }
 }
-@keyframes blob-morph {
-  0%, 100% { border-radius: 58% 42% 55% 45% / 45% 58% 42% 55%; }
-  33% { border-radius: 45% 55% 42% 58% / 55% 42% 58% 45%; }
-  66% { border-radius: 52% 48% 60% 40% / 42% 55% 45% 58%; }
-}
 .fluid-blobs {
   position: absolute;
   inset: 0;
@@ -982,9 +872,7 @@ body {
     rgba(var(--brand-rgb), 0.5),
     rgba(var(--brand-rgb), 0.08) 70%
   );
-  animation:
-    blob-drift 14s ease-in-out infinite,
-    blob-morph 18s ease-in-out infinite;
+  animation: blob-drift 14s ease-in-out infinite;
 }
 .blob-b {
   width: 38vmin;
@@ -996,9 +884,7 @@ body {
     rgba(var(--diverge-rgb), 0.42),
     rgba(var(--diverge-rgb), 0.06) 70%
   );
-  animation:
-    blob-drift 17s ease-in-out -4s infinite reverse,
-    blob-morph 21s ease-in-out -6s infinite;
+  animation: blob-drift 17s ease-in-out -4s infinite reverse;
 }
 .blob-c {
   width: 30vmin;
@@ -1010,9 +896,7 @@ body {
     rgba(var(--brand-rgb), 0.3),
     rgba(var(--brand-rgb), 0.04) 70%
   );
-  animation:
-    blob-drift 12s ease-in-out -8s infinite,
-    blob-morph 15s ease-in-out -3s infinite;
+  animation: blob-drift 12s ease-in-out -8s infinite;
 }
 
 /* 无障碍：用户偏好减少动效时，流光与光斑全部静止 */
@@ -1102,22 +986,10 @@ body {
   }
 }
 
-/* 无障碍补齐：术语卡层叠进出场、输入框呼吸/弹层/提示、卡片收起等
-   此前未覆盖的动画一律瞬时完成（审核 2-1：全部动效尊重 reduced-motion）。 */
+/* 无障碍补齐：术语卡层叠进出场等动画在 reduced-motion 下瞬时完成。 */
 @media (prefers-reduced-motion: reduce) {
   .entering-cascade,
-  .exiting-cascade,
-  .entering-from-right,
-  .exiting-to-right,
-  .exiting-fly-up,
-  .exiting-up-and-grow,
-  .exiting-shrink-out,
-  .bp-pill-fade-out,
-  .inputarea-breathe,
-  .inputarea-pop,
-  .inputarea-hint,
-  .flash-border-normal,
-  .flash-border-turn-favorite {
+  .exiting-cascade {
     animation-duration: 1ms;
     animation-iteration-count: 1;
   }

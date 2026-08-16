@@ -32,16 +32,13 @@ import type {
 } from "@/types/sites/ai-explore-poker-820d0558";
 import {
   DEFAULT_SETTINGS,
-  generateReply,
   GLOSSARY,
   makeDemoProject,
   makeDemoTurn,
-  OFFLINE_MODEL,
   TERM_TREE,
   THEME_META_COLORS,
   themeId,
 } from "@/lib/sites/ai-explore-poker-820d0558/mock";
-import { heuristicInterpret } from "@/lib/sites/ai-explore-poker-820d0558/doc-parser";
 
 /**
  * OpenAI 兼容的 chat/completions 流式调用（`stream: true` + SSE，浏览器直连，密钥不落盘到服务器）。
@@ -121,8 +118,6 @@ export interface AppState {
   activeProjectId: string | null;
   /** 新建项目（folder = 目标文件夹名；null/缺省 = 本地项目组）。返回新项目 id（供定位）。 */
   createProject(folder?: string | null): string;
-  /** 空态 "?" 按钮：载入一个带示例对话的项目 */
-  loadSampleProject(): void;
   selectProject(id: string): void;
   /** 打开常驻聊天（跨项目保留的会话）。 */
   selectResident(): void;
@@ -146,13 +141,13 @@ export interface AppState {
   /** 用户自带的 BYOK 模型（密钥仅存本机）；返回是否添加成功（同名已存在时 false） */
   byokModels: ByokModel[];
   addByokModel(input: { name: string; baseUrl: string; modelId: string; apiKey: string }): boolean;
-  /** 删除一个 BYOK 模型；删除当前默认模型时自动回退离线知识库 */
+  /** 删除一个 BYOK 模型；若删除的是当前默认模型，清除选中（由用户重新配置）。 */
   removeByokModel(id: string): void;
   collapsed: boolean;
   toggleSidebar(): void;
   mindscapeOpen: boolean;
   setMindscapeOpen(v: boolean): void;
-  modals: { settings: boolean; onboarding: boolean; login: boolean; guide: boolean };
+  modals: { settings: boolean; onboarding: boolean; login: boolean; docs: boolean };
   openModal(k: keyof AppState["modals"]): void;
   closeModal(k: keyof AppState["modals"]): void;
   /** 选中 AI 回复文本 → 引用（InputArea 消费后清空） */
@@ -173,7 +168,7 @@ export interface AppState {
       切回对话视图看回答。文档全文注入上下文（截断），让 AI 真正基于文件内容解读。 */
   sendDocQuestion(text: string): void;
   /** AI 解读文档：理解内容 → 语义分块 + 双语对照 + 格式工整（markdown）。
-      BYOK 流式生成（边生成边在解读视图浮现），失败回退离线启发式；结果缓存到 doc.interpreted。
+      BYOK 流式生成（边生成边在解读视图浮现），失败明确提示；结果缓存到 doc.interpreted。
       force = 忽略已有缓存，重新解读。 */
   interpretDocument(docId: string, force?: boolean): void;
   /** 正在 AI 解读的文档 id 列表（支持并发解读多个文档） */
@@ -263,6 +258,9 @@ export interface AppState {
   openDocDiverge(title: string, block: string, docName: string): { id: string; created: boolean };
   universeOpen: boolean;
   setUniverseOpen(v: boolean): void;
+  /** 全局轻提示（底部 toast）：无 API / 请求失败等状态反馈 */
+  appNotice: string | null;
+  setAppNotice(v: string | null): void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -299,44 +297,6 @@ function loadState(): PersistedState {
   } catch {
     return {};
   }
-}
-
-/** 离线启发式"智能摘要"：主题/规模/核心问题/涉及术语/时间。 */
-function heuristicSummary(turn: Turn): string {
-  const terms = new Set<string>();
-  const walk = (nodes: TermNode[]) => {
-    for (const n of nodes) {
-      terms.add(n.term);
-      if (n.children) walk(n.children);
-    }
-  };
-  walk(TERM_TREE);
-  for (const g of GLOSSARY) {
-    terms.add(g.zh);
-    terms.add(g.en);
-  }
-  const joined = turn.messages.map((m) => m.content).join(" ");
-  const hits = [...terms]
-    .filter((t) => t.length >= 2 && joined.includes(t))
-    .slice(0, 6);
-  const firstUser =
-    turn.messages
-      .find((m) => m.role === "user")
-      ?.content.replace(/^>\s?/gm, "")
-      .trim()
-      .slice(0, 48) ?? turn.title;
-  const when = new Date(turn.createdAt).toLocaleString("zh-CN", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  return [
-    `📌 主题：${turn.title}`,
-    `💬 共 ${turn.messages.length} 条消息 · 核心问题：「${firstUser}」`,
-    hits.length ? `🔑 涉及术语：${hits.join("、")}` : "🔑 涉及术语：无",
-    `🕐 ${when}`,
-  ].join("\n");
 }
 
 /** 分支卡片"分支点前对话"总结：上游主题 + 分支点 + 涉及术语 + 逐条陈述（消息截断）。
@@ -398,7 +358,7 @@ function buildDivergePrompt(
 
 /** 智能模式个性化上下文（常驻聊天专属，deliverReply 消费）：
     用户档案称呼 + 思维宇宙已收录概念 + 术语掌握度（已掌握/曾提问）。
-    返回 BYOK system 提示 + 离线回复尾注；无任何个性化数据时返回 null（不注入）。 */
+    返回 BYOK system 提示；无任何个性化数据时返回 null（不注入）。 */
 function buildSmartContext(
   profile: Profile | null,
   thoughtNodes: ThoughtNode[],
@@ -480,11 +440,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mindscapeOpen, setMindscapeOpen] = useState(false);
   const [universeOpen, setUniverseOpen] = useState(false);
+  /** 全局轻提示（底部 toast）：无 API / 请求失败等状态反馈 */
+  const [appNotice, setAppNotice] = useState<string | null>(null);
   const [modals, setModals] = useState<AppState["modals"]>({
     settings: false,
     onboarding: false,
     login: false,
-    guide: false,
+    docs: false,
   });
   // busy 引用计数：并行流（如主对话流式期间从术语卡开发散/分支）各自 +1/-1，
   // 任一流结束不提前解锁输入（修：单布尔在多流并发时被先结束的流提前置 false）。
@@ -548,25 +510,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Persist everything (auto-save).
+  // Persist everything (auto-save, 500ms 防抖：流式增量不逐 token 落盘)。
+  // 写失败（配额满/隐私模式）时明确提示用户，避免静默丢数据。
   useEffect(() => {
-    try {
-      const data: PersistedState = {
-        settings,
-        projects,
-        activeProjectId,
-        thoughtNodes,
-        termStates,
-        profile,
-        documents,
-        folders,
-        smartMode,
-        byokModels,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch {
-      /* quota / unavailable — skip */
-    }
+    const timer = window.setTimeout(() => {
+      try {
+        const data: PersistedState = {
+          settings,
+          projects,
+          activeProjectId,
+          thoughtNodes,
+          termStates,
+          profile,
+          documents,
+          folders,
+          smartMode,
+          byokModels,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch {
+        setAppNotice("⚠️ 本地存储写入失败：数据可能无法保存。请导出备份或清理浏览器存储空间。");
+      }
+    }, 500);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, documents, folders, smartMode, byokModels]);
 
   // Theme → <html data-theme> (runtime re-skin) + browser chrome color.
@@ -593,23 +560,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return p.id;
   }, []);
 
-  const loadSampleProject = useCallback(() => {
-    const turn = makeDemoTurn("什么是量子纠缠？");
-    turn.messages = [
-      { id: uid(), role: "user", content: "什么是量子纠缠？", createdAt: Date.now() },
-      { id: uid(), role: "assistant", content: generateReply("什么是量子纠缠？"), createdAt: Date.now() },
-    ];
-    const p: ChatProject = {
-      ...makeDemoProject(),
-      id: uid(),
-      title: "示例：量子纠缠",
-      turns: [turn],
-    };
-    setProjects((list) => [p, ...list]);
-    setActiveProjectId(p.id);
-    setActiveDocId(null);
-  }, []);
-
   const selectProject = useCallback((id: string) => {
     setActiveProjectId(id);
     setActiveDocId(null); // 文档视图是独立全屏模式：点项目 = 明确回到对话视图
@@ -623,9 +573,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteProject = useCallback((id: string) => {
     // 常驻聊天不可删除。
     if (id === RESIDENT_CHAT_ID) return;
+    // 收集该项目下的全部轮次 id，清理指向它们的视图引用（防残留失效状态）。
+    const doomedTurns = new Set<string>();
+    const proj = projects.find((p) => p.id === id);
+    proj?.turns.forEach((t) => doomedTurns.add(t.id));
     setProjects((list) => list.filter((p) => p.id !== id));
     setActiveProjectId((cur) => (cur === id ? null : cur));
-  }, []);
+    setParallelSendTarget((cur) => (cur && doomedTurns.has(cur) ? null : cur));
+    setStreamingTurnId((cur) => (cur && doomedTurns.has(cur) ? null : cur));
+    setFocusRequest((cur) => (cur && doomedTurns.has(cur.turnId) ? null : cur));
+    setCardOpenRequest((cur) => (cur && doomedTurns.has(cur.turnId) ? null : cur));
+    setTreeFocus((cur) =>
+      cur && (doomedTurns.has(cur.cardId) || (cur.groupSourceId != null && doomedTurns.has(cur.groupSourceId)))
+        ? null
+        : cur
+    );
+  }, [projects]);
 
   const renameProject = useCallback((id: string, name: string) => {
     const title = name.trim();
@@ -791,11 +754,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [byokModels]
   );
 
-  /** 删除一个 BYOK 模型；若删除的是当前默认模型，自动回退到离线知识库。 */
+  /** 删除一个 BYOK 模型；若删除的是当前默认模型，清除选中（由用户重新配置）。 */
   const removeByokModel = useCallback((id: string) => {
     setByokModels((list) => list.filter((m) => m.id !== id));
     setSettingsState((s) =>
-      s.activeModelId === id ? { ...s, activeModelId: OFFLINE_MODEL.id } : s
+      s.activeModelId === id ? { ...s, activeModelId: "" } : s
     );
   }, []);
 
@@ -951,7 +914,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearCardOpenRequest = useCallback(() => setCardOpenRequest(null), []);
 
-  /** 收藏区"智能摘要"：BYOK 走真实 API 流式生成，否则本地启发式摘要 */
+  /** 收藏区"智能摘要"：BYOK 走真实 API 流式生成；无 API 时提示配置。 */
   const summarizeTurn = useCallback(
     (turnId: string) => {
       const turn = projects.flatMap((p) => p.turns).find((t) => t.id === turnId);
@@ -959,41 +922,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const byok = byokModels.find(
         (m) => m.id === settings.activeModelId && m.provider === "BYOK"
       );
-      if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
-        setSummarizingTurnId(turnId);
-        setTurnSummaries((s) => ({ ...s, [turnId]: "" }));
-        const controller = new AbortController();
-        const timer = window.setTimeout(() => controller.abort(), 15000);
-        let acc = "";
-        const transcript = turn.messages
-          .map((m) => `${m.role === "user" ? "我" : "AI"}：${m.content}`)
-          .join("\n")
-          .slice(0, 4000);
-        streamOpenAICompatible(
-          byok,
-          [
-            {
-              role: "user",
-              content: `请用 3-5 条要点概括下面这段对话（含核心问题、涉及术语与结论），中文回答：\n\n${transcript}`,
-            },
-          ],
-          (delta) => {
-            acc += delta;
-            setTurnSummaries((s) => ({ ...s, [turnId]: acc }));
-          },
-          controller.signal,
-          () => window.clearTimeout(timer)
-        )
-          .catch(() => {
-            setTurnSummaries((s) => ({ ...s, [turnId]: heuristicSummary(turn) }));
-          })
-          .finally(() => {
-            window.clearTimeout(timer);
-            setSummarizingTurnId(null);
-          });
-      } else {
-        setTurnSummaries((s) => ({ ...s, [turnId]: heuristicSummary(turn) }));
+      if (!byok || !byok.apiKey || !byok.baseUrl || !byok.modelId) {
+        setAppNotice("请先在设置 → AI 模型中配置 API 模型");
+        return;
       }
+      setSummarizingTurnId(turnId);
+      setTurnSummaries((s) => ({ ...s, [turnId]: "" }));
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 15000);
+      let acc = "";
+      const transcript = turn.messages
+        .map((m) => `${m.role === "user" ? "我" : "AI"}：${m.content}`)
+        .join("\n")
+        .slice(0, 4000);
+      streamOpenAICompatible(
+        byok,
+        [
+          {
+            role: "user",
+            content: `请用 3-5 条要点概括下面这段对话（含核心问题、涉及术语与结论），中文回答：\n\n${transcript}`,
+          },
+        ],
+        (delta) => {
+          acc += delta;
+          setTurnSummaries((s) => ({ ...s, [turnId]: acc }));
+        },
+        controller.signal,
+        () => window.clearTimeout(timer)
+      )
+        .catch(() => {
+          setAppNotice("摘要生成失败：请检查 API 配置或网络");
+          setTurnSummaries((s) => {
+            const next = { ...s };
+            delete next[turnId];
+            return next;
+          });
+        })
+        .finally(() => {
+          window.clearTimeout(timer);
+          setSummarizingTurnId(null);
+        });
     },
     [projects, byokModels, settings.activeModelId, summarizingTurnId]
   );
@@ -1086,7 +1054,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   /**
-   * 双通道回复：BYOK 走真实流式 API（失败回退离线），否则离线知识库。
+   * 双通道回复：BYOK 走真实流式 API；未配置或失败时明确提示（无离线兜底）。
    * 回复写入 targetId 项目（turnId 缺省 = 最后一个 turn）；`history` 为之前的消息（不含当前问题）。
    */
   const deliverReply = useCallback(
@@ -1102,16 +1070,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           (m) => m.id === settings.activeModelId && m.provider === "BYOK"
         );
         // 智能模式（仅常驻聊天）：注入个性化上下文——用户档案 + 思维宇宙 + 术语掌握度。
-        // BYOK 走 system 消息；离线路径在回复尾部追加个性化注记。
+        // BYOK 走 system 消息注入个性化上下文。
         const smart =
           smartMode && targetId === RESIDENT_CHAT_ID
             ? buildSmartContext(profile, thoughtNodes, termStates)
             : null;
-        const withNote = (s: string) => (smart ? s + smart.note : s);
         // 联网搜索（开关开启）：先取实时结果再组上下文——
-        // BYOK 注入 prompt 引导基于结果回答并注明来源；离线路径把结果链接附在回复尾部。
+        // 注入 prompt 引导基于结果回答并注明来源。
         let searchPrompt = "";
-        let searchDisplay = "";
         if (settings.isWebSearchEnabled) {
           const results = await webSearch(question);
           if (results.length > 0) {
@@ -1124,81 +1090,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
             searchPrompt =
               `\n\n以下是用户开启联网搜索后获取的实时搜索结果（按相关度排序）：\n${list}` +
               `\n请优先基于这些结果回答，引用时注明来源；若结果与问题无关，请如实说明。`;
-            searchDisplay =
-              `\n\n---\n🔎 联网搜索：\n` +
-              results.map((r, i) => `${i + 1}. [${r.title}](${r.url})`).join("\n");
-          } else {
-            searchDisplay = `\n\n---\n🔎 联网搜索：未能获取结果，以上回答未基于实时网页。`;
           }
         }
         // 记录流式目标（供贴底/未读判定）；并发时最近启动者胜出，结束只清自己的。
         setStreamingTurnId(turnId ?? null);
-        if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
-          const controller = new AbortController();
-          // 15s 内没有任何增量 -> 放弃回退；开始出字后不再限时（流可能很长）。
-          const timer = window.setTimeout(() => controller.abort(), 15000);
-          appendAssistantMessage(targetId, turnId); // SSE 直接往这条消息里流
-          let acc = "";
-          streamOpenAICompatible(
-            byok,
-            [
-              ...(smart ? [{ role: "system" as const, content: smart.system }] : []),
-              ...(searchPrompt
-                ? [{ role: "user" as const, content: searchPrompt }]
-                : []),
-              ...history,
-              { role: "user", content: question },
-            ],
-            (delta) => {
-              acc += delta;
-              setLastAssistantContent(targetId, acc, turnId);
-            },
-            controller.signal,
-            () => window.clearTimeout(timer)
-          )
-            .then(() => {
-              window.clearTimeout(timer);
-              markIdle();
-              setStreamingTurnId((cur) => (cur === turnId ? null : cur));
-              onDone?.();
-            })
-            .catch((err: unknown) => {
-              window.clearTimeout(timer);
-              const why =
-                err instanceof Error && err.name === "AbortError"
-                  ? "请求超时"
-                  : err instanceof Error && err.message
-                    ? err.message
-                    : "网络错误";
-              if (acc) {
-                // 流中断：保留已收到的部分，接着补一段离线回复。
-                streamReply(
-                  withNote(generateReply(question, history)) + searchDisplay,
-                  targetId,
-                  onDone,
-                  {
-                    append: false,
-                    prefix: `${acc}\n\n> ⚠️ BYOK 流式中断（${why}），以下为离线知识库补充：\n\n`,
-                  },
-                  turnId
-                );
-              } else {
-                const fallback = `> ⚠️ BYOK 请求失败（${why}），已回退到离线知识库。\n\n${withNote(generateReply(question, history)) + searchDisplay}`;
-                streamReply(fallback, targetId, onDone, { append: false }, turnId);
-              }
-            });
-        } else {
-          // 离线 mock 路径：短暂延迟后按知识库生成回复（带上下文记忆）。
-          window.setTimeout(() => {
-            streamReply(
-              withNote(generateReply(question, history)) + searchDisplay,
-              targetId,
-              onDone,
-              undefined,
-              turnId
-            );
-          }, 500);
+        if (!byok || !byok.apiKey || !byok.baseUrl || !byok.modelId) {
+          // 未配置 API：不生成回复，提示去配置（输入区在无 API 时已禁用，这里是兜底）。
+          setAppNotice("请先在设置 → AI 模型中配置 API 模型");
+          markIdle();
+          setStreamingTurnId((cur) => (cur === turnId ? null : cur));
+          return;
         }
+        const controller = new AbortController();
+        // 15s 内没有任何增量 -> 放弃；开始出字后不再限时（流可能很长）。
+        const timer = window.setTimeout(() => controller.abort(), 15000);
+        appendAssistantMessage(targetId, turnId); // SSE 直接往这条消息里流
+        let acc = "";
+        streamOpenAICompatible(
+          byok,
+          [
+            ...(smart ? [{ role: "system" as const, content: smart.system }] : []),
+            ...(searchPrompt
+              ? [{ role: "user" as const, content: searchPrompt }]
+              : []),
+            ...history,
+            { role: "user", content: question },
+          ],
+          (delta) => {
+            acc += delta;
+            setLastAssistantContent(targetId, acc, turnId);
+          },
+          controller.signal,
+          () => window.clearTimeout(timer)
+        )
+          .then(() => {
+            window.clearTimeout(timer);
+            markIdle();
+            setStreamingTurnId((cur) => (cur === turnId ? null : cur));
+            onDone?.();
+          })
+          .catch((err: unknown) => {
+            window.clearTimeout(timer);
+            const why =
+              err instanceof Error && err.name === "AbortError"
+                ? "请求超时"
+                : err instanceof Error && err.message
+                  ? err.message
+                  : "网络错误";
+            setAppNotice(`API 请求失败（${why}）`);
+            if (acc) {
+              // 流中断：保留已收到的部分，末尾标注中断原因。
+              streamReply(
+                `\n\n> ⚠️ API 请求中断（${why}），以上为中断前已生成的内容。`,
+                targetId,
+                onDone,
+                { append: false, prefix: `${acc}\n\n` },
+                turnId
+              );
+            } else {
+              const fallback = `> ⚠️ API 请求失败（${why}）。请检查 API 地址 / Key 是否正确，或稍后重试。`;
+              streamReply(fallback, targetId, onDone, { append: false }, turnId);
+            }
+          });
       })();
     },
     [
@@ -1220,6 +1173,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (text: string) => {
       const content = text.trim();
       if (!content || busy) return;
+      // 无 API 守卫（输入区已禁用，这里是兜底）：不发消息、不建空轮次。
+      const byok = byokModels.find(
+        (m) => m.id === settings.activeModelId && m.provider === "BYOK"
+      );
+      if (!byok || !byok.apiKey || !byok.baseUrl || !byok.modelId) {
+        setAppNotice("请先在设置 → AI 模型中配置 API 模型");
+        return;
+      }
 
       const wasDesktop = isDesktop();
       let targetId = activeProjectId;
@@ -1258,7 +1219,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (wasDesktop) setCollapsed(true);
       };
 
-      // 最近对话历史（离线回复与 BYOK 共用；当前问题单独传）。
+      // 最近对话历史（当前问题单独传）。
       // 平行会话（diverge）是独立线程：不进入主对话流上下文，避免主题漂移。
       const history = turns
         .filter((t) => t.kind !== "diverge")
@@ -1270,7 +1231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // 写入目标不随"最后一个 turn"漂移（修双流覆写）。
       deliverReply(content, history, targetId, done, turnId);
     },
-    [activeProjectId, busy, appendTurn, settings.autoTitleEnabled, turns, deliverReply, focusTurn, markBusy]
+    [activeProjectId, busy, appendTurn, settings.autoTitleEnabled, turns, deliverReply, focusTurn, markBusy, byokModels, settings.activeModelId]
   );
 
   /** 在指定轮次内继续提问（消息级顺延）：
@@ -1326,7 +1287,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   /** 分支卡片：以术语开新 turn，继承上游卡片主题与分支点之前的对话历史。
-      AI 回复走 deliverReply 双通道（BYOK 真实 API / 离线知识库），不再静态贴摘要。
+      AI 回复走 deliverReply（BYOK 真实 API），不再静态贴摘要。
       新 turn 记为 kind="branch"；branchPointIndex 默认 = 创建时上游轮次最后一条消息下标。 */
   const openBranchTurn = useCallback(
     (
@@ -1509,7 +1470,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   /** 文档问答：同名项目（论文: xxx）不存在则创建，然后开新 turn。
-      回复走 deliverReply 双通道：BYOK 用真实 API，否则离线知识库。
+      回复走 deliverReply（BYOK 真实 API）。
       文档全文注入上下文（截断 8000 字）：术语解释真正基于论文内容，而非泛泛而谈。 */
   const openDocQuestion = useCallback(
     (term: string, docId: string) => {
@@ -1655,8 +1616,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   /** AI 解读文档：先理解内容 → 按语义分块 + 双语对照 + 格式工整（markdown）。
       BYOK 走真实流式 API（边生成边写入 doc.interpreted，解读视图即时浮现），
-      失败回退离线启发式；无 BYOK 直接启发式整理。
-      force = 忽略已有缓存重新解读。 */
+      失败明确提示；force = 忽略已有缓存重新解读。 */
   const interpretDocument = useCallback(
     (docId: string, force = false) => {
       const doc = documents.find((d) => d.id === docId) ?? null;
@@ -1665,6 +1625,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const byok = byokModels.find(
         (m) => m.id === settings.activeModelId && m.provider === "BYOK"
       );
+      if (!byok || !byok.apiKey || !byok.baseUrl || !byok.modelId) {
+        setAppNotice("请先在设置 → AI 模型中配置 API 模型");
+        return;
+      }
       setDocInterpretingIds((ids) => [...ids, docId]);
       const finish = () =>
         setDocInterpretingIds((ids) => ids.filter((id) => id !== docId));
@@ -1676,63 +1640,73 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
         finish();
       };
-      const fallback = () => apply(heuristicInterpret(doc.content));
-      if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
-        const controller = new AbortController();
-        const timer = window.setTimeout(() => controller.abort(), 45000);
-        let acc = "";
-        let lastFlush = 0;
-        // 流式写入（节流 ~250ms）：首字到达前解读视图显示"解读中"，
-        // 之后块随生成进度逐渐浮现——上传后第一时间就看到 AI 如何分块。
-        const flush = () => {
-          setDocuments((list) =>
-            list.map((d) => (d.id === docId ? { ...d, interpreted: acc } : d))
-          );
-        };
-        streamOpenAICompatible(
-          byok,
-          [
-            {
-              role: "user",
-              content: [
-                `请先理解下面这份论文/文档的内容，然后输出一份"解读版"。这是供用户精读论文用的解读，请做到：`,
-                ``,
-                `1. 【全文概览】开头先输出 \`## 全文概览\` 块：用 3-6 条要点概括——研究/写作背景、核心问题、主要方法、关键结论与创新点；`,
-                `2. 【语义分块】按语义把内容分成若干清晰的块，每块用 \`## 块标题\` 开头（3-12 块，标题简短概括主旨）；每块必须有实质内容——标题、作者、日期、脚注等零碎信息不要单独成块，并入「全文概览」或相邻块；`,
-                `3. 【双语对照】以中文为阅读主语言，但不要只给译文——每块正文包含两部分：a) 中文解读/翻译，专业术语首次出现保留英文括号注释，如"机器学习（Machine Learning）"；b) 块末用引用格式附上对应的英文原文（\`> 原文…\`），供逐句对照；原文已是中文的块只需润色成通顺书面语、重要专有名词保留英文原名，无需附对照；`,
-                `4. 【工整易读】整理格式：数据、公式、引文、图表描述、列表等关键信息一律保留不得省略；用 markdown 的列表/引用/强调组织层级；去掉页眉页脚、目录与重复噪音；`,
-                `5. 【术语标记】遇到关键概念、术语、人名用 **加粗** 标记，方便继续深挖。`,
-                ``,
-                `直接输出整理结果，不要任何开场白或额外解释。`,
-                ``,
-                `文档《${doc.name}》：`,
-                doc.content.slice(0, 14000),
-              ].join("\n"),
-            },
-          ],
-          (delta) => {
-            acc += delta;
-            const now = Date.now();
-            if (now - lastFlush > 250) {
-              lastFlush = now;
-              flush();
-            }
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 45000);
+      let acc = "";
+      let lastFlush = 0;
+      // 流式写入（节流 ~250ms）：首字到达前解读视图显示"解读中"，
+      // 之后块随生成进度逐渐浮现——上传后第一时间就看到 AI 如何分块。
+      const flush = () => {
+        setDocuments((list) =>
+          list.map((d) => (d.id === docId ? { ...d, interpreted: acc } : d))
+        );
+      };
+      streamOpenAICompatible(
+        byok,
+        [
+          {
+            role: "user",
+            content: [
+              `请先理解下面这份论文/文档的内容，然后输出一份"解读版"。这是供用户精读论文用的解读，请做到：`,
+              ``,
+              `1. 【全文概览】开头先输出 \`## 全文概览\` 块：用 3-6 条要点概括——研究/写作背景、核心问题、主要方法、关键结论与创新点；`,
+              `2. 【语义分块】按语义把内容分成若干清晰的块，每块用 \`## 块标题\` 开头（3-12 块，标题简短概括主旨）；每块必须有实质内容——标题、作者、日期、脚注等零碎信息不要单独成块，并入「全文概览」或相邻块；`,
+              `3. 【双语对照】以中文为阅读主语言，但不要只给译文——每块正文包含两部分：a) 中文解读/翻译，专业术语首次出现保留英文括号注释，如"机器学习（Machine Learning）"；b) 块末用引用格式附上对应的英文原文（\`> 原文…\`），供逐句对照；原文已是中文的块只需润色成通顺书面语、重要专有名词保留英文原名，无需附对照；`,
+              `4. 【工整易读】整理格式：数据、公式、引文、图表描述、列表等关键信息一律保留不得省略；用 markdown 的列表/引用/强调组织层级；去掉页眉页脚、目录与重复噪音；`,
+              `5. 【术语标记】遇到关键概念、术语、人名用 **加粗** 标记，方便继续深挖。`,
+              ``,
+              `直接输出整理结果，不要任何开场白或额外解释。`,
+              ``,
+              `文档《${doc.name}》：`,
+              doc.content.slice(0, 14000),
+            ].join("\n"),
           },
-          controller.signal,
-          () => window.clearTimeout(timer)
-        )
-          .then(() => {
-            window.clearTimeout(timer);
-            if (acc.trim().length >= 40) apply(acc);
-            else fallback();
-          })
-          .catch(() => {
-            window.clearTimeout(timer);
-            fallback();
-          });
-      } else {
-        window.setTimeout(fallback, 400); // 离线：启发式整理（翻译/润色需 BYOK）
-      }
+        ],
+        (delta) => {
+          acc += delta;
+          const now = Date.now();
+          if (now - lastFlush > 250) {
+            lastFlush = now;
+            flush();
+          }
+        },
+        controller.signal,
+        () => window.clearTimeout(timer)
+      )
+        .then(() => {
+          window.clearTimeout(timer);
+          if (acc.trim().length >= 40) apply(acc);
+          else {
+            // 失败：清掉流式期间已 flush 的半成品，避免下次命中"已有缓存"读到残片。
+            setDocuments((list) =>
+              list.map((d) =>
+                d.id === docId ? { ...d, interpreted: undefined, interpretedAt: undefined } : d
+              )
+            );
+            setAppNotice("文档解读失败：模型未返回有效内容");
+            finish();
+          }
+        })
+        .catch(() => {
+          window.clearTimeout(timer);
+          setDocuments((list) =>
+            list.map((d) =>
+              d.id === docId ? { ...d, interpreted: undefined, interpretedAt: undefined } : d
+            )
+          );
+          setAppNotice("文档解读失败：请检查 API 配置或网络");
+          finish();
+        });
     },
     [documents, docInterpretingIds, byokModels, settings.activeModelId]
   );
@@ -1785,7 +1759,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     projects,
     activeProjectId,
     createProject,
-    loadSampleProject,
     selectProject,
     selectResident,
     deleteProject,
@@ -1860,6 +1833,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     openDocDiverge,
     universeOpen,
     setUniverseOpen,
+    appNotice,
+    setAppNotice,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

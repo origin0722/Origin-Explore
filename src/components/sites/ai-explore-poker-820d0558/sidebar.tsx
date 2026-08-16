@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
+  BookMarked,
   BookOpen,
   ChevronRight,
   Download,
@@ -715,6 +716,24 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
             </div>
           )}
         </div>
+
+        {/* 使用文档：收藏下方、设置上方（合并"如何使用"+"使用指南"的完整教程） */}
+        <button
+          onClick={() => openModal("docs")}
+          title={!show ? "使用文档" : undefined}
+          className={`group relative flex items-center w-full rounded-lg shadow-card overflow-hidden transition-all duration-200 ${
+            !show ? "justify-center" : ""
+          }`}
+        >
+          <span className="relative p-2.5 bg-btn-control group-hover:bg-btn-control-hover rounded-lg shadow">
+            <BookMarked size={24} />
+          </span>
+          {show && (
+            <span className="text-base font-normal text-primary whitespace-nowrap transition-all duration-300 ml-3">
+              使用文档
+            </span>
+          )}
+        </button>
 
         <button
           onClick={() => openModal("settings")}

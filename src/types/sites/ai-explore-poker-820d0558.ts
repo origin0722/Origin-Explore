@@ -163,7 +163,7 @@ export interface DocumentItem {
   /** extracted plain text (client-side parsing only) */
   content: string;
   /** AI 解读缓存：理解内容 → 语义分块 + 翻译 + 格式工整后的 markdown
-      （BYOK 流式生成；离线为启发式整理）。有值 = 已解读。 */
+      （BYOK 流式生成）。有值 = 已解读。 */
   interpreted?: string;
   interpretedAt?: number;
   addedAt: number;

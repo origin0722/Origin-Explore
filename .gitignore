@@ -6,7 +6,8 @@ node_modules/
 # Build
 .next/
 out/
-build/
+build/*
+!build/icon.png
 dist/
 
 # Electron packaging outputs
@@ -52,4 +53,5 @@ next-env.d.ts
 # Local temp files
 temp/
 .dsh-vision-toolkit/
+.dsh-vision-router/
 qa-out/

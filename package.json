@@ -1,6 +1,6 @@
 {
   "name": "ai-website-clone-template",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "private": true,
   "main": "electron/main.js",
   "description": "Clone any website into a clean, modern Next.js codebase using AI coding agents",
@@ -31,6 +31,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "start:web": "node scripts/start-web.mjs",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck && npm run build",
@@ -45,7 +46,12 @@
     },
     "files": [
       "electron/main.js",
-      "package.json"
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
     ],
     "afterPack": "scripts/after-pack.mjs",
     "win": {
@@ -107,6 +113,7 @@
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0",
     "puppeteer-core": "^25.5.0",
+    "sharp": "^0.35.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
