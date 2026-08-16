@@ -244,8 +244,8 @@ export function MindscapePanel({ thoughts, onClose }: MindscapePanelProps) {
         <div
           className={`pointer-events-none absolute bottom-24 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs shadow-card backdrop-blur animate-[fadeIn_200ms_ease-out] ${
             toast.kind === "success"
-              ? "border-brand/40 bg-[#101614]/95 text-brand"
-              : "border-red-500/40 bg-[#101614]/95 text-red-400"
+              ? "border-brand/40 bg-universe-panel/95 text-brand"
+              : "border-destructive/40 bg-universe-panel/95 text-destructive"
           }`}
         >
           {toast.text}

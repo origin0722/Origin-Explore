@@ -12,7 +12,7 @@
 ### 类型 & Mock 数据（已存在，直接 import，不要重写）
 - `src/types/sites/ai-explore-poker-820d0558.ts` — 全部类型：Project/Turn/Message/ChatProject/ChatSettings/ModelInfo/ThoughtNode(pending|validated)/TermNode(kind: child|related|branch + children 递归)/ThemeOption{id,name}/Profile/DocumentItem/TermState("unseen"|"asked"|"mastered")
 - `src/lib/sites/ai-explore-poker-820d0558/mock.ts` — MODELS(全部解锁) / THEMES({id,name}[] 9 个) / DEFAULT_SETTINGS / MOCK_REPLY_MARKDOWN / TERM_TREE(3 层递归术语树) / findTerm() / genericTermSummary() / GLOSSARY(30 条中英对照) / themeId(name)→data-theme key / isThemeImplemented(name) / makeDemoProject / makeDemoTurn / MINDSCAPE_EMPTY / EMPTY_THOUGHTS
-- `src/lib/sites/ai-explore-poker-820d0558/doc-parser.ts` — extractTextFromFile(file)→{kind,content}（pdf/docx/md/txt/html 客户端解析）、kindFromName、kindLabel、isParseable
+- `src/lib/sites/ai-explore-poker-820d0558/doc-parser.ts` — extractTextFromFile(file)→{kind,content}（pdf/docx/md/txt/html 客户端解析）、kindFromName、kindLabel、isParseable、splitParagraphs（短块合并）、heuristicInterpret（离线解读回退）
 - `src/lib/sites/ai-explore-poker-820d0558/term-detect.ts` — detectTerms(text, limit?)→TermCandidate[]{term,score,kind:"glossary"|"heuristic"}（词典+启发式）
 
 ### 语义类名（globals.css @theme 已生成，直接用）
@@ -27,7 +27,9 @@
 - **注意**：`text-content-brand` 不存在，用 `text-brand`
 
 ### AppContext（app-context.tsx 已实现，直接 import { useApp }）
-useApp() 提供: settings/setSettings / projects/activeProjectId/createProject/selectProject/deleteProject / collapsed/toggleSidebar / mindscapeOpen/setMindscapeOpen / universeOpen/setUniverseOpen / modals/openModal/closeModal / turns/activeTurn / sendMessage/busy / **openBranchTurn(title, aiContent?)**（分支卡片开新 turn）/ **profile/setProfile** / **thoughtNodes/addThoughtNode(subject,content,category?)/validateThoughtNode(id)/removeThoughtNode(id)** / **termStates/markTermState(term,state)** / **documents/addDocument/removeDocument/activeDocId/setActiveDocId** / **openDocQuestion(term, docName)**（文档问答→自动建"论文：xxx"项目+新 turn）
+useApp() 提供: settings/setSettings / projects/activeProjectId/createProject/selectProject/deleteProject / collapsed/toggleSidebar / mindscapeOpen/setMindscapeOpen / universeOpen/setUniverseOpen / modals/openModal/closeModal / turns/activeTurn / sendMessage/busy / **openBranchTurn(title, history?, sourceTurnId?): {id, created}**（分支卡片开新 turn）/ **openDivergeTurn(title, sourceTurnId, anchor?): {id, created}**（发散卡片，anchor 注入来源语境）/ **sendInTurn(turnId, text)**（平行对话内消息级顺延）/ **sendDocQuestion(text)**（基于文档全文提问）/ **interpretDocument(docId, force?)**（AI 解读：分块+双语+整理，流式）/ **docInterpretingIds: string[]** / **parallelSendTarget/setParallelSendTarget**（输入框三路发送目标）/ **treeFocus/setTreeFocus**（卡片树"你在这里"高亮）/ **profile/setProfile** / **thoughtNodes/addThoughtNode(subject,content,category?)/validateThoughtNode(id)/removeThoughtNode(id)** / **termStates/markTermState(term,state)** / **documents/addDocument/removeDocument/activeDocId/setActiveDocId** / **openDocQuestion(term, docName)**（文档问答→自动建"论文：xxx"项目+新 turn）
+
+> 交互重设计与文档解读的完整设计见 **r10-parallel-view-doc-interpret.md**（平行视图 / 卡片树 v2 / 文档 AI 解读）。
 
 ### 语言
 界面文案用**中文**（个人工具，仅中文，无语言切换）。
@@ -49,3 +51,24 @@ useApp() 提供: settings/setSettings / projects/activeProjectId/createProject/s
 | 07 | Modals（设置/引导/档案） | modals.tsx | 07-modals.md |
 | 08 | DocReader（文档库+分栏阅读器） | doc-reader.tsx | 08-docreader.md |
 | 09 | MindUniverse（全屏 3D） | mind-universe.tsx | 09-minduniverse.md |
+| R9 | 发散 + 分支卡片（卡片树） | — | r9-divergence-branch-cards.md |
+| R10 | 平行视图 + 文档 AI 解读 + 卡片树 v2 | — | r10-parallel-view-doc-interpret.md |
+
+## 运行 / 打包桌面应用
+
+### 开发
+- `npm run dev` → http://localhost:3000（独立浏览器调试）
+- `npm run build` / `npm run lint` / `npm run typecheck` / `npm run check`
+
+### 打包给朋友（无需 Node 的桌面应用）
+- `npm run package:app` → 生成 `release/` 下的可分发包
+  - `OriginExplore-<version>-setup.exe`：NSIS 安装版（带桌面快捷方式）
+  - `OriginExplore-<version>-portable.exe`：单文件便携版（双击即用）
+- 打包流程：`next build`（standalone）→ 组装运行目录 → electron-builder
+- 架构（`electron/main.js`）：Electron 主进程用 `utilityProcess` 内置运行 Next.js standalone 服务 → 打开窗口加载
+  `http://127.0.0.1:<port>`。数据全存本机（localStorage）。
+- 崩溃/运行日志：`%APPDATA%\ai-website-clone-template\explore.log`
+
+### 联网搜索
+- 服务端代理 `src/app/api/search/route.ts`（`GET /api/search?q=`）：主源 Bing RSS、回退 DuckDuckGo；
+  开启后 BYOK 回答基于实时结果，离线模式附搜索结果链接。

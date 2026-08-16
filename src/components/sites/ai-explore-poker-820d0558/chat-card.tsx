@@ -8,6 +8,7 @@
 import {
   Fragment,
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -18,6 +19,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import {
   BookmarkPlus,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   FileText,
   GitFork,
@@ -30,15 +33,32 @@ import {
   Scissors,
   Send,
   Star,
+  Trash2,
   Waypoints,
   X,
 } from "lucide-react";
 import { useApp, streamOpenAICompatible } from "./app-context";
 import { explorationChains, type ExploreEntry } from "./turn-graph";
 import { findTerm, generateReply, GLOSSARY } from "@/lib/sites/ai-explore-poker-820d0558/mock";
-import type { Message, TermNode } from "@/types/sites/ai-explore-poker-820d0558";
+import type { Message, TermNode, Turn } from "@/types/sites/ai-explore-poker-820d0558";
 
 const uid = () => "m-" + Math.random().toString(36).slice(2, 10);
+
+/* ------------------------------------------------------------------ */
+/* 对话区视图模型                                                        */
+/* ------------------------------------------------------------------ */
+
+/** 主对话区视图：主流（纵向堆叠，向下生长）或 平行组（来源 + 发散卡，横向同级滑动）。 */
+type ViewSpec = { kind: "stream" } | { kind: "parallel"; sourceId: string; cardId: string };
+
+function sameView(a: ViewSpec, b: ViewSpec): boolean {
+  return a.kind === "stream" && b.kind === "stream"
+    ? true
+    : a.kind === "parallel" &&
+        b.kind === "parallel" &&
+        a.sourceId === b.sourceId &&
+        a.cardId === b.cardId;
+}
 
 /* ------------------------------------------------------------------ */
 /* Recursive term tree helpers                                         */
@@ -48,12 +68,14 @@ const KIND_BADGE: Record<TermNode["kind"], string> = {
   child: "↗️ 子卡片",
   related: "➡️ 关联卡片",
   branch: "⬇️ 分支卡片",
+  diverge: "🪢 发散卡片",
 };
 
 const KIND_ICON: Record<TermNode["kind"], string> = {
   child: "↗️",
   related: "➡️",
   branch: "⬇️",
+  diverge: "🪢",
 };
 
 /** Resolve a term to a tree node; glossary terms get their short explain;
@@ -328,6 +350,7 @@ export function ChatCard() {
   const {
     turns,
     busy,
+    streamingTurnId,
     projects,
     activeProjectId,
     deleteProject,
@@ -351,6 +374,11 @@ export function ChatCard() {
     focusTurn,
     focusRequest,
     clearFocusRequest,
+    setParallelSendTarget,
+    setTreeFocus,
+    sendInTurn,
+    removeTurn,
+    clearResidentChat,
     cardOpenRequest,
     clearCardOpenRequest,
   } = useApp();
@@ -361,6 +389,8 @@ export function ChatCard() {
   const [renameDraft, setRenameDraft] = useState("");
   /** 正在调整分支点的分支轮次 id（上游每条消息旁出现"✂️ 在此分支"） */
   const [branchPointEditing, setBranchPointEditing] = useState<string | null>(null);
+  /** 分支卡续问草稿（turnId → 输入文本）；分支卡是"另起炉灶的对话"，可继续在卡内提问 */
+  const [branchDrafts, setBranchDrafts] = useState<Record<string, string>>({});
   const [hlTerm, setHlTerm] = useState<string | null>(null);
   const hlTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** recursive term-card stack: index 0 = clicked term, deeper layers = child cards */
@@ -379,10 +409,20 @@ export function ChatCard() {
   /** 选中 AI 回复文本 → 引用：浮动"引用"按钮的位置与内容 */
   const [quoteSel, setQuoteSel] = useState<{ text: string; x: number; y: number } | null>(null);
 
-  /** Empty-state "Explore" title size: 128px desktop / 72px mobile (matches original). */
-  const [titleSize, setTitleSize] = useState(128);
+  /* --- 视图：主流（纵向堆叠）↔ 平行组（来源 + 发散卡，横向同级滑动） --- */
+  const [view, setView] = useState<ViewSpec>({ kind: "stream" });
+  /** 视图过渡：from → to（dir = to 进入方向，"left" = 从右滑入） */
+  const [slide, setSlide] = useState<{ from: ViewSpec; to: ViewSpec; dir: "left" | "right" } | null>(
+    null
+  );
+  const slideTimer = useRef<number | null>(null);
+  const slideSeq = useRef(0);
+
+  /** Empty-state "OriginExplore" title size: 48px desktop / 26px mobile
+      (Monoton glyphs are ~40% wider than the old Bruno Ace). */
+  const [titleSize, setTitleSize] = useState(48);
   useEffect(() => {
-    const compute = () => setTitleSize(window.innerWidth < 640 ? 72 : 128);
+    const compute = () => setTitleSize(window.innerWidth < 640 ? 26 : 48);
     compute();
     window.addEventListener("resize", compute);
     return () => window.removeEventListener("resize", compute);
@@ -393,10 +433,27 @@ export function ChatCard() {
     [projects, activeProjectId]
   );
 
+  /** 主流：纵向堆叠的对话卡片（root + 分支；发散卡片只在平行视图出现，
+      主对话框继续询问 → 新卡片向下出现）。 */
+  const streamTurns = useMemo(() => turns.filter((t) => t.kind !== "diverge"), [turns]);
+  /** 平行组：来源轮次 + 它的直接发散卡片（同级，横向切换）。 */
+  const parallelCards = useMemo(
+    () => (sourceId: string): Turn[] => {
+      const source = turns.find((t) => t.id === sourceId);
+      if (!source) return [];
+      return [
+        source,
+        ...turns.filter((t) => t.kind === "diverge" && t.divergeSourceId === sourceId),
+      ];
+    },
+    [turns]
+  );
+
   useEffect(() => {
     return () => {
       if (hlTimeout.current) clearTimeout(hlTimeout.current);
       if (toastTimeout.current) clearTimeout(toastTimeout.current);
+      if (slideTimer.current) clearTimeout(slideTimer.current);
     };
   }, []);
 
@@ -404,53 +461,241 @@ export function ChatCard() {
   // 但只在用户"贴底"时跟随（上滚阅读则不拉回，并触发未读标记）。
   // 用 sticky 引用而非瞬时判断：内容尚未溢出时 scrollTop 恒为 0，
   // 瞬时判断会在"刚好溢出"那一刻错过跟随。
-  const lastMsgLen =
-    turns.length > 0
-      ? turns[turns.length - 1].messages[turns[turns.length - 1].messages.length - 1]?.content
-          .length ?? 0
-      : 0;
+  // 流式贴底信号：任一 turn 的最后一条消息长度增长都会触发跟随检查。
+  // 用"最大长度"而非"最后一个 turn"：平行视图向非尾部发散卡提问时，
+  // 流式目标可能不是 turns 尾部（修：发散卡在平行视图流式回复不贴底）。
+  const lastMsgLen = useMemo(
+    () =>
+      turns.reduce(
+        (max, t) => Math.max(max, t.messages[t.messages.length - 1]?.content.length ?? 0),
+        0
+      ),
+    [turns]
+  );
   const stickToBottom = useRef(true);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    if (stickToBottom.current) el.scrollTop = el.scrollHeight;
-  }, [lastMsgLen, turns.length]);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const onScroll = () => {
-      stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    };
-    el.addEventListener("scroll", onScroll);
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
+    // 流式输出目标 = streamingTurnId 指向的轮次（不再假设"最后一个 turn"）：
+    // 主流（纵向流）按用户贴底状态跟随；平行视图仅当聚焦的就是流式发散卡。
+    const streaming = streamingTurnId ? turns.find((t) => t.id === streamingTurnId) ?? null : null;
+    const inFocus =
+      view.kind === "stream"
+        ? streaming?.kind !== "diverge"
+        : streaming?.kind === "diverge" &&
+          streaming.divergeSourceId === view.sourceId &&
+          view.cardId === streaming.id;
+    if (stickToBottom.current && inFocus) el.scrollTop = el.scrollHeight;
+  }, [lastMsgLen, turns, view, streamingTurnId]);
 
-  // 新回复完成时，若目标轮次不在视野内（用户滚上去了）→ 标记未读。
+  // 新回复完成时，若目标轮次不在当前视图视野内 → 标记未读。
   const prevBusy = useRef(false);
   useEffect(() => {
     if (prevBusy.current && !busy) {
-      const last = turns[turns.length - 1];
-      const el = scrollRef.current;
-      const lastEl = last ? document.getElementById(`chat-turn-${last.id}`) : null;
-      if (el && lastEl) {
-        const r = el.getBoundingClientRect();
-        const tr = lastEl.getBoundingClientRect();
-        const visible = tr.top < r.bottom - 20 && tr.bottom > r.top + 20;
-        if (!visible) setTurnUnread(last.id, true);
+      const last = streamingTurnId ? turns.find((t) => t.id === streamingTurnId) ?? null : null;
+      if (last) {
+        if (last.kind === "diverge") {
+          // 发散流式卡：创建时必已聚焦到平行视图 → 视为可见。
+          if (view.kind !== "parallel" || view.cardId !== last.id) setTurnUnread(last.id, true);
+        } else if (view.kind === "stream") {
+          // 主流是堆叠视图：按 DOM 可见性判断（用户滚上去了 → 未读）。
+          const el = scrollRef.current;
+          const lastEl = document.getElementById(`chat-turn-${last.id}`);
+          if (el && lastEl) {
+            const r = el.getBoundingClientRect();
+            const tr = lastEl.getBoundingClientRect();
+            const visible = tr.top < r.bottom - 20 && tr.bottom > r.top + 20;
+            if (!visible) setTurnUnread(last.id, true);
+          }
+        } else {
+          setTurnUnread(last.id, true);
+        }
       }
     }
     prevBusy.current = busy;
-  }, [busy, turns, setTurnUnread]);
+  }, [busy, turns, view, setTurnUnread, streamingTurnId]);
 
-  // 收藏区跳转：滚动定位到目标轮次并清除未读。
+  /* --- 视图切换：主流 ↔ 平行组（同级滑动） --- */
+
+  // 切换项目：回到主流视图、清空过渡、平行发送目标、术语卡栈与分支点编辑态
+  // （修：跨项目残留术语卡 → 发散/分支挂到旧项目轮次 → 树关系错乱 + 平行视图白屏）。
+  const prevProjectId = useRef<string | null>(activeProjectId);
+  useEffect(() => {
+    if (prevProjectId.current !== activeProjectId) {
+      prevProjectId.current = activeProjectId;
+      if (slideTimer.current) {
+        clearTimeout(slideTimer.current);
+        slideTimer.current = null;
+      }
+      setSlide(null);
+      setView({ kind: "stream" });
+      setParallelSendTarget(null);
+      setTreeFocus(null);
+      setTermStack([]);
+      setBranchPointEditing(null);
+    }
+  }, [activeProjectId, turns, setParallelSendTarget, setTreeFocus]);
+
+  // 视图失效兜底：平行视图指向的卡片被删除（removeTurn/清空对话）→ 回主流视图。
+  useEffect(() => {
+    if (view.kind !== "parallel") return;
+    const cards = parallelCards(view.sourceId);
+    if (cards.length === 0 || !cards.some((c) => c.id === view.cardId)) {
+      setView({ kind: "stream" });
+      setParallelSendTarget(null);
+      setTreeFocus(null);
+    }
+  }, [turns, view, parallelCards, setParallelSendTarget, setTreeFocus]);
+
+  // 过渡与视图的 ref 镜像（过渡中再次切换时需要确定性锚点）。
+  const slideRef = useRef(slide);
+  useEffect(() => {
+    slideRef.current = slide;
+  }, [slide]);
+  const viewRef = useRef(view);
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+
+  /** 视图过渡方向：主流 → 平行 = 主流左移出、平行从右滑入；反向镜像；
+      平行组内按组内下标差（向右 = 前进）。 */
+  const viewDir = useCallback(
+    (from: ViewSpec, to: ViewSpec): "left" | "right" => {
+      if (from.kind === "stream") return "left";
+      if (to.kind === "stream") return "right";
+      if (from.sourceId === to.sourceId) {
+        const cards = parallelCards(from.sourceId);
+        const fi = cards.findIndex((c) => c.id === from.cardId);
+        const ti = cards.findIndex((c) => c.id === to.cardId);
+        return ti >= fi ? "left" : "right";
+      }
+      return "left";
+    },
+    [parallelCards]
+  );
+
+  /** 同步平行发送目标：平行视图聚焦发散卡 → 输入框顺延进该平行对话；
+      否则发往主对话流。 */
+  const syncSendTarget = useCallback(
+    (v: ViewSpec) => {
+      setParallelSendTarget(
+        v.kind === "parallel"
+          ? turns.find((t) => t.id === v.cardId)?.kind === "diverge"
+            ? v.cardId
+            : null
+          : null
+      );
+    },
+    [turns, setParallelSendTarget]
+  );
+
+  /** 同步卡片树聚焦：主流 → 最新一张对话卡；平行 → 当前卡 + 平行组来源。
+      导航图据此高亮"你在这里"。 */
+  const syncTreeFocus = useCallback(
+    (v: ViewSpec) => {
+      if (v.kind === "stream") {
+        const stack = turns.filter((t) => t.kind !== "diverge");
+        setTreeFocus(
+          stack.length ? { cardId: stack[stack.length - 1].id, groupSourceId: null } : null
+        );
+      } else {
+        setTreeFocus({ cardId: v.cardId, groupSourceId: v.sourceId });
+      }
+    },
+    [turns, setTreeFocus]
+  );
+
+  /** 切换到目标视图（主流 或 平行组内的某张卡）。
+      过渡中再次切换：先提交当前过渡，再以提交后的视图为起点重放。
+      用户偏好减少动效时直接切换、不播放动画。 */
+  const goTo = useCallback(
+    (to: ViewSpec) => {
+      let from = viewRef.current;
+      if (slideTimer.current) {
+        clearTimeout(slideTimer.current);
+        slideTimer.current = null;
+        const s = slideRef.current;
+        if (s) {
+          setSlide(null);
+          setView(s.to);
+          syncSendTarget(s.to); // 提交当前过渡后，可见视图 = 过渡目标，作为重放起点
+          syncTreeFocus(s.to);
+          from = s.to;
+        }
+      }
+      if (sameView(from, to)) return;
+      const reduce =
+        typeof window !== "undefined" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduce) {
+        setView(to);
+        syncSendTarget(to);
+        syncTreeFocus(to);
+        return;
+      }
+      const dir = viewDir(from, to);
+      const seq = ++slideSeq.current;
+      setSlide({ from, to, dir });
+      slideTimer.current = window.setTimeout(() => {
+        if (slideSeq.current !== seq) return;
+        setSlide(null);
+        slideTimer.current = null;
+        setView(to);
+        syncSendTarget(to);
+        syncTreeFocus(to);
+      }, 400);
+    },
+    [viewDir, syncSendTarget, syncTreeFocus]
+  );
+
+  // 跳转（侧栏/导航图/新建轮次/收藏区）：发散 → 进入平行组；其余 → 主流 + 滚动定位。
   useEffect(() => {
     if (!focusRequest) return;
-    document
-      .getElementById(`chat-turn-${focusRequest.turnId}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const target = turns.find((t) => t.id === focusRequest.turnId) ?? null;
     setTurnUnread(focusRequest.turnId, false);
     clearFocusRequest();
-  }, [focusRequest, clearFocusRequest, setTurnUnread]);
+    if (!target) return;
+    if (target.kind === "diverge" && target.divergeSourceId) {
+      goTo({ kind: "parallel", sourceId: target.divergeSourceId, cardId: target.id });
+    } else {
+      const leavingParallel = view.kind === "parallel";
+      goTo({ kind: "stream" });
+      // 修：发消息/跳转后卡片树聚焦必须同步到目标卡（sameView 短路时 goTo 不触发 syncTreeFocus，
+      // 树会停留在上一张卡的辉光；syncTreeFocus 的 stream 分支只聚焦最后一张，这里直接指向目标）。
+      setTreeFocus({ cardId: target.id, groupSourceId: null });
+      // 主流是堆叠视图：滚动定位到目标卡片（从平行视图退出时等过渡完成再滚）。
+      window.setTimeout(
+        () => {
+          document
+            .getElementById(`chat-turn-${target.id}`)
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        },
+        leavingParallel ? 460 : 0
+      );
+    }
+  }, [focusRequest, turns, view, goTo, setTurnUnread, clearFocusRequest, setTreeFocus]);
+
+  // 键盘 ←/→：仅平行视图内，在"来源 ↔ 发散卡"同级之间滑动切换
+  // （输入框、术语卡片栈打开时不拦截；主流是纵向堆叠，无横向语义）。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (termStack.length > 0) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (view.kind !== "parallel") return;
+      const cards = parallelCards(view.sourceId);
+      const idx = cards.findIndex((c) => c.id === view.cardId);
+      if (idx < 0) return;
+      const next = e.key === "ArrowRight" ? cards[idx + 1] : cards[idx - 1];
+      if (next) {
+        e.preventDefault();
+        goTo({ kind: "parallel", sourceId: view.sourceId, cardId: next.id });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [view, parallelCards, termStack.length, goTo]);
 
   // 轮次导航图点击卡片节点 → 重新打开该术语卡片（不重复记录探索路径）。
   useEffect(() => {
@@ -736,33 +981,50 @@ export function ChatCard() {
         history.push({ role: m.role, content: m.content });
       }
     }
-    const reusedId = openBranchTurn(item.node.term, history.slice(-16), item.sourceTurnId);
-    if (reusedId) {
-      if (activeProjectId) focusTurn(activeProjectId, reusedId);
-      showToast("已有同主题分支卡片，已跳转");
-    } else {
-      showToast(`✓ 已创建分支卡片「${item.node.term}」`);
-    }
+    const r = openBranchTurn(item.node.term, history.slice(-16), item.sourceTurnId);
+    if (activeProjectId) focusTurn(activeProjectId, r.id);
+    showToast(
+      r.created
+        ? `✓ 已创建分支卡片「${item.node.term}」`
+        : `已有同主题分支卡片「${item.node.term}」，已跳转`
+    );
     setTermStack([]);
   };
 
   /** Divergence card → 以术语开"平行会话"（不打断当前对话）：保留卡片栈。
-      已存在同来源同主题的发散卡片时复用并跳转，不新建重复节点。 */
+      携带来源锚点上下文：来源轮次标题 + 术语所在的那条 AI 消息段落，
+      让平行会话知道术语的来源语境（如"工业革命语境下的煤炭"）。
+      新建或复用均滑动聚焦到该发散卡片。 */
   const handleDiverge = (item: StackItem) => {
-    const reusedId = openDivergeTurn(item.node.term, item.sourceTurnId);
-    if (reusedId) {
-      if (activeProjectId) focusTurn(activeProjectId, reusedId);
-      showToast(`已有同主题发散卡片「${item.node.term}」，已跳转`);
-    } else {
-      showToast(`✓ 已创建发散卡片「${item.node.term}」`);
+    const sourceTurn = turns.find((t) => t.id === item.sourceTurnId) ?? null;
+    let anchorText: string | undefined;
+    if (sourceTurn) {
+      const hit = [...sourceTurn.messages]
+        .reverse()
+        .find((m) => m.role === "assistant" && m.content.includes(item.node.term));
+      anchorText = hit ? hit.content.replace(/\s+/g, " ").trim().slice(0, 400) : undefined;
     }
+    const r = openDivergeTurn(item.node.term, item.sourceTurnId, {
+      sourceTitle: sourceTurn?.title ?? "上游对话",
+      anchorText,
+    });
+    if (activeProjectId) focusTurn(activeProjectId, r.id);
+    showToast(
+      r.created
+        ? `✓ 已创建发散卡片「${item.node.term}」`
+        : `已有同主题发散卡片「${item.node.term}」，已跳转`
+    );
   };
 
-  /** 调整分支点：把分支轮次的分叉位置改到上游第 index 条消息之后。 */
+  /** 调整分支点：把分支轮次的分叉位置改到上游第 index 条消息之后，
+      并滚动回分支卡片。 */
   const handleBranchAt = (branchTurnId: string, index: number) => {
     setBranchPoint(branchTurnId, index);
     setBranchPointEditing(null);
-    showToast("✓ 分支点已调整");
+    showToast("✓ 分支点已调整（旧总结已失效，可点 📋 重新生成）");
+    document
+      .getElementById(`chat-turn-${branchTurnId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   /** 复制一段文本（总结面板等）。 */
@@ -841,7 +1103,8 @@ export function ChatCard() {
     }, 280);
   };
 
-  /* --- turn navigation --- */
+  /* --- turn navigation: 主流（纵向堆叠）↔ 平行组（同级横向滑动） ---
+     渲染结构在下方滚动容器内（turnCardBody / parallelNav / renderView 内联）。 */
 
   return (
     <div
@@ -915,6 +1178,23 @@ export function ChatCard() {
                   >
                     导出为 JSON
                   </button>
+                  {activeProject?.resident && (
+                    <button
+                      type="button"
+                      className="px-3 py-2 rounded-lg text-left text-[13px] text-destructive hover:bg-item-std-hover transition-colors"
+                      onClick={() => {
+                        const ok = window.confirm(
+                          `清空常驻聊天的全部对话？共 ${turns.length} 张卡片。`
+                        );
+                        if (!ok) return;
+                        clearResidentChat();
+                        setMenuOpen(false);
+                        showToast("✓ 已清空常驻聊天");
+                      }}
+                    >
+                      清空对话
+                    </button>
+                  )}
                   {!activeProject?.resident && (
                     <button
                       type="button"
@@ -940,14 +1220,13 @@ export function ChatCard() {
               {turns.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center gap-12 -translate-y-[30px]">
                   <h1
-                    className="font-bruno-ace select-none text-brand"
+                    className="font-monoton brand-neon select-none"
                     style={{
                       fontSize: `${titleSize}px`,
                       lineHeight: 1,
-                      textShadow: "0 0 24px rgba(var(--brand-rgb), 0.35)",
                     }}
                   >
-                    Explore
+                    OriginExplore
                   </h1>
                   <div className="flex items-center gap-4">
                     <button
@@ -969,12 +1248,19 @@ export function ChatCard() {
                   </div>
                 </div>
               ) : (
-                turns.map((turn) => (
-                  <div
-                    key={turn.id}
-                    id={`chat-turn-${turn.id}`}
-                    className="flex flex-col gap-4 px-2 pb-2 rounded-xl relative border border-std/80 mb-4 scroll-mt-[52px]"
-                  >
+                (() => {
+                  /** 单张轮次卡片（主流堆叠与平行视图共用；idPrefix 防过渡期 id 冲突）。 */
+                  const turnCardBody = (
+                    turn: Turn,
+                    idPrefix: "main" | "old" | "new",
+                    animClass?: string,
+                    extraClass?: string
+                  ) => (
+                    <div
+                      key={`${turn.id}-${idPrefix}`}
+                      id={idPrefix === "main" ? `chat-turn-${turn.id}` : undefined}
+                      className={`flex flex-col gap-4 px-2 pb-2 rounded-xl relative border border-std/80 mb-4 scroll-mt-[52px] ${animClass ?? ""} ${extraClass ?? ""}`}
+                    >
                     {/* turn header: big title only when there are multiple
                         turns (branch conversations need orientation); a single
                         turn already shows its title in the card header, so
@@ -987,7 +1273,7 @@ export function ChatCard() {
                           </span>
                         )}
                         {turn.kind === "diverge" && (
-                          <span className="shrink-0 rounded-full border border-[#ba8eff]/40 px-2 py-0.5 text-[10px] text-[#ba8eff] select-none">
+                          <span className="shrink-0 rounded-full border border-diverge/40 px-2 py-0.5 text-[10px] text-diverge select-none">
                             🪢 发散
                           </span>
                         )}
@@ -1003,7 +1289,12 @@ export function ChatCard() {
                         <button
                           type="button"
                           className="shrink-0 rounded-full px-2 py-0.5 text-[11px] text-text-secondary hover:text-primary transition-colors"
-                          onClick={() => setBranchPointEditing(null)}
+                          onClick={() => {
+                            setBranchPointEditing(null);
+                            document
+                              .getElementById(`chat-turn-${editedBranch.id}`)
+                              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                          }}
                         >
                           取消
                         </button>
@@ -1020,9 +1311,16 @@ export function ChatCard() {
                                 ? "收起分支点调整"
                                 : "查看并调整分支点（在来源对话中标记分割线位置）"
                             }
-                            onClick={() =>
-                              setBranchPointEditing((cur) => (cur === turn.id ? null : turn.id))
-                            }
+                            onClick={() => {
+                              const editing = branchPointEditing === turn.id ? null : turn.id;
+                              setBranchPointEditing(editing);
+                              // 主流是堆叠视图：开始调整时滚动到来源轮次看 ✂️ 分割线。
+                              if (editing && turn.parentTurnId) {
+                                document
+                                  .getElementById(`chat-turn-${turn.parentTurnId}`)
+                                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                              }
+                            }}
                             className={`flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${
                               branchPointEditing === turn.id
                                 ? "border-brand/50 bg-brand/10 text-brand"
@@ -1042,6 +1340,30 @@ export function ChatCard() {
                           </button>
                         </>
                       )}
+                      {/* 主流 ⇄ 平行入口：该对话有发散会话时可见，点击滑入平行视图 */}
+                      {(() => {
+                        const divergeKids = turns.filter(
+                          (t) => t.kind === "diverge" && t.divergeSourceId === turn.id
+                        );
+                        if (divergeKids.length === 0) return null;
+                        return (
+                          <button
+                            type="button"
+                            aria-label="进入平行会话"
+                            title={`${divergeKids.length} 个平行会话，点击进入`}
+                            onClick={() =>
+                              goTo({
+                                kind: "parallel",
+                                sourceId: turn.id,
+                                cardId: divergeKids[0].id,
+                              })
+                            }
+                            className="flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-full border border-diverge/40 bg-diverge/10 px-2 text-[10px] text-diverge transition-colors hover:bg-diverge/20"
+                          >
+                            ⇄ {divergeKids.length}
+                          </button>
+                        );
+                      })()}
                       <button
                         type="button"
                         onClick={() => {
@@ -1057,6 +1379,25 @@ export function ChatCard() {
                         }`}
                       >
                         <Star size={14} fill={turn.favorite ? "currentColor" : "none"} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const kids = turns.filter(
+                            (t) => t.parentTurnId === turn.id || t.divergeSourceId === turn.id
+                          ).length;
+                          const ok = window.confirm(
+                            `删除卡片「${turn.title}」？${kids > 0 ? `其 ${kids} 张分支/发散卡片将一并删除。` : ""}`
+                          );
+                          if (!ok) return;
+                          removeTurn(turn.id);
+                          showToast("✓ 已删除卡片");
+                        }}
+                        aria-label="删除卡片"
+                        title="删除这张卡片（分支/发散卡片一并删除）"
+                        className="flex h-7 w-7 items-center justify-center rounded-full border border-std bg-btn-std text-text-tertiary transition-colors hover:border-destructive/50 hover:text-destructive"
+                      >
+                        <Trash2 size={13} />
                       </button>
                       <span className="text-[11px] text-text-quaternary">
                         {fmtTs(turn.createdAt)}
@@ -1201,8 +1542,162 @@ export function ChatCard() {
                         ))}
                       </div>
                     )}
-                  </div>
-                ))
+
+                    {/* 分支卡续问：分支是"另起炉灶的对话"，可在卡内继续提问——
+                        上下文 = 分支点前切片 + 深挖路径 + 卡内消息（调整分支点后自动按新边界）。 */}
+                    {turn.kind === "branch" && (
+                      <div className="flex items-end gap-2 shrink-0">
+                        <textarea
+                          rows={1}
+                          value={branchDrafts[turn.id] ?? ""}
+                          onChange={(e) => {
+                            setBranchDrafts((d) => ({ ...d, [turn.id]: e.target.value }));
+                            const el = e.currentTarget;
+                            el.style.height = "auto";
+                            el.style.height = el.scrollHeight + "px";
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              const body = (branchDrafts[turn.id] ?? "").trim();
+                              if (!body || busy) return;
+                              sendInTurn(turn.id, body);
+                              setBranchDrafts((d) => ({ ...d, [turn.id]: "" }));
+                            }
+                          }}
+                          placeholder={`在「${turn.title}」分支对话中继续提问…`}
+                          className="block w-full min-h-0 flex-1 bg-inputarea border border-std rounded-xl px-3 py-2 text-sm resize-none outline-none focus:border-brand/50 placeholder:text-text-quaternary scrollbar-card-std max-h-[120px] overflow-y-auto"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const body = (branchDrafts[turn.id] ?? "").trim();
+                            if (!body || busy) return;
+                            sendInTurn(turn.id, body);
+                            setBranchDrafts((d) => ({ ...d, [turn.id]: "" }));
+                          }}
+                          disabled={!((branchDrafts[turn.id] ?? "").trim()) || busy}
+                          aria-label="发送"
+                          title="发送（Enter）"
+                          className="h-9 w-9 shrink-0 rounded-full bg-btn-inputarea text-brand-fg flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                        >
+                          {busy ? (
+                            <Loader2 size={15} className="animate-spin" />
+                          ) : (
+                            <Send size={15} strokeWidth={2.5} />
+                          )}
+                        </button>
+                      </div>
+                    )}
+                          </div>
+                  );
+                  /** 平行组导航条：‹ › 同级切换 + 来源 chip + 计数 + 回到主对话。 */
+                  const parallelNav = (source: Turn, card: Turn, cards: Turn[]) => {
+                    const idx = cards.findIndex((c) => c.id === card.id);
+                    const prev = idx > 0 ? cards[idx - 1] : null;
+                    const next = idx >= 0 && idx < cards.length - 1 ? cards[idx + 1] : null;
+                    const switchInGroup = (cardId: string) =>
+                      goTo({ kind: "parallel", sourceId: source.id, cardId });
+                    return (
+                      <div className="sticky top-0 z-20 -mx-4 mb-3 flex select-none items-center gap-2 rounded-lg border border-diverge/30 bg-card-floating px-3 py-2 shadow-card">
+                        <span className="shrink-0 select-none rounded-full border border-diverge/40 bg-diverge/10 px-2 py-0.5 text-[10px] text-diverge">
+                          🪢 平行会话
+                        </span>
+                        <button
+                          type="button"
+                          aria-label="上一张同级卡片"
+                          title="上一张同级卡片（←）"
+                          disabled={!prev}
+                          onClick={() => prev && switchInGroup(prev.id)}
+                          className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border border-std bg-btn-std transition-colors enabled:hover:border-brand/40 enabled:hover:text-brand disabled:opacity-40"
+                        >
+                          <ChevronLeft size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="下一张同级卡片"
+                          title="下一张同级卡片（→）"
+                          disabled={!next}
+                          onClick={() => next && switchInGroup(next.id)}
+                          className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border border-std bg-btn-std transition-colors enabled:hover:border-brand/40 enabled:hover:text-brand disabled:opacity-40"
+                        >
+                          <ChevronRight size={14} />
+                        </button>
+                        <span className="shrink-0 text-[11px] tabular-nums text-text-quaternary">
+                          {idx + 1}/{cards.length}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-center text-xs text-text-secondary">
+                          <button
+                            type="button"
+                            title="滑回来源对话（同级）"
+                            onClick={() => switchInGroup(source.id)}
+                            className="inline-flex max-w-full cursor-pointer items-center gap-1 truncate rounded-full border border-diverge/40 bg-diverge/10 px-2.5 py-0.5 text-[11px] text-diverge transition-colors hover:bg-diverge/20"
+                          >
+                            🪢 从「{source.title}」发散
+                          </button>
+                        </span>
+                        <button
+                          type="button"
+                          title="回到主对话（纵向流）"
+                          onClick={() => {
+                            goTo({ kind: "stream" });
+                            window.setTimeout(() => {
+                              document
+                                .getElementById(`chat-turn-${source.id}`)
+                                ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }, 460);
+                          }}
+                          className="flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-full border border-std bg-btn-std px-2.5 text-[11px] text-text-secondary transition-colors hover:border-brand/40 hover:text-brand"
+                        >
+                          回到主对话
+                        </button>
+                      </div>
+                    );
+                  };
+                  /** 渲染当前视图：主流 = 纵向堆叠（向下生长）；平行 = 导航条 + 单卡。 */
+                  const renderView = (
+                    v: ViewSpec,
+                    idPrefix: "main" | "old" | "new",
+                    animClass?: string
+                  ) => {
+                    if (v.kind === "parallel") {
+                      const cards = parallelCards(v.sourceId);
+                      const card = cards.find((c) => c.id === v.cardId) ?? null;
+                      const source = cards[0] ?? null;
+                      if (!card || !source) return null;
+                      return (
+                        <div className={animClass ?? ""}>
+                          {parallelNav(source, card, cards)}
+                          {turnCardBody(card, idPrefix, undefined, "ring-1 ring-diverge/40 bg-diverge/[0.02]")}
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className={animClass ?? ""}>
+                        {streamTurns.map((t) => turnCardBody(t, idPrefix))}
+                      </div>
+                    );
+                  };
+                  if (slide) {
+                    return (
+                      <div className="relative" aria-live="polite">
+                        <div className="pointer-events-none absolute inset-0">
+                          {renderView(
+                            slide.from,
+                            "old",
+                            slide.dir === "left" ? "chat-slide-out-left" : "chat-slide-out-right"
+                          )}
+                        </div>
+                        {renderView(
+                          slide.to,
+                          "new",
+                          slide.dir === "left" ? "chat-slide-in-right" : "chat-slide-in-left"
+                        )}
+                      </div>
+                    );
+                  }
+                  return renderView(view, "main");
+                })()
               )}
               {/* streaming cursor while AI is replying */}
               {busy && (

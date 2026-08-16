@@ -9,6 +9,10 @@ out/
 build/
 dist/
 
+# Electron packaging outputs
+release/
+.packaging/
+
 # Environment
 .env
 .env.local

@@ -19,6 +19,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   PanelLeftClose,
+  Pin,
   Plus,
   Settings,
   Sparkles,
@@ -40,7 +41,7 @@ interface TopAction {
   onClick: () => void;
 }
 
-export function Sidebar() {
+export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClearHover?: () => void }) {
   const {
     projects,
     activeProjectId,
@@ -72,7 +73,13 @@ export function Sidebar() {
     summarizeTurn,
   } = useApp();
 
+  /** 有效展开态：shell 的 hover 临时展开（折叠窄条碰触即展）优先；
+      未传 prop 时回落到用户偏好（collapsed）。内容渲染/样式全部以此为准。 */
+  const show = expanded ?? !collapsed;
+
   const [openGroups, setOpenGroups] = useState<{ local: boolean }>({ local: true });
+  /** 用户文件夹的折叠状态（缺省展开） */
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   const [favOpen, setFavOpen] = useState(true);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -178,10 +185,29 @@ export function Sidebar() {
     showToast("已上传文档");
   };
 
+  /** 新建项目后自动定位：展开所在分组 + 滚动到新项目行（避免分组折叠时"以为没建成功"）。 */
+  const scrollToProject = (id: string) => {
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`project-row-${id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  };
+
   const topActions: TopAction[] = [
-    { key: "toggle", icon: PanelLeftClose, label: "收起侧边栏", onClick: toggleSidebar },
+    {
+      // 语义跟随"用户偏好"而非有效展开态：
+      // 折叠（含 hover 临时展开）→ 「固定展开」：把临时展开锁定为持久；
+      // 偏好展开 → 「收起侧边栏」：立即收起（同时结束 hover 临时展开，不被鼠标顶住）。
+      key: "toggle",
+      icon: collapsed ? Pin : PanelLeftClose,
+      label: collapsed ? "固定展开" : "收起侧边栏",
+      onClick: () => {
+        if (!collapsed) onClearHover?.();
+        toggleSidebar();
+      },
+    },
     { key: "folder", icon: FolderPlus, label: "新建文件夹", onClick: () => setCreatingFolder(true) },
-    { key: "new", icon: Plus, label: "新建项目", onClick: createProject },
     { key: "import", icon: Upload, label: "导入项目/恢复备份", onClick: () => importRef.current?.click() },
     { key: "export-backup", icon: Download, label: "导出完整备份", onClick: handleExportBackup },
   ];
@@ -197,15 +223,15 @@ export function Sidebar() {
     <button
       key={a.key}
       onClick={a.onClick}
-      title={collapsed ? a.label : undefined}
-      className={`group relative flex items-center w-full rounded-lg shadow-card overflow-hidden transition-all duration-200 ${
-        collapsed ? "justify-center" : ""
+      title={!show ? a.label : undefined}
+      className={`group relative flex items-center w-full rounded-lg shadow-card overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:shadow-card ${
+        !show ? "justify-center" : ""
       }`}
     >
-      <span className="relative p-2.5 bg-btn-control group-hover:bg-btn-control-hover rounded-lg shadow">
+      <span className="relative p-2.5 bg-btn-control group-hover:bg-btn-control-hover rounded-lg shadow transition-all duration-200 group-hover:scale-[1.1] group-hover:-translate-y-px group-hover:shadow-md">
         <a.icon size={24} />
       </span>
-      {!collapsed && (
+      {show && (
         <span className="text-base font-normal text-primary whitespace-nowrap transition-all duration-300 ml-3">
           {a.label}
         </span>
@@ -213,27 +239,46 @@ export function Sidebar() {
     </button>
   );
 
-  const renderGroupHeader = (key: "local", icon: LucideIcon, label: string, open: boolean) => {
+  const renderGroupHeader = (
+    key: "local",
+    icon: LucideIcon,
+    label: string,
+    open: boolean,
+    onAdd?: () => void
+  ) => {
     const GroupIcon = icon;
     return (
-    <button
-      key={key}
-      onClick={() => setOpenGroups((g) => ({ ...g, [key]: !g[key] }))}
-      className={`flex items-center w-full gap-2 py-1.5 px-1 rounded-lg transition-colors hover:bg-item-std-hover ${
-        collapsed ? "justify-center" : ""
-      }`}
-    >
-      {!collapsed && (
-        <ChevronRight
-          size={13}
-          className={`text-text-tertiary transition-transform duration-200 ${open ? "rotate-90" : ""}`}
-        />
-      )}
-      <GroupIcon size={14} className="text-text-tertiary shrink-0" />
-      {!collapsed && (
-        <span className="flex-1 text-left text-sm text-text-tertiary font-medium truncate">{label}</span>
-      )}
-    </button>
+      <div className="group flex items-center gap-1">
+        <button
+          key={key}
+          onClick={() => setOpenGroups((g) => ({ ...g, [key]: !g[key] }))}
+          className={`flex items-center w-full gap-2 py-1.5 px-1 rounded-lg transition-colors hover:bg-item-std-hover ${
+            !show ? "justify-center" : ""
+          }`}
+        >
+          {show && (
+            <ChevronRight
+              size={13}
+              className={`text-text-tertiary transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+            />
+          )}
+          <GroupIcon size={14} className="text-text-tertiary shrink-0" />
+          {show && (
+            <span className="flex-1 text-left text-sm text-text-tertiary font-medium truncate">{label}</span>
+          )}
+        </button>
+        {/* 分组内新建项目（与文件夹一致：各分组/文件夹点「+」创建） */}
+        {onAdd && show && (
+          <button
+            onClick={onAdd}
+            aria-label={`在「${label}」中新建项目`}
+            title={`在「${label}」中新建项目`}
+            className="w-5 h-5 rounded flex items-center justify-center text-text-quaternary hover:text-brand shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <Plus size={13} />
+          </button>
+        )}
+      </div>
     );
   };
 
@@ -243,6 +288,7 @@ export function Sidebar() {
     return (
       <div
         key={p.id}
+        id={`project-row-${p.id}`}
         role="button"
         tabIndex={0}
         onClick={() => selectProject(p.id)}
@@ -252,10 +298,10 @@ export function Sidebar() {
             selectProject(p.id);
           }
         }}
-        title={collapsed ? p.title : undefined}
+        title={!show ? p.title : undefined}
         className={`group flex items-center w-full p-1.5 rounded-xl relative border-2 cursor-pointer transition-colors ${
           isActive ? "border-brand/40 bg-item-std" : "border-transparent hover:bg-item-std-hover"
-        } ${collapsed ? "justify-center" : ""}`}
+        } ${!show ? "justify-center" : ""}`}
       >
         <span
           className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors ${
@@ -268,7 +314,7 @@ export function Sidebar() {
             <ChevronRight size={14} className={`transition-transform duration-200 ${isActive ? "rotate-90" : ""}`} />
           )}
         </span>
-        {!collapsed &&
+        {show &&
           (isRenaming ? (
             <input
               autoFocus
@@ -286,7 +332,7 @@ export function Sidebar() {
           ) : (
             <span className="block flex-1 min-w-0 truncate text-sm text-primary ml-1">{p.title}</span>
           ))}
-        {!collapsed && (
+        {show && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -298,7 +344,7 @@ export function Sidebar() {
             <MoreHorizontal size={15} />
           </button>
         )}
-        {menuFor === p.id && !collapsed && (
+        {menuFor === p.id && show && (
           <div
             className="absolute left-0 right-0 top-full z-30 mt-1 rounded-lg bg-card-floating border border-std shadow-card p-1"
             onClick={(e) => e.stopPropagation()}
@@ -355,14 +401,18 @@ export function Sidebar() {
 
   return (
     <aside
-      className="h-full flex flex-col text-primary relative z-10 bg-transparent transition-[width] duration-200"
-      style={{ width: collapsed ? 56 : 225 }}
+      // key 随有效展开态切换：折叠窄条 → 展开时内容整体淡入（与宽度动画同步，丝滑浮现）
+      key={show ? "sidebar-wide" : "sidebar-narrow"}
+      className={`h-full flex flex-col text-primary relative z-10 bg-transparent transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        show ? "animate-[fadeIn_280ms_ease-out]" : ""
+      }`}
+      style={{ width: show ? 225 : 56 }}
     >
       {/* 顶部功能按钮区 */}
       <div className="p-4 space-y-2">{topActions.map(renderTopButton)}</div>
 
       {/* 常驻聊天：固定的跨项目会话（逻辑上排在本地文档之上） */}
-      {collapsed ? (
+      {!show ? (
         <button
           onClick={() => selectResident()}
           title="常驻聊天"
@@ -386,7 +436,7 @@ export function Sidebar() {
             activeProjectId === "resident" ? "bg-item-std" : "hover:bg-item-std"
           }`}
         >
-          <MessageSquare size={18} className="text-text-icon-secondary shrink-0" />
+          <MessageSquare size={18} className="text-text-tertiary shrink-0" />
           <span className="flex-1 min-w-0 truncate text-sm font-medium text-primary">常驻聊天</span>
           <div className="flex items-center gap-1 shrink-0">
             <button
@@ -394,7 +444,10 @@ export function Sidebar() {
               title="聊天模式"
               onClick={(e) => {
                 e.stopPropagation();
-                if (smartMode) toggleSmartMode();
+                if (smartMode) {
+                  toggleSmartMode();
+                  showToast("已切回普通聊天");
+                }
               }}
               className={`p-1 rounded-md transition-colors ${
                 smartMode ? "text-text-tertiary hover:text-primary hover:bg-item-std-hover" : "bg-card-floating text-primary"
@@ -404,11 +457,12 @@ export function Sidebar() {
             </button>
             <button
               aria-label="智能模式"
-              title="AI 智能模式"
+              title="AI 智能模式（结合你的档案/思维宇宙/术语掌握度个性化回答）"
               onClick={(e) => {
                 e.stopPropagation();
-                if (!smartMode) toggleSmartMode();
-                showToast(smartMode ? "已切回普通聊天" : "已开启 AI 智能模式");
+                if (smartMode) return; // 已开启：按钮无动作，不再误导性提示
+                toggleSmartMode();
+                showToast("已开启 AI 智能模式：常驻对话将结合你的探索档案回答");
               }}
               className={`p-1 rounded-md transition-colors ${
                 smartMode ? "bg-card-floating text-brand" : "text-text-tertiary hover:text-primary hover:bg-item-std-hover"
@@ -421,7 +475,7 @@ export function Sidebar() {
       )}
 
       {/* 本地文档分组（常驻聊天之下） */}
-      {collapsed ? (
+      {!show ? (
         <button
           onClick={() => setActiveDocId("__library__")}
           title="本地文档"
@@ -455,7 +509,7 @@ export function Sidebar() {
           </button>
         </div>
       )}
-      {!collapsed &&
+      {show &&
         documents.map((doc) => (
           <button
             key={doc.id}
@@ -471,7 +525,7 @@ export function Sidebar() {
       {/* 项目滚动区 */}
       <div className="flex-1 overflow-y-auto scrollbar-card-std w-full max-w-xs self-center px-2">
         {/* 新建文件夹输入 */}
-        {!collapsed && creatingFolder && (
+        {show && creatingFolder && (
           <div className="flex items-center gap-1 px-2 py-1 mt-1">
             <input
               autoFocus
@@ -491,35 +545,70 @@ export function Sidebar() {
           </div>
         )}
 
-        {/* 用户文件夹分组 */}
-        {!collapsed &&
-          folders.map((folderName) => (
-            <div key={folderName} className="mt-1">
-              <div className="group flex items-center gap-1">
-                <span className="flex items-center flex-1 min-w-0 gap-2 py-1.5 px-1">
-                  <Folder size={14} className="text-text-tertiary shrink-0" />
-                  <span className="flex-1 text-left text-sm text-text-tertiary font-medium truncate">
-                    {folderName}
-                  </span>
-                </span>
-                <button
-                  onClick={() => {
-                    removeFolder(folderName);
-                    showToast("已删除文件夹");
-                  }}
-                  aria-label="删除文件夹"
-                  className="w-5 h-5 rounded flex items-center justify-center text-text-tertiary hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X size={13} />
-                </button>
+        {/* 用户文件夹分组：点击标题折叠/展开；文件夹内可直接新建项目 */}
+        {show &&
+          folders.map((folderName) => {
+            const folderProjects = localProjects.filter((p) => p.folder === folderName);
+            const folderOpen = openFolders[folderName] !== false;
+            return (
+              <div key={folderName} className="mt-1">
+                <div className="group flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenFolders((o) => ({ ...o, [folderName]: !folderOpen }))
+                    }
+                    title={folderOpen ? "折叠文件夹" : "展开文件夹"}
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 py-1.5 px-1 text-left"
+                  >
+                    <ChevronRight
+                      size={14}
+                      className={`shrink-0 text-text-tertiary transition-transform duration-200 ${folderOpen ? "rotate-90" : ""}`}
+                    />
+                    <Folder size={14} className="text-text-tertiary shrink-0" />
+                    <span className="flex-1 min-w-0 truncate text-left text-sm text-text-tertiary font-medium">
+                      {folderName}
+                    </span>
+                    <span className="shrink-0 text-[10px] text-text-quaternary">
+                      {folderProjects.length}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      // 在文件夹内新建项目：自动展开该文件夹 + 滚动定位到新项目
+                      const id = createProject(folderName);
+                      setOpenFolders((o) => ({ ...o, [folderName]: true }));
+                      scrollToProject(id);
+                    }}
+                    aria-label={`在「${folderName}」中新建项目`}
+                    title={`在「${folderName}」中新建项目`}
+                    className="w-5 h-5 rounded flex items-center justify-center text-text-quaternary hover:text-brand shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Plus size={13} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      removeFolder(folderName);
+                      showToast("已删除文件夹");
+                    }}
+                    aria-label="删除文件夹"
+                    className="w-5 h-5 rounded flex items-center justify-center text-text-tertiary hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+                {folderOpen && folderProjects.map(renderProjectRow)}
               </div>
-              {localProjects.filter((p) => p.folder === folderName).map(renderProjectRow)}
-            </div>
-          ))}
+            );
+          })}
 
         {/* 本地项目 */}
         <div className="mt-1">
-          {renderGroupHeader("local", Folder, "本地项目", openGroups.local)}
+          {renderGroupHeader("local", Folder, "本地项目", openGroups.local, () => {
+            const id = createProject();
+            setOpenGroups((g) => ({ ...g, local: true }));
+            scrollToProject(id);
+          })}
           {openGroups.local &&
             localProjects
               .filter((p) => !p.folder || !folders.includes(p.folder))
@@ -533,20 +622,20 @@ export function Sidebar() {
         <div>
           <button
             onClick={() => setFavOpen((v) => !v)}
-            title={collapsed ? "收藏" : undefined}
+            title={!show ? "收藏" : undefined}
             className={`group relative flex items-center w-full rounded-lg shadow-card overflow-hidden transition-all duration-200 ${
-              collapsed ? "justify-center" : ""
+              !show ? "justify-center" : ""
             }`}
           >
             <span className="relative p-2.5 bg-btn-control group-hover:bg-btn-control-hover rounded-lg shadow">
               <Star size={24} className={favTurns.length > 0 ? "text-brand" : ""} fill={favTurns.length > 0 ? "currentColor" : "none"} />
             </span>
-            {!collapsed && (
+            {show && (
               <span className="text-base font-normal text-primary whitespace-nowrap transition-all duration-300 ml-3 flex-1 text-left">
                 收藏
               </span>
             )}
-            {!collapsed && favTurns.length > 0 && (
+            {show && favTurns.length > 0 && (
               <span className="flex items-center gap-1.5">
                 <span className="rounded-full bg-brand/15 px-1.5 text-[10px] leading-4 text-brand">
                   {favTurns.length}
@@ -560,7 +649,7 @@ export function Sidebar() {
               </span>
             )}
           </button>
-          {favOpen && !collapsed && favTurns.length > 0 && (
+          {favOpen && show && favTurns.length > 0 && (
             <div className="mt-1 max-h-[168px] overflow-y-auto scrollbar-card-std space-y-0.5 pl-2 pr-1">
               {favTurns.map(({ project, turn }) => (
                   <div key={turn.id}>
@@ -629,15 +718,15 @@ export function Sidebar() {
 
         <button
           onClick={() => openModal("settings")}
-          title={collapsed ? "设置" : undefined}
+          title={!show ? "设置" : undefined}
           className={`group relative flex items-center w-full rounded-lg shadow-card overflow-hidden transition-all duration-200 ${
-            collapsed ? "justify-center" : ""
+            !show ? "justify-center" : ""
           }`}
         >
           <span className="relative p-2.5 bg-btn-control group-hover:bg-btn-control-hover rounded-lg shadow">
             <Settings size={24} />
           </span>
-          {!collapsed && (
+          {show && (
             <span className="text-base font-normal text-primary whitespace-nowrap transition-all duration-300 ml-3">
               设置
             </span>
@@ -646,9 +735,9 @@ export function Sidebar() {
 
         <button
           onClick={() => openModal("login")}
-          title={collapsed ? (profile ? profile.name : "账户") : undefined}
+          title={!show ? (profile ? profile.name : "账户") : undefined}
           className={`group relative flex items-center w-full rounded-lg shadow-card overflow-hidden transition-all duration-200 ${
-            collapsed ? "justify-center" : ""
+            !show ? "justify-center" : ""
           }`}
         >
           <span className="relative p-2.5 bg-btn-control group-hover:bg-btn-control-hover rounded-lg shadow">
@@ -663,7 +752,7 @@ export function Sidebar() {
               <span className="block w-6 h-6 rounded-full border-2 border-primary" />
             )}
           </span>
-          {!collapsed && (
+          {show && (
             <span
               className={`${profile ? "text-sm" : "text-base"} font-normal text-primary whitespace-nowrap transition-all duration-300 ml-3 min-w-0 truncate`}
             >

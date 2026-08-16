@@ -25,6 +25,13 @@ export function InputArea() {
     settings,
     setSettings,
     sendMessage,
+    sendInTurn,
+    sendDocQuestion,
+    parallelSendTarget,
+    treeFocus,
+    turns,
+    activeDocId,
+    documents,
     busy,
     setActiveDocId,
     byokModels,
@@ -42,6 +49,20 @@ export function InputArea() {
   const allModels = useMemo(() => [OFFLINE_MODEL, ...byokModels], [byokModels]);
   const activeModel = allModels.find((m) => m.id === settings.activeModelId);
   const modelName = activeModel?.name ?? settings.activeModelId;
+
+  /** 平行视图发送目标：聚焦发散卡时，消息顺延进该平行对话（不弹回主对话流）。 */
+  const parallelTurn = parallelSendTarget
+    ? (turns.find((t) => t.id === parallelSendTarget) ?? null)
+    : null;
+  /** 文档段落视图：当前打开的文档（消息发往"论文：xxx"项目，AI 基于全文解读）。 */
+  const activeDoc =
+    activeDocId != null && activeDocId !== "__library__"
+      ? (documents.find((d) => d.id === activeDocId) ?? null)
+      : null;
+  /** 平行视图聚焦"来源卡"（不是发散卡）时，输入框发往主对话流会滑回主流——
+      给用户明确提示，避免"视图被意外弹出"。 */
+  const onSourceCardInParallel =
+    treeFocus?.groupSourceId != null && treeFocus.cardId === treeFocus.groupSourceId;
 
   // 收到"引用"（来自聊天区选中文本）→ 收进引用列表（支持多条）。
   useEffect(() => {
@@ -75,7 +96,17 @@ export function InputArea() {
     if ((!body && quotes.length === 0) || busy) return;
     const content =
       (quotes.length ? quotes.map((q) => `> ${q}`).join("\n") + "\n\n" : "") + body;
-    sendMessage(content);
+    // 三态路由（文档视图 > 平行顺延 > 主流新建）：
+    // 文档视图是独立全屏模式，优先级最高——即使 parallelSendTarget 残留
+    // （切视图时未清理的旧发散卡 id），文档提问也绝不发进无关平行会话。
+    if (activeDoc) {
+      sendDocQuestion(content);
+    } else if (parallelTurn) {
+      // 平行视图聚焦发散卡：消息顺延进该平行对话（独立线程，不打断主对话）。
+      sendInTurn(parallelTurn.id, content);
+    } else {
+      sendMessage(content);
+    }
     setText("");
     setQuotes([]);
     setModelOpen(false);
@@ -86,7 +117,7 @@ export function InputArea() {
         el.style.height = el.scrollHeight + "px";
       }
     });
-  }, [text, quotes, busy, sendMessage]);
+  }, [text, quotes, busy, activeDoc, parallelTurn, sendInTurn, sendDocQuestion, sendMessage]);
 
   // Ctrl+Enter (default) or plain Enter when settings.sendShortcut === "enter".
   // Shift+Enter always inserts a newline.
@@ -229,7 +260,15 @@ export function InputArea() {
             rows={1}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            placeholder="问点什么，开始你的探索…"
+            placeholder={
+              activeDoc
+                ? `基于《${activeDoc.name}》提问，AI 解读后自动进入对话…`
+                : parallelTurn
+                  ? `在「${parallelTurn.title}」平行对话中继续提问…`
+                  : onSourceCardInParallel
+                    ? "在来源对话输入将回到主对话流新建卡片…"
+                    : "问点什么，开始你的探索…"
+            }
             className="block w-full min-h-0 flex-1 bg-transparent scrollbar-inputarea text-primary text-base leading-5 resize-none outline-none placeholder:text-text-quaternary max-h-[192px] overflow-y-auto px-0 py-1"
           />
 

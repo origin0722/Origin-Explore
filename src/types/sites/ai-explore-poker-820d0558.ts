@@ -81,6 +81,15 @@ export interface Turn {
   branchPointIndex?: number;
   /** 分支卡片：上游分支点前对话的本地总结缓存（懒生成，summarizePreBranch 写入） */
   preBranchSummary?: string;
+  /** 分支卡片：续问上下文缓存——创建时 = 分支点前的上游消息切片 + 深挖路径对话；
+      调整分支点（setBranchPoint）时按新分支点重算 slice、保留 trail。
+      sendInTurn 对分支卡用它作上下文（分割线位置 = 实际继承边界）。 */
+  branchContext?: {
+    /** 分支点前的上游消息（按 branchPointIndex 切片，调整分支点时重算） */
+    slice: { role: string; content: string }[];
+    /** 创建分支时的深挖路径对话（术语卡消息，调整分支点不变） */
+    trail: { role: string; content: string }[];
+  };
   /** 发散卡片：来源轮次 id（树中渲染在来源卡片节点右侧、同一层级） */
   divergeSourceId?: string;
   /** 本轮对话中点击过的术语卡片（探索路径），按点击顺序；
@@ -126,7 +135,7 @@ export interface ThemeOption {
 }
 
 /** Relationship of a term card to its parent card (recursive knowledge tree) */
-export type TermKind = "child" | "related" | "branch";
+export type TermKind = "child" | "related" | "branch" | "diverge";
 
 export interface TermNode {
   id: string;
@@ -153,6 +162,10 @@ export interface DocumentItem {
   kind: DocKind;
   /** extracted plain text (client-side parsing only) */
   content: string;
+  /** AI 解读缓存：理解内容 → 语义分块 + 翻译 + 格式工整后的 markdown
+      （BYOK 流式生成；离线为启发式整理）。有值 = 已解读。 */
+  interpreted?: string;
+  interpretedAt?: number;
   addedAt: number;
 }
 

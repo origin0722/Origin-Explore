@@ -37,10 +37,17 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { name: "Kimi K2", provider: "月之暗面", description: "超长上下文", baseUrl: "https://api.moonshot.cn/v1", modelId: "kimi-k2-0711-preview" },
 ];
 
-/** 仅保留两种颜色主题：黑绿（默认）与白蓝。 */
+/** 九种颜色主题：赛博青（默认）、白蓝、暗紫霓虹、琥珀暖橙、纸墨风、品红、森林绿、海洋蓝、玫瑰金。 */
 export const THEMES: ThemeOption[] = [
-  { id: "default", name: "黑绿" },
+  { id: "default", name: "赛博青" },
   { id: "white-blue", name: "白蓝" },
+  { id: "midnight-purple", name: "暗紫霓虹" },
+  { id: "sunset-amber", name: "琥珀暖橙" },
+  { id: "paper-ink", name: "纸墨风" },
+  { id: "magenta-pink", name: "品红" },
+  { id: "forest", name: "森林绿" },
+  { id: "ocean", name: "海洋蓝" },
+  { id: "rose-gold", name: "玫瑰金" },
 ];
 
 /** settings.theme stores the theme *name*; map it to a data-theme key. */
@@ -48,20 +55,26 @@ export function themeId(name: string): string {
   return THEMES.find((t) => t.name === name)?.id ?? "default";
 }
 
-/** Palettes currently implemented in globals.css ([data-theme=…] blocks). */
+/** 全部主题均已实现（globals.css 有对应 [data-theme=…] 块）。 */
 export function isThemeImplemented(name: string): boolean {
-  const id = themeId(name);
-  return id === "default" || id === "white-blue";
+  return THEMES.some((t) => t.name === name);
 }
 
 /** 浏览器地址栏主题色（meta theme-color），与各主题的 --bg 一致。 */
 export const THEME_META_COLORS: Record<string, string> = {
-  default: "#101010",
+  default: "#0a0e1a",
   "white-blue": "#f5f7fb",
+  "midnight-purple": "#0d0a1a",
+  "sunset-amber": "#14100c",
+  "paper-ink": "#faf7f0",
+  "magenta-pink": "#150b18",
+  forest: "#0b1210",
+  ocean: "#070d1c",
+  "rose-gold": "#faf3ef",
 };
 
 export const DEFAULT_SETTINGS: ChatSettings = {
-  theme: "黑绿",
+  theme: "赛博青",
   language: "zh",
   activeModelId: "offline",
   isWebSearchEnabled: false,

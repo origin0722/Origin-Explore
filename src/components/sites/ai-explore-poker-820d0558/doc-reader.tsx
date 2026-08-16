@@ -1,13 +1,14 @@
 "use client";
 
 /**
- * Explore — DocReader（本地文档库 + 分栏阅读器 + 划词问 AI）
+ * Explore — DocReader（本地文档库 + 段落对话流 + AI 解读）
  * 单文件导出 2 个组件：
  *   DocLibrary — 文档库视图（上传 / 列表 / 空态）
- *   DocReader  — 分栏阅读器（正文 + 术语高亮 + 问答列 + 划词问 AI）
+ *   DocReader  — 段落对话框流：论文按段落拆成对话式消息块，
+ *                每段下方有「创建分支卡片 / 创建发散卡片」按钮，底部是 AI 对话框。
  * 状态全部来自 useApp()（无 props）；Shell 按 activeDocId 切换：
  * "__library__" → DocLibrary；"doc-xxx" → DocReader；null → 聊天/欢迎。
- * 视觉按 08-docreader.md；个人工具，仅中文。
+ * 个人工具，仅中文。
  */
 import {
   useEffect,
@@ -15,19 +16,23 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type MouseEvent,
 } from "react";
 import ReactMarkdown from "react-markdown";
 import {
   ArrowLeft,
   ChevronRight,
   FileText,
+  GitFork,
   Loader2,
+  RefreshCw,
+  Sparkles,
   Trash2,
   Upload,
+  Waypoints,
   X,
 } from "lucide-react";
 import { useApp } from "./app-context";
+import { InputArea } from "./input-area";
 import type {
   DocumentItem,
   TermState,
@@ -36,6 +41,7 @@ import {
   extractTextFromFile,
   isParseable,
   kindLabel,
+  splitParagraphs,
 } from "@/lib/sites/ai-explore-poker-820d0558/doc-parser";
 import {
   detectTerms,
@@ -44,6 +50,23 @@ import {
 import { GLOSSARY, findTerm } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 
 const uid = () => "doc-" + Math.random().toString(36).slice(2, 10);
+
+/** 把 AI 解读版 markdown 按 `## 块标题` 拆成块（解读版 = 语义分块后的对话式消息块）。 */
+function splitInterpretedBlocks(md: string): { title: string; body: string }[] {
+  const parts = md.split(/^##\s+/m);
+  const blocks: { title: string; body: string }[] = [];
+  for (const p of parts) {
+    const t = p.trim();
+    if (!t) continue;
+    const nl = t.indexOf("\n");
+    if (nl === -1) {
+      blocks.push({ title: t, body: "" });
+      continue;
+    }
+    blocks.push({ title: t.slice(0, nl).trim(), body: t.slice(nl + 1).trim() });
+  }
+  return blocks.length ? blocks : [{ title: "全文", body: md }];
+}
 
 /** 正则转义（与 term-detect 相同规则，本文件独立实现） */
 function escapeRe(s: string): string {
@@ -80,7 +103,7 @@ function KindBadge({ kind }: { kind: DocumentItem["kind"] }) {
    ============================================================ */
 
 export function DocLibrary() {
-  const { documents, addDocument, removeDocument, setActiveDocId } = useApp();
+  const { documents, addDocument, removeDocument, setActiveDocId, interpretDocument } = useApp();
   const [parsing, setParsing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -104,6 +127,7 @@ export function DocLibrary() {
     e.target.value = "";
     if (files.length === 0 || parsing) return;
     setParsing(true);
+    let firstId: string | null = null;
     for (const file of files) {
       try {
         const { kind, content } = await extractTextFromFile(file);
@@ -111,18 +135,25 @@ export function DocLibrary() {
           showToast(`「${file.name}」解析为空`);
           continue;
         }
+        const docId = uid();
         addDocument({
-          id: uid(),
+          id: docId,
           name: file.name,
           kind,
           content,
           addedAt: Date.now(),
         });
+        if (!firstId) firstId = docId;
       } catch {
         showToast(`「${file.name}」解析失败`);
       }
     }
     setParsing(false);
+    // 上传成功 → 直接进入该文档的解读视图（AI 自动分块 + 翻译 + 整理）
+    if (firstId) {
+      setActiveDocId(firstId);
+      interpretDocument(firstId);
+    }
   };
 
   return (
@@ -174,7 +205,10 @@ export function DocLibrary() {
             <div
               key={doc.id}
               className="group bg-card-std rounded-2xl border border-std p-4 hover:border-brand/40 transition-colors cursor-pointer"
-              onClick={() => setActiveDocId(doc.id)}
+              onClick={() => {
+                setActiveDocId(doc.id);
+                interpretDocument(doc.id); // 已有解读缓存则直接复用
+              }}
             >
               <div className="flex items-start justify-between gap-2">
                 <KindBadge kind={doc.kind} />
@@ -380,21 +414,50 @@ function HighlightedText({
    ============================================================ */
 
 export function DocReader() {
-  const { documents, activeDocId, setActiveDocId, termStates, openDocQuestion, removeDocument } =
-    useApp();
+  const {
+    documents,
+    activeDocId,
+    setActiveDocId,
+    termStates,
+    openDocQuestion,
+    removeDocument,
+    interpretDocument,
+    docInterpretingIds,
+    openDocBranch,
+    openDocDiverge,
+  } = useApp();
   const doc = documents.find((d) => d.id === activeDocId) ?? null;
+  const interpreting = doc ? docInterpretingIds.includes(doc.id) : false;
 
-  // 打开文档时检测一次术语（上限 60 个）
+  // 打开文档时检测一次术语（上限 60 个）、拆分原文段落、解析 AI 解读块
   const terms = useMemo(() => (doc ? detectTerms(doc.content, 60) : []), [doc]);
+  const paragraphs = useMemo(() => (doc ? splitParagraphs(doc.content) : []), [doc]);
+  const interpretedBlocks = useMemo(
+    () => (doc?.interpreted ? splitInterpretedBlocks(doc.interpreted) : []),
+    [doc]
+  );
+  /** 是否已有"完整解读块"（标题 + 实质正文）——流式生成中的半截 markdown 不算。
+      首个完整块出现前保持"AI 正在理解…"加载态，避免半块/空块闪烁。 */
+  const hasCompleteBlocks = useMemo(() => {
+    const md = doc?.interpreted ?? "";
+    if (!md) return false;
+    const parts = md.split(/^##\s+/m).filter((p) => p.trim());
+    return parts.some((p) => {
+      const nl = p.indexOf("\n");
+      const body = nl === -1 ? "" : p.slice(nl + 1).trim();
+      return body.length >= 12;
+    });
+  }, [doc]);
   const [panelTerm, setPanelTerm] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [selText, setSelText] = useState<string | null>(null);
+  /** false = 优先显示 AI 解读版；true = 查看原文 */
+  const [showOriginal, setShowOriginal] = useState(false);
 
-  // 切换文档时重置问答列与划词状态
+  // 切换文档时重置问答列与视图模式
   useEffect(() => {
     setPanelTerm(null);
     setPanelOpen(false);
-    setSelText(null);
+    setShowOriginal(false);
   }, [doc?.id]);
 
   const openTermPanel = (term: string) => {
@@ -402,23 +465,32 @@ export function DocReader() {
     setPanelOpen(true);
   };
 
-  /** 划词问 AI：正文区鼠标抬起时读取选区 */
-  const handleMouseUp = (e: MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    // 点击高亮术语按钮不算划词
-    if ((e.target as HTMLElement).closest("button")) return;
-    const sel = window.getSelection();
-    const text = sel ? sel.toString().trim() : "";
-    setSelText(text.length > 0 ? text : null);
-  };
-
   /** 问 AI：自动建「论文：xxx」项目 + 新 turn + 切回对话视图，并收起面板 */
   const askAbout = (term: string) => {
     if (!doc) return;
-    openDocQuestion(term, doc.name);
+    openDocQuestion(term, doc.id);
     setPanelTerm(null);
     setPanelOpen(false);
-    setSelText(null);
+  };
+
+  /** 段落标题（取段首 18 字） */
+  const paraTitle = (para: string) => {
+    const t = para.replace(/\s+/g, " ").trim();
+    return t.length > 18 ? t.slice(0, 18) + "…" : t || "文档段落";
+  };
+
+  /** 段落 → 分支卡片：以该段为主题开分支对话（继承段落上下文），主流中向下出现。
+      来源与创建项目统一落在「论文：xxx」项目（openDocBranch 内部处理）——
+      不再挂到"当前项目最后一个轮次"（空项目悬空 / 挂错无关轮次）。 */
+  const branchFromPara = (para: string) => {
+    if (!doc) return;
+    openDocBranch(paraTitle(para), para, doc.name);
+  };
+
+  /** 段落 → 发散卡片：以该段为主题开平行会话（锚点 = 该段文本，AI 基于文档语境解读）。 */
+  const divergeFromPara = (para: string) => {
+    if (!doc) return;
+    openDocDiverge(paraTitle(para), para, doc.name);
   };
 
   // Shell 保证 activeDocId 命中 documents；兜底空渲染
@@ -441,8 +513,50 @@ export function DocReader() {
         </button>
         <span className="text-sm font-semibold truncate">{doc.name}</span>
         <KindBadge kind={doc.kind} />
+        {/* AI 解读：理解全文 → 语义分块 + 双语对照 + 格式工整（上传后第一时间自动执行） */}
+        <button
+          type="button"
+          onClick={() => interpretDocument(doc.id, !!doc.interpreted)}
+          disabled={interpreting}
+          title={
+            doc.interpreted
+              ? "重新解读：AI 重新理解全文并分块"
+              : "AI 先理解全文，再按语义分块、双语对照、整理格式"
+          }
+          className={`flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[11px] transition-colors ${
+            doc.interpreted
+              ? "border-brand/40 bg-brand/10 text-brand"
+              : "border-std bg-btn-std text-text-secondary hover:border-brand/40 hover:text-brand"
+          } disabled:cursor-default disabled:opacity-70`}
+        >
+          {interpreting ? (
+            <>
+              <Loader2 size={13} className="animate-spin" /> AI 解读中…
+            </>
+          ) : doc.interpreted ? (
+            <>
+              <RefreshCw size={13} /> 重新解读
+            </>
+          ) : (
+            <>
+              <Sparkles size={13} /> AI 解读
+            </>
+          )}
+        </button>
+        {doc.interpreted && (
+          <button
+            type="button"
+            onClick={() => setShowOriginal((v) => !v)}
+            className="flex h-7 shrink-0 cursor-pointer items-center rounded-full border border-std bg-btn-std px-3 text-[11px] text-text-secondary transition-colors hover:border-brand/40 hover:text-brand"
+            title={showOriginal ? "切回 AI 解读版" : "查看原文"}
+          >
+            {showOriginal ? "解读版" : "原文"}
+          </button>
+        )}
         <span className="text-xs text-text-quaternary ml-auto shrink-0">
-          已识别 {terms.length} 个术语
+          {doc.interpreted
+            ? `${interpretedBlocks.length} 个解读块 · ${terms.length} 个术语`
+            : `${paragraphs.length} 段 · ${terms.length} 个术语`}
         </span>
         <button
           onClick={() => {
@@ -457,21 +571,120 @@ export function DocReader() {
         </button>
       </div>
 
-      {/* 正文 + 桌面问答列 */}
+      {/* 解读/原文对话流 + 桌面问答列 */}
       <div className="flex-1 flex min-h-0">
-        {/* 正文区 */}
-        <div
-          className="flex-1 overflow-y-auto scrollbar-card-std px-6 py-6"
-          onMouseUp={handleMouseUp}
-        >
-          <div className="max-w-[760px] mx-auto">
-            <h1 className="text-xl font-bold mb-4">{doc.name}</h1>
-            <HighlightedText
-              text={doc.content}
-              terms={terms}
-              termStates={termStates}
-              onTermClick={openTermPanel}
-            />
+        {/* 对话流：AI 解读块（语义分块 + 翻译 + 工整）优先，可切回原文段落 */}
+        <div className="flex-1 overflow-y-auto scrollbar-card-std px-4 sm:px-6 py-4">
+          <div className="max-w-[760px] mx-auto flex flex-col gap-3">
+            {doc.interpreted !== undefined && !showOriginal && !(interpreting && !hasCompleteBlocks) ? (
+              /* AI 解读版（流式生成中：首个完整块出现后随进度逐块浮现） */
+              interpretedBlocks.map((block, i) =>
+                block.body.trim().length < 12 ? (
+                  /* 元数据类碎块（作者/日期/脚注）：紧凑附注行，不占卡片 */
+                  <div
+                    key={i}
+                    className="px-1 py-0.5 text-xs text-text-quaternary select-none"
+                  >
+                    📌 {block.title}
+                    {block.body.trim() ? `：${block.body.trim()}` : ""}
+                  </div>
+                ) : (
+                <div key={i} className="rounded-xl border border-std bg-card-std/60 px-4 py-3">
+                  <div className="flex items-center gap-2 mb-2 select-none">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded border border-brand/30 bg-brand/10 text-brand shrink-0">
+                      解读块 {i + 1}
+                    </span>
+                    <span className="text-xs font-semibold text-text-turn-title truncate min-w-0">
+                      {block.title}
+                    </span>
+                  </div>
+                  {block.body && (
+                    <div className="markdown-content text-sm leading-relaxed text-text-content select-text">
+                      <ReactMarkdown>{block.body}</ReactMarkdown>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mt-3 select-none">
+                    <button
+                      type="button"
+                      disabled={interpreting}
+                      onClick={() => divergeFromPara(block.body || block.title)}
+                      className="flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-diverge/40 bg-diverge/10 px-3 text-[11px] text-diverge transition-colors hover:bg-diverge/20 disabled:cursor-default disabled:opacity-50"
+                      title={
+                        interpreting
+                          ? "解读进行中，生成完成后可创建卡片"
+                          : "以该块为主题开平行会话（不打断当前对话）"
+                      }
+                    >
+                      <Waypoints size={12} /> 创建发散卡片
+                    </button>
+                    <button
+                      type="button"
+                      disabled={interpreting}
+                      onClick={() => branchFromPara(block.body || block.title)}
+                      className="flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-brand/40 bg-brand/10 px-3 text-[11px] text-brand transition-colors hover:bg-brand/20 disabled:cursor-default disabled:opacity-50"
+                      title={
+                        interpreting
+                          ? "解读进行中，生成完成后可创建卡片"
+                          : "以该块为主题开分支对话（继承块上下文）"
+                      }
+                    >
+                      <GitFork size={12} /> 创建分支卡片
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : interpreting ? (
+              /* AI 解读中：卡片分配由解读结果决定，首块生成前不显示机械分段 */
+              <div className="flex flex-col items-center justify-center gap-4 py-24 select-none">
+                <div className="relative h-14 w-14">
+                  <span className="absolute inset-0 rounded-full border-2 border-brand/20" />
+                  <span className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-brand" />
+                </div>
+                <p className="text-sm text-text-secondary">AI 正在理解《{doc.name}》…</p>
+                <p className="text-[11px] text-text-quaternary">语义分块 → 双语对照 → 格式整理</p>
+              </div>
+            ) : (
+              /* 原文段落流（解读完成后可切换查看） */
+              paragraphs.map((para, i) => (
+              <div key={i} className="rounded-xl border border-std bg-card-std/60 px-4 py-3">
+                <div className="flex items-center gap-2 mb-2 select-none">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded border border-std text-text-quaternary">
+                    第 {i + 1} 段
+                  </span>
+                  <span className="text-[10px] text-text-quaternary">{para.length} 字</span>
+                  <span className="ml-auto text-[10px] text-text-quaternary">
+                    点击术语可问 AI
+                  </span>
+                </div>
+                <div className="whitespace-pre-wrap text-sm leading-relaxed text-text-content select-text">
+                  <HighlightedText
+                    text={para}
+                    terms={terms}
+                    termStates={termStates}
+                    onTermClick={openTermPanel}
+                  />
+                </div>
+                <div className="flex items-center gap-2 mt-3 select-none">
+                  <button
+                    type="button"
+                    onClick={() => divergeFromPara(para)}
+                    className="flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-diverge/40 bg-diverge/10 px-3 text-[11px] text-diverge transition-colors hover:bg-diverge/20"
+                    title="以该段为主题开平行会话（不打断当前对话）"
+                  >
+                    <Waypoints size={12} /> 创建发散卡片
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => branchFromPara(para)}
+                    className="flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-brand/40 bg-brand/10 px-3 text-[11px] text-brand transition-colors hover:bg-brand/20"
+                    title="以该段为主题开分支对话（继承段落上下文）"
+                  >
+                    <GitFork size={12} /> 创建分支卡片
+                  </button>
+                </div>
+              </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -521,23 +734,10 @@ export function DocReader() {
         </div>
       )}
 
-      {/* 划词问 AI 浮条 */}
-      {selText && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-modal-floating border border-std rounded-full px-4 py-2 text-sm shadow-card flex items-center gap-2 whitespace-nowrap">
-          <button
-            onClick={() => askAbout(selText)}
-            className="text-text-primary hover:text-brand transition-colors max-w-[70vw] truncate"
-          >
-            问 AI：『{selText.length > 16 ? selText.slice(0, 16) + "…" : selText}』
-          </button>
-          <button
-            onClick={() => setSelText(null)}
-            className="text-text-quaternary hover:text-text-primary transition-colors"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
+      {/* 底部 AI 对话框：围绕文档提问（AI 基于全文解读） */}
+      <div className="shrink-0 px-2 sm:px-4 pb-3 pt-1">
+        <InputArea />
+      </div>
     </div>
   );
 }

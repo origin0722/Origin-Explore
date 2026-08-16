@@ -2,7 +2,7 @@
 
 /**
  * Explore — WelcomeView (empty-state welcome page)
- * Centered Bruno Ace logo + tagline + action buttons + optional feature cards.
+ * Centered Monoton neon-tube logo + tagline + action buttons + optional feature cards.
  * "如何使用" opens an internal help popover (8 features); the round help
  * button opens the onboarding wizard via AppContext.
  */
@@ -72,16 +72,22 @@ export function WelcomeView() {
 
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden">
-      {/* Logo — same Bruno Ace brand treatment as the empty chat state */}
+      {/* 流体光斑背景（品牌色液态能量团，随主题切换） */}
+      <div className="fluid-blobs" aria-hidden="true">
+        <div className="fluid-blob blob-a" />
+        <div className="fluid-blob blob-b" />
+        <div className="fluid-blob blob-c" />
+      </div>
+
+      {/* Logo — Monoton neon-tube brand treatment (飘逸霓虹管 + 赛博光晕) */}
       <h1
-        className="font-bruno-ace select-none text-center text-brand"
+        className="font-monoton brand-neon select-none text-center"
         style={{
-          fontSize: "clamp(3rem, 8vw, 7rem)",
+          fontSize: "clamp(1.4rem, 5.2vw, 4.5rem)",
           lineHeight: 1,
-          textShadow: "0 0 24px rgba(var(--brand-rgb), 0.35)",
         }}
       >
-        Explore
+        OriginExplore
       </h1>
 
       {/* Actions（定位语已移入使用指南弹窗，主页保持极简） */}

@@ -40,6 +40,10 @@ export function AppShell() {
 
   // Mobile drawer state (desktop ignores it — the sidebar is in-flow there).
   const [mobileOpen, setMobileOpen] = useState(false);
+  /** 折叠窄条时鼠标碰触侧边栏 → 临时展开（悬浮 overlay，不挤压内容）；移出收回。 */
+  const [hoverExpand, setHoverExpand] = useState(false);
+  /** 有效展开态 = 用户偏好展开 || hover 临时展开 */
+  const expanded = !collapsed || hoverExpand;
 
   // 数据全部来自 localStorage（仅客户端）：服务端渲染的是空态，挂载后再渲染真实内容，
   // 避免 SSR 空态与客户端内容的水合不匹配警告（与 mind-universe 同一模式）。
@@ -87,11 +91,16 @@ export function AppShell() {
         <>
       {/* ---- Sidebar: 悬浮式（桌面端 overlay，不占流，不挤压对话框；移动端抽屉） ---- */}
       <div
-        className={`fixed inset-y-0 left-0 z-40 h-full shrink-0 overflow-hidden bg-bg transition-all duration-200 sm:absolute sm:translate-x-0 sm:bg-transparent ${
-          collapsed ? "w-[56px]" : "w-[225px]"
+        className={`fixed inset-y-0 left-0 z-40 h-full shrink-0 overflow-hidden bg-bg transition-[width,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:absolute sm:translate-x-0 sm:bg-transparent ${
+          expanded ? "w-[225px]" : "w-[56px]"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
+        onMouseEnter={() => {
+          // 桌面端：鼠标碰触侧边栏（折叠窄条）→ 丝滑展开（移出自动收回）
+          if (window.matchMedia("(min-width: 640px)").matches) setHoverExpand(true);
+        }}
+        onMouseLeave={() => setHoverExpand(false)}
       >
-        <Sidebar />
+        <Sidebar expanded={expanded} onClearHover={() => setHoverExpand(false)} />
       </div>
 
       {/* Mobile drawer backdrop */}

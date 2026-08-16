@@ -17,6 +17,7 @@ import {
   Palette,
   Plus,
   Star,
+  Trash2,
   X,
   Zap,
 } from "lucide-react";
@@ -254,10 +255,12 @@ function ModelRow({
   model,
   selected,
   onSelect,
+  onRemove,
 }: {
   model: ModelInfo;
   selected: boolean;
   onSelect(): void;
+  onRemove?: () => void;
 }) {
   return (
     <div
@@ -292,8 +295,26 @@ function ModelRow({
           </p>
         </div>
         {model.provider === "BYOK" && (
-          <span className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5 flex-shrink-0 self-center">
-            BYOK
+          <span className="flex items-center gap-1 flex-shrink-0 self-center">
+            <span className="text-[10px] text-text-tertiary border border-std rounded px-1.5 py-0.5">
+              BYOK
+            </span>
+            {onRemove && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation(); // 不触发行选中
+                  if (window.confirm(`删除模型「${model.name}」？密钥将从本机移除。`)) {
+                    onRemove();
+                  }
+                }}
+                aria-label={`删除模型 ${model.name}`}
+                title="删除该模型（密钥将从本机移除）"
+                className="w-6 h-6 rounded flex items-center justify-center text-text-tertiary hover:text-destructive transition-colors"
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
           </span>
         )}
       </div>
@@ -302,7 +323,8 @@ function ModelRow({
 }
 
 export function SettingsModal() {
-  const { settings, setSettings, closeModal, openModal, byokModels, addByokModel } = useApp();
+  const { settings, setSettings, closeModal, openModal, byokModels, addByokModel, removeByokModel } =
+    useApp();
   const [draft, setDraft] = useState<ChatSettings>(settings);
   const [section, setSection] = useState("models");
   const [toast, showToast] = useToast();
@@ -472,12 +494,16 @@ export function SettingsModal() {
                             showToast("请填写模型名称");
                             return;
                           }
-                          addByokModel({
+                          const ok = addByokModel({
                             name: byokName,
                             baseUrl: byokBaseUrl,
                             modelId: byokModelId,
                             apiKey: byokKey,
                           });
+                          if (!ok) {
+                            showToast("同名模型已存在，请换一个名称");
+                            return;
+                          }
                           setByokName("");
                           setByokBaseUrl("");
                           setByokModelId("");
@@ -499,6 +525,14 @@ export function SettingsModal() {
                     model={m}
                     selected={draft.activeModelId === m.id}
                     onSelect={() => update({ activeModelId: m.id })}
+                    onRemove={
+                      m.provider === "BYOK"
+                        ? () => {
+                            removeByokModel(m.id);
+                            showToast("已删除模型");
+                          }
+                        : undefined
+                    }
                   />
                 ))}
               </div>
@@ -883,8 +917,8 @@ export function ProfileModal() {
           /* 未登录态 / 编辑态 */
           <>
             <div className="text-center">
-              <h1 className="font-bruno-ace text-3xl text-brand shadow-brand">
-                Explore
+              <h1 className="font-monoton brand-neon text-2xl">
+                OriginExplore
               </h1>
               <h2 className="text-xl font-bold mt-4">欢迎回来</h2>
               <p className="text-sm text-text-tertiary mt-1">
@@ -963,6 +997,27 @@ export function GuideModal() {
             <p className="text-sm leading-6 text-text-secondary">
               在这里，摆脱线性聊天框的限制，实现多层级对话——曾经在单线程对话中迷失的复杂讨论，现在可以完全展开。
             </p>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3">
+            <div className="rounded-xl border border-std bg-card-std/50 px-4 py-3 text-sm leading-6 text-text-secondary">
+              <p className="font-semibold text-primary">🪢 发散对话（平行会话）</p>
+              <p className="mt-1">
+                点开加粗术语卡片 →「🪢 发散对话」→ 平行会话从右侧滑入，与当前对话同级、互不打断；可在里面继续提问（顺延进该对话），点「回到主对话」滑回；卡片树中与来源卡同层右侧。
+              </p>
+            </div>
+            <div className="rounded-xl border border-std bg-card-std/50 px-4 py-3 text-sm leading-6 text-text-secondary">
+              <p className="font-semibold text-primary">⛓ 分支卡片（另起炉灶）</p>
+              <p className="mt-1">
+                术语卡片内点「⬇️ 另起炉灶」开分支；分支卡头部 ⛓ 可查看/调整分支点（来源对话里出现「✂️ 在此分支」，分割线随之移动），📋 生成分支点前的上游总结。
+              </p>
+            </div>
+            <div className="rounded-xl border border-std bg-card-std/50 px-4 py-3 text-sm leading-6 text-text-secondary">
+              <p className="font-semibold text-primary">🌲 卡片树（右侧地图）</p>
+              <p className="mt-1">
+                辉光 = 你当前所在卡片；发散组淡染标记平行会话；点击节点跳转，右键切换已读/未读；曲线引导展示发散/分支/术语卡的关系。
+              </p>
+            </div>
           </div>
         </div>
 

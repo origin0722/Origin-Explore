@@ -133,7 +133,10 @@
    Explore — site design tokens (semantic, tailwind v4 @theme)
    The @theme tokens are var() references so [data-theme] on
    <html> can re-skin the whole app at runtime (theme switching).
-   Palettes: default (黑绿) + white-blue (白蓝).
+   Palettes: default (赛博青) + white-blue (白蓝) + midnight-purple
+   (暗紫霓虹) + sunset-amber (琥珀暖橙) + paper-ink (纸墨风)
+   + magenta-pink (品红) + forest (森林绿) + ocean (海洋蓝)
+   + rose-gold (玫瑰金).
    ============================================================ */
 @theme inline {
   --color-bg: var(--bg);
@@ -161,6 +164,9 @@
   --color-modal-floating: var(--modal-floating);
   --color-overlay-modal: var(--overlay-modal);
   --color-usermsg: var(--usermsg);
+  --color-diverge: var(--diverge);
+  --color-universe-bg: var(--universe-bg);
+  --color-universe-panel: var(--universe-panel);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-tertiary: var(--text-tertiary);
@@ -180,7 +186,7 @@
   --shadow-usermsg: 0 2px 8px rgba(0, 0, 0, 0.25);
   --shadow-btn: 0 2px 6px rgba(0, 0, 0, 0.35);
   --radius-usermsg: 14px;
-  --font-bruno-ace: var(--font-bruno-ace);
+  --font-monoton: var(--font-monoton);
   --font-noto-sans-sc: var(--font-noto-sans-sc);
 }
 
@@ -188,43 +194,54 @@
 
 :root,
 [data-theme="default"] {
-  --bg: #101010;
-  --brand: #13e425;
-  --brand-rgb: 19, 228, 37;
-  --brand-fg: #000000;
-  --brandtw: rgba(19, 228, 37, 0.8);
-  --card-std: #181818;
-  --card-floating: #3c3c3c;
-  --btn-std: #3c3c3c;
-  --btn-std-hover: #4a4a4a;
-  --btn-control: #444444;
-  --btn-control-hover: #545454;
-  --btn-selector: #3c3c3c;
-  --btn-inputarea: #13e425;
+  --bg: #0a0e1a;
+  --brand: #22d3ee;
+  --brand-rgb: 34, 211, 238;
+  --brand-fg: #041018;
+  --brandtw: rgba(34, 211, 238, 0.8);
+  --card-std: #0f1526;
+  --card-floating: #1a2238;
+  --btn-std: #1a2238;
+  --btn-std-hover: #232d47;
+  --btn-control: #1d2740;
+  --btn-control-hover: #27324e;
+  --btn-selector: #1a2238;
+  --btn-inputarea: #22d3ee;
   --btn-inputarea-transparent-hover: rgba(255, 255, 255, 0.08);
-  --btn-floating: rgba(60, 60, 60, 0.92);
-  --btn-floating-hover: rgba(74, 74, 74, 0.92);
+  --btn-floating: rgba(26, 34, 56, 0.92);
+  --btn-floating-hover: rgba(35, 45, 71, 0.92);
   --item-std: rgba(255, 255, 255, 0.06);
-  --item-std-active: rgba(255, 255, 255, 0.12);
+  --item-std-active: rgba(34, 211, 238, 0.14);
   --item-std-hover: rgba(255, 255, 255, 0.09);
-  --modal-std: #222222;
-  --modal-floating: #232323;
-  --overlay-modal: rgba(0, 0, 0, 0.4);
-  --usermsg: rgba(19, 228, 37, 0.14);
-  --text-primary: #ffffff;
-  --text-secondary: #d1d1d1;
-  --text-tertiary: #999999;
-  --text-quaternary: #777777;
-  --text-header-secondary: #e5e5e5;
-  --text-turn-title: #e8e8e8;
-  --text-icon-secondary: #9a9a9a;
-  --text-content: #e6e6e6;
-  --border-std: rgba(255, 255, 255, 0.12);
-  --border-divider: rgba(255, 255, 255, 0.08);
-  --border-turn-std: rgba(255, 255, 255, 0.1);
-  --inputarea: #1a1a1a;
-  --shadow-brand-value: 0 0 24px rgba(19, 228, 37, 0.35);
-  --shadow-brandtw-value: 0 0 16px rgba(19, 228, 37, 0.2);
+  --modal-std: #131a2e;
+  --modal-floating: #161e36;
+  --overlay-modal: rgba(0, 0, 0, 0.5);
+  --usermsg: rgba(34, 211, 238, 0.12);
+  --destructive: #ff6b6b;
+  --destructive-fg: #1c0a0a;
+  --destructive-rgb: 255, 107, 107;
+  --diverge: #a78bfa;
+  --diverge-rgb: 167, 139, 250;
+  --cat-concept: #4d9fff;
+  --cat-question: #ffb84d;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+  --universe-bg: #05080a;
+  --universe-panel: #0f1722;
+  --text-primary: #e8f6fb;
+  --text-secondary: #c4d8e2;
+  --text-tertiary: #8ba3b3;
+  --text-quaternary: #667d8d;
+  --text-header-secondary: #dceef5;
+  --text-turn-title: #dff1f7;
+  --text-icon-secondary: #8ba8b8;
+  --text-content: #dcecf3;
+  --border-std: rgba(255, 255, 255, 0.1);
+  --border-divider: rgba(255, 255, 255, 0.06);
+  --border-turn-std: rgba(255, 255, 255, 0.08);
+  --inputarea: #0c1222;
+  --shadow-brand-value: 0 0 24px rgba(34, 211, 238, 0.35);
+  --shadow-brandtw-value: 0 0 16px rgba(34, 211, 238, 0.2);
 }
 
 [data-theme="white-blue"] {
@@ -251,6 +268,17 @@
   --modal-floating: #f8fafd;
   --overlay-modal: rgba(15, 23, 42, 0.35);
   --usermsg: rgba(37, 99, 235, 0.1);
+  --destructive: #dc2626;
+  --destructive-fg: #ffffff;
+  --destructive-rgb: 220, 38, 38;
+  --diverge: #6366f1;
+  --diverge-rgb: 99, 102, 241;
+  --cat-concept: #3b82f6;
+  --cat-question: #d97706;
+  --scrollbar-thumb: rgba(15, 23, 42, 0.18);
+  --scrollbar-thumb-hover: rgba(15, 23, 42, 0.32);
+  --universe-bg: #0a1322;
+  --universe-panel: #142238;
   --text-primary: #0f172a;
   --text-secondary: #334155;
   --text-tertiary: #64748b;
@@ -267,6 +295,363 @@
   --shadow-brandtw-value: 0 0 16px rgba(37, 99, 235, 0.16);
 }
 
+[data-theme="midnight-purple"] {
+  --bg: #0d0a1a;
+  --brand: #a78bfa;
+  --brand-rgb: 167, 139, 250;
+  --brand-fg: #150f2b;
+  --brandtw: rgba(167, 139, 250, 0.8);
+  --card-std: #131026;
+  --card-floating: #1e1838;
+  --btn-std: #1e1838;
+  --btn-std-hover: #282050;
+  --btn-control: #221b40;
+  --btn-control-hover: #2d2457;
+  --btn-selector: #1e1838;
+  --btn-inputarea: #a78bfa;
+  --btn-inputarea-transparent-hover: rgba(255, 255, 255, 0.08);
+  --btn-floating: rgba(30, 24, 56, 0.92);
+  --btn-floating-hover: rgba(40, 32, 80, 0.92);
+  --item-std: rgba(255, 255, 255, 0.06);
+  --item-std-active: rgba(167, 139, 250, 0.15);
+  --item-std-hover: rgba(255, 255, 255, 0.09);
+  --modal-std: #161233;
+  --modal-floating: #1b1639;
+  --overlay-modal: rgba(0, 0, 0, 0.55);
+  --usermsg: rgba(167, 139, 250, 0.13);
+  --destructive: #f8718c;
+  --destructive-fg: #1c0610;
+  --destructive-rgb: 248, 113, 140;
+  --diverge: #c4b5fd;
+  --diverge-rgb: 196, 181, 253;
+  --cat-concept: #7aa2ff;
+  --cat-question: #ffc466;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+  --universe-bg: #0a0716;
+  --universe-panel: #181233;
+  --text-primary: #f0edfc;
+  --text-secondary: #d0c9ef;
+  --text-tertiary: #9a90c9;
+  --text-quaternary: #7469a3;
+  --text-header-secondary: #e4dff8;
+  --text-turn-title: #e6e2f8;
+  --text-icon-secondary: #9d93cd;
+  --text-content: #ddd8f3;
+  --border-std: rgba(255, 255, 255, 0.1);
+  --border-divider: rgba(255, 255, 255, 0.06);
+  --border-turn-std: rgba(255, 255, 255, 0.08);
+  --inputarea: #0f0c1f;
+  --shadow-brand-value: 0 0 24px rgba(167, 139, 250, 0.35);
+  --shadow-brandtw-value: 0 0 16px rgba(167, 139, 250, 0.2);
+}
+
+[data-theme="sunset-amber"] {
+  --bg: #14100c;
+  --brand: #f59e0b;
+  --brand-rgb: 245, 158, 11;
+  --brand-fg: #1c1206;
+  --brandtw: rgba(245, 158, 11, 0.8);
+  --card-std: #1a1510;
+  --card-floating: #2b231a;
+  --btn-std: #2b231a;
+  --btn-std-hover: #3a2f22;
+  --btn-control: #30271d;
+  --btn-control-hover: #3f3326;
+  --btn-selector: #2b231a;
+  --btn-inputarea: #f59e0b;
+  --btn-inputarea-transparent-hover: rgba(255, 255, 255, 0.07);
+  --btn-floating: rgba(43, 35, 26, 0.92);
+  --btn-floating-hover: rgba(58, 47, 34, 0.92);
+  --item-std: rgba(255, 255, 255, 0.05);
+  --item-std-active: rgba(245, 158, 11, 0.14);
+  --item-std-hover: rgba(255, 255, 255, 0.08);
+  --modal-std: #1d1710;
+  --modal-floating: #241d14;
+  --overlay-modal: rgba(0, 0, 0, 0.55);
+  --usermsg: rgba(245, 158, 11, 0.12);
+  --destructive: #ff6b5e;
+  --destructive-fg: #1c0a08;
+  --destructive-rgb: 255, 107, 94;
+  --diverge: #2dd4bf;
+  --diverge-rgb: 45, 212, 191;
+  --cat-concept: #5eb1ff;
+  --cat-question: #ffb84d;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+  --universe-bg: #120d08;
+  --universe-panel: #241c11;
+  --text-primary: #faf3e8;
+  --text-secondary: #e0d2bd;
+  --text-tertiary: #a89a83;
+  --text-quaternary: #83765f;
+  --text-header-secondary: #f0e6d3;
+  --text-turn-title: #f0e7d6;
+  --text-icon-secondary: #ab9c83;
+  --text-content: #e9ddca;
+  --border-std: rgba(255, 255, 255, 0.1);
+  --border-divider: rgba(255, 255, 255, 0.06);
+  --border-turn-std: rgba(255, 255, 255, 0.08);
+  --inputarea: #171209;
+  --shadow-brand-value: 0 0 24px rgba(245, 158, 11, 0.32);
+  --shadow-brandtw-value: 0 0 16px rgba(245, 158, 11, 0.18);
+}
+
+[data-theme="paper-ink"] {
+  --bg: #faf7f0;
+  --brand: #4f46e5;
+  --brand-rgb: 79, 70, 229;
+  --brand-fg: #ffffff;
+  --brandtw: rgba(79, 70, 229, 0.8);
+  --card-std: #ffffff;
+  --card-floating: #efeae0;
+  --btn-std: #efeae0;
+  --btn-std-hover: #e3dccd;
+  --btn-control: #e9e3d6;
+  --btn-control-hover: #ddd5c3;
+  --btn-selector: #efeae0;
+  --btn-inputarea: #4f46e5;
+  --btn-inputarea-transparent-hover: rgba(28, 25, 23, 0.06);
+  --btn-floating: rgba(255, 255, 255, 0.92);
+  --btn-floating-hover: rgba(239, 234, 224, 0.92);
+  --item-std: rgba(28, 25, 23, 0.045);
+  --item-std-active: rgba(79, 70, 229, 0.1);
+  --item-std-hover: rgba(28, 25, 23, 0.07);
+  --modal-std: #ffffff;
+  --modal-floating: #f7f3ea;
+  --overlay-modal: rgba(28, 25, 23, 0.35);
+  --usermsg: rgba(79, 70, 229, 0.09);
+  --destructive: #b3261e;
+  --destructive-fg: #ffffff;
+  --destructive-rgb: 179, 38, 30;
+  --diverge: #7c3aed;
+  --diverge-rgb: 124, 58, 237;
+  --cat-concept: #3b82f6;
+  --cat-question: #d97706;
+  --scrollbar-thumb: rgba(28, 25, 23, 0.18);
+  --scrollbar-thumb-hover: rgba(28, 25, 23, 0.32);
+  --universe-bg: #17130e;
+  --universe-panel: #241e16;
+  --text-primary: #1c1917;
+  --text-secondary: #44403c;
+  --text-tertiary: #78716c;
+  --text-quaternary: #a8a29e;
+  --text-header-secondary: #292524;
+  --text-turn-title: #292524;
+  --text-icon-secondary: #78716c;
+  --text-content: #292524;
+  --border-std: rgba(28, 25, 23, 0.12);
+  --border-divider: rgba(28, 25, 23, 0.08);
+  --border-turn-std: rgba(28, 25, 23, 0.1);
+  --inputarea: #ffffff;
+  --shadow-brand-value: 0 0 24px rgba(79, 70, 229, 0.28);
+  --shadow-brandtw-value: 0 0 16px rgba(79, 70, 229, 0.15);
+}
+
+[data-theme="magenta-pink"] {
+  --bg: #150b18;
+  --brand: #ec4899;
+  --brand-rgb: 236, 72, 153;
+  --brand-fg: #2b0718;
+  --brandtw: rgba(236, 72, 153, 0.8);
+  --card-std: #1b1020;
+  --card-floating: #2c1a2e;
+  --btn-std: #2c1a2e;
+  --btn-std-hover: #3a2438;
+  --btn-control: #311d33;
+  --btn-control-hover: #402741;
+  --btn-selector: #2c1a2e;
+  --btn-inputarea: #ec4899;
+  --btn-inputarea-transparent-hover: rgba(255, 255, 255, 0.08);
+  --btn-floating: rgba(44, 26, 46, 0.92);
+  --btn-floating-hover: rgba(58, 36, 56, 0.92);
+  --item-std: rgba(255, 255, 255, 0.06);
+  --item-std-active: rgba(236, 72, 153, 0.15);
+  --item-std-hover: rgba(255, 255, 255, 0.09);
+  --modal-std: #1e1224;
+  --modal-floating: #241530;
+  --overlay-modal: rgba(0, 0, 0, 0.55);
+  --usermsg: rgba(236, 72, 153, 0.13);
+  --destructive: #ff5c8a;
+  --destructive-fg: #1c0610;
+  --destructive-rgb: 255, 92, 138;
+  --diverge: #e879f9;
+  --diverge-rgb: 232, 121, 249;
+  --cat-concept: #6ea8ff;
+  --cat-question: #ffb84d;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+  --universe-bg: #0f0812;
+  --universe-panel: #201428;
+  --text-primary: #fdeef6;
+  --text-secondary: #e4c7d6;
+  --text-tertiary: #b08ba0;
+  --text-quaternary: #8d6a80;
+  --text-header-secondary: #f3dce7;
+  --text-turn-title: #f3dee9;
+  --text-icon-secondary: #b28ba2;
+  --text-content: #eed5e1;
+  --border-std: rgba(255, 255, 255, 0.1);
+  --border-divider: rgba(255, 255, 255, 0.06);
+  --border-turn-std: rgba(255, 255, 255, 0.08);
+  --inputarea: #180e1d;
+  --shadow-brand-value: 0 0 24px rgba(236, 72, 153, 0.35);
+  --shadow-brandtw-value: 0 0 16px rgba(236, 72, 153, 0.2);
+}
+
+[data-theme="forest"] {
+  --bg: #0b1210;
+  --brand: #34d399;
+  --brand-rgb: 52, 211, 153;
+  --brand-fg: #04120c;
+  --brandtw: rgba(52, 211, 153, 0.8);
+  --card-std: #101a14;
+  --card-floating: #17261d;
+  --btn-std: #16251c;
+  --btn-std-hover: #1f3326;
+  --btn-control: #1a2b21;
+  --btn-control-hover: #243a2c;
+  --btn-selector: #16251c;
+  --btn-inputarea: #34d399;
+  --btn-inputarea-transparent-hover: rgba(255, 255, 255, 0.08);
+  --btn-floating: rgba(23, 38, 29, 0.92);
+  --btn-floating-hover: rgba(31, 51, 38, 0.92);
+  --item-std: rgba(255, 255, 255, 0.06);
+  --item-std-active: rgba(52, 211, 153, 0.15);
+  --item-std-hover: rgba(255, 255, 255, 0.09);
+  --modal-std: #0f1914;
+  --modal-floating: #13201a;
+  --overlay-modal: rgba(0, 0, 0, 0.55);
+  --usermsg: rgba(52, 211, 153, 0.12);
+  --destructive: #ff6b5e;
+  --destructive-fg: #1c0a08;
+  --destructive-rgb: 255, 107, 94;
+  --diverge: #a78bfa;
+  --diverge-rgb: 167, 139, 250;
+  --cat-concept: #4d9fff;
+  --cat-question: #ffc94d;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+  --universe-bg: #050f0a;
+  --universe-panel: #0f1d14;
+  --text-primary: #eafaf1;
+  --text-secondary: #c3e6d4;
+  --text-tertiary: #8ab39e;
+  --text-quaternary: #64806f;
+  --text-header-secondary: #dcf5e7;
+  --text-turn-title: #dff5e9;
+  --text-icon-secondary: #8fb9a4;
+  --text-content: #d8f1e3;
+  --border-std: rgba(255, 255, 255, 0.1);
+  --border-divider: rgba(255, 255, 255, 0.06);
+  --border-turn-std: rgba(255, 255, 255, 0.08);
+  --inputarea: #0d1712;
+  --shadow-brand-value: 0 0 24px rgba(52, 211, 153, 0.35);
+  --shadow-brandtw-value: 0 0 16px rgba(52, 211, 153, 0.2);
+}
+
+[data-theme="ocean"] {
+  --bg: #070d1c;
+  --brand: #38bdf8;
+  --brand-rgb: 56, 189, 248;
+  --brand-fg: #04101c;
+  --brandtw: rgba(56, 189, 248, 0.8);
+  --card-std: #0c1526;
+  --card-floating: #132036;
+  --btn-std: #122036;
+  --btn-std-hover: #1a2c47;
+  --btn-control: #152540;
+  --btn-control-hover: #1d304e;
+  --btn-selector: #122036;
+  --btn-inputarea: #38bdf8;
+  --btn-inputarea-transparent-hover: rgba(255, 255, 255, 0.08);
+  --btn-floating: rgba(19, 32, 54, 0.92);
+  --btn-floating-hover: rgba(26, 44, 71, 0.92);
+  --item-std: rgba(255, 255, 255, 0.06);
+  --item-std-active: rgba(56, 189, 248, 0.14);
+  --item-std-hover: rgba(255, 255, 255, 0.09);
+  --modal-std: #0e1830;
+  --modal-floating: #111d38;
+  --overlay-modal: rgba(0, 0, 0, 0.55);
+  --usermsg: rgba(56, 189, 248, 0.12);
+  --destructive: #ff6b6b;
+  --destructive-fg: #1c0a0a;
+  --destructive-rgb: 255, 107, 107;
+  --diverge: #818cf8;
+  --diverge-rgb: 129, 140, 248;
+  --cat-concept: #60a5fa;
+  --cat-question: #ffb84d;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+  --universe-bg: #04101f;
+  --universe-panel: #0a1a30;
+  --text-primary: #e8f4fd;
+  --text-secondary: #c2d8ea;
+  --text-tertiary: #86a3bd;
+  --text-quaternary: #61778f;
+  --text-header-secondary: #dbeefa;
+  --text-turn-title: #ddf0fa;
+  --text-icon-secondary: #8aa8c2;
+  --text-content: #d7e9f6;
+  --border-std: rgba(255, 255, 255, 0.1);
+  --border-divider: rgba(255, 255, 255, 0.06);
+  --border-turn-std: rgba(255, 255, 255, 0.08);
+  --inputarea: #081020;
+  --shadow-brand-value: 0 0 24px rgba(56, 189, 248, 0.35);
+  --shadow-brandtw-value: 0 0 16px rgba(56, 189, 248, 0.2);
+}
+
+[data-theme="rose-gold"] {
+  --bg: #faf3ef;
+  --brand: #e11d48;
+  --brand-rgb: 225, 29, 72;
+  --brand-fg: #ffffff;
+  --brandtw: rgba(225, 29, 72, 0.8);
+  --card-std: #ffffff;
+  --card-floating: #f3e6e1;
+  --btn-std: #f3e6e1;
+  --btn-std-hover: #e9d8d2;
+  --btn-control: #f0dfd9;
+  --btn-control-hover: #e6d0c9;
+  --btn-selector: #f3e6e1;
+  --btn-inputarea: #e11d48;
+  --btn-inputarea-transparent-hover: rgba(63, 29, 37, 0.06);
+  --btn-floating: rgba(255, 255, 255, 0.92);
+  --btn-floating-hover: rgba(243, 230, 225, 0.92);
+  --item-std: rgba(63, 29, 37, 0.045);
+  --item-std-active: rgba(225, 29, 72, 0.1);
+  --item-std-hover: rgba(63, 29, 37, 0.07);
+  --modal-std: #ffffff;
+  --modal-floating: #faf1ec;
+  --overlay-modal: rgba(63, 29, 37, 0.35);
+  --usermsg: rgba(225, 29, 72, 0.09);
+  --destructive: #c0342e;
+  --destructive-fg: #ffffff;
+  --destructive-rgb: 192, 52, 46;
+  --diverge: #9333ea;
+  --diverge-rgb: 147, 51, 234;
+  --cat-concept: #2f6fed;
+  --cat-question: #c27803;
+  --scrollbar-thumb: rgba(63, 29, 37, 0.18);
+  --scrollbar-thumb-hover: rgba(63, 29, 37, 0.32);
+  --universe-bg: #1c1112;
+  --universe-panel: #2a1c22;
+  --text-primary: #2b1a1f;
+  --text-secondary: #4b363d;
+  --text-tertiary: #8a6f76;
+  --text-quaternary: #ab949b;
+  --text-header-secondary: #3a2229;
+  --text-turn-title: #3a2229;
+  --text-icon-secondary: #8a6f76;
+  --text-content: #3a2229;
+  --border-std: rgba(63, 29, 37, 0.12);
+  --border-divider: rgba(63, 29, 37, 0.08);
+  --border-turn-std: rgba(63, 29, 37, 0.1);
+  --inputarea: #ffffff;
+  --shadow-brand-value: 0 0 24px rgba(225, 29, 72, 0.28);
+  --shadow-brandtw-value: 0 0 16px rgba(225, 29, 72, 0.15);
+}
+
 /* 语义色桥接：把站点 token 映射到 shadcn 默认 tokens（随 [data-theme] 切换） */
 :root {
   --background: var(--bg);
@@ -276,14 +661,13 @@
   --popover: var(--modal-std);
   --popover-foreground: var(--text-primary);
   --primary: var(--brand);
-  --primary-foreground: #000000;
+  --primary-foreground: var(--brand-fg);
   --secondary: var(--btn-std);
   --secondary-foreground: var(--text-primary);
   --muted: var(--btn-std);
   --muted-foreground: var(--text-tertiary);
   --accent: var(--btn-std);
   --accent-foreground: var(--text-primary);
-  --destructive: #ef4444;
   --border: var(--border-std);
   --input: var(--border-std);
   --ring: var(--brand);
@@ -353,17 +737,17 @@ body {
    ============================================================ */
 .scrollbar-card-std::-webkit-scrollbar { width: 8px; }
 .scrollbar-card-std::-webkit-scrollbar-track { background: transparent; }
-.scrollbar-card-std::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 9999px; }
-.scrollbar-card-std::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+.scrollbar-card-std::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 9999px; }
+.scrollbar-card-std::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 .scrollbar-inputarea::-webkit-scrollbar { width: 6px; }
 .scrollbar-inputarea::-webkit-scrollbar-track { background: transparent; }
-.scrollbar-inputarea::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 9999px; }
+.scrollbar-inputarea::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 9999px; }
 .scrollbar-card-neon::-webkit-scrollbar { width: 6px; }
 .scrollbar-card-neon::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-card-neon::-webkit-scrollbar-thumb { background: rgba(var(--brand-rgb), 0.35); border-radius: 9999px; }
 .nav-scroll::-webkit-scrollbar { width: 4px; }
 .nav-scroll::-webkit-scrollbar-track { background: transparent; }
-.nav-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 9999px; }
+.nav-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 9999px; }
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
@@ -526,4 +910,230 @@ body {
 ::selection {
   background: rgba(var(--brand-rgb), 0.28);
   color: var(--text-primary);
+}
+
+/* ============================================================
+   brand neon（品牌大标题）：霓虹灯管效果 —— 渐变芯 + 多层品牌光晕。
+   Monoton 字形本身如流动灯管，配合此效果呈现赛博朋克霓虹质感；
+   --brand / --brand-rgb 随 [data-theme] 切换，浅色主题同样可用。
+   文字流光：渐变芯在灯管内缓慢循环流动（like 霓虹灯充电流光）；
+   呼吸光晕：整体亮度轻微起伏，模拟灯管电流脉动。
+   ============================================================ */
+@keyframes brand-flow {
+  0% { background-position: 0% 100%; }
+  100% { background-position: 100% 0%; }
+}
+@keyframes brand-glow-breathe {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.1); }
+}
+.brand-neon {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--brand) 45%, #ffffff) 0%,
+    var(--brand) 55%,
+    var(--brand) 100%
+  );
+  background-size: 220% 220%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow:
+    0 0 8px rgba(var(--brand-rgb), 0.85),
+    0 0 28px rgba(var(--brand-rgb), 0.5),
+    0 0 80px rgba(var(--brand-rgb), 0.3);
+  animation:
+    brand-flow 8s ease-in-out infinite alternate,
+    brand-glow-breathe 4.5s ease-in-out infinite;
+}
+
+/* ============================================================
+   流体光斑（欢迎页背景）：品牌色 + 次色相的液态能量团，
+   缓慢漂移、缩放、形变，营造赛博流体氛围。
+   ============================================================ */
+@keyframes blob-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(6%, -8%, 0) scale(1.15); }
+  66% { transform: translate3d(-7%, 6%, 0) scale(0.92); }
+}
+@keyframes blob-morph {
+  0%, 100% { border-radius: 58% 42% 55% 45% / 45% 58% 42% 55%; }
+  33% { border-radius: 45% 55% 42% 58% / 55% 42% 58% 45%; }
+  66% { border-radius: 52% 48% 60% 40% / 42% 55% 45% 58%; }
+}
+.fluid-blobs {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.fluid-blob {
+  position: absolute;
+  filter: blur(56px);
+  will-change: transform;
+}
+.blob-a {
+  width: 46vmin;
+  height: 46vmin;
+  left: 12%;
+  top: 18%;
+  background: radial-gradient(
+    circle at 35% 35%,
+    rgba(var(--brand-rgb), 0.5),
+    rgba(var(--brand-rgb), 0.08) 70%
+  );
+  animation:
+    blob-drift 14s ease-in-out infinite,
+    blob-morph 18s ease-in-out infinite;
+}
+.blob-b {
+  width: 38vmin;
+  height: 38vmin;
+  right: 10%;
+  bottom: 12%;
+  background: radial-gradient(
+    circle at 60% 40%,
+    rgba(var(--diverge-rgb), 0.42),
+    rgba(var(--diverge-rgb), 0.06) 70%
+  );
+  animation:
+    blob-drift 17s ease-in-out -4s infinite reverse,
+    blob-morph 21s ease-in-out -6s infinite;
+}
+.blob-c {
+  width: 30vmin;
+  height: 30vmin;
+  left: 30%;
+  bottom: 6%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(var(--brand-rgb), 0.3),
+    rgba(var(--brand-rgb), 0.04) 70%
+  );
+  animation:
+    blob-drift 12s ease-in-out -8s infinite,
+    blob-morph 15s ease-in-out -3s infinite;
+}
+
+/* 无障碍：用户偏好减少动效时，流光与光斑全部静止 */
+@media (prefers-reduced-motion: reduce) {
+  .brand-neon {
+    animation: none;
+    background-size: 100% 100%;
+  }
+  .fluid-blob {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   chat deck：单卡片聚焦 + 同级滑动切换（发散/分支/轮次切换统一过渡）。
+   方向语义：向"后"走（新卡片在序列右侧）→ 旧卡左移出、新卡从右滑入；
+   向"前"回退 → 镜像。380ms 缓出（cubic-bezier(0.22,1,0.36,1)）。
+   ============================================================ */
+@keyframes chat-slide-in-right {
+  from { transform: translateX(46%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes chat-slide-in-left {
+  from { transform: translateX(-46%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes chat-slide-out-left {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(-46%); opacity: 0; }
+}
+@keyframes chat-slide-out-right {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(46%); opacity: 0; }
+}
+.chat-slide-in-right  { animation: chat-slide-in-right  380ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.chat-slide-in-left   { animation: chat-slide-in-left   380ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.chat-slide-out-left  { animation: chat-slide-out-left  380ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.chat-slide-out-right { animation: chat-slide-out-right 380ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* ============================================================
+   轮次导航图（卡片树）v2：节点动效 + 平滑曲线引导
+   ============================================================ */
+/* 节点进入：逐行错峰浮现 */
+@keyframes tree-row-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: none; }
+}
+.tree-row-in { animation: tree-row-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* 聚焦节点：品牌色呼吸辉光（"你在这里"） */
+@keyframes tree-focus-glow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(var(--brand-rgb), 0.22), 0 0 8px rgba(var(--brand-rgb), 0.12); }
+  50%      { box-shadow: 0 0 0 1px rgba(var(--brand-rgb), 0.5),  0 0 16px rgba(var(--brand-rgb), 0.32); }
+}
+.tree-focus-glow { animation: tree-focus-glow 2.4s ease-in-out infinite; }
+
+/* 引导曲线：首次出现时描线绘制 */
+@keyframes tree-dash {
+  from { stroke-dashoffset: 64; }
+  to   { stroke-dashoffset: 0; }
+}
+.tree-path {
+  stroke-dasharray: 64;
+  stroke-dashoffset: 64;
+  animation: tree-dash 520ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* 聚焦/分组背景：渐变替代平铺色 */
+.tree-focus-bg {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--brand-rgb), 0.16),
+    rgba(var(--brand-rgb), 0.04)
+  );
+}
+.tree-group-bg {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--diverge-rgb), 0.12),
+    rgba(var(--diverge-rgb), 0.03)
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tree-row-in, .tree-focus-glow, .tree-path {
+    animation-duration: 1ms;
+  }
+}
+
+/* 无障碍补齐：术语卡层叠进出场、输入框呼吸/弹层/提示、卡片收起等
+   此前未覆盖的动画一律瞬时完成（审核 2-1：全部动效尊重 reduced-motion）。 */
+@media (prefers-reduced-motion: reduce) {
+  .entering-cascade,
+  .exiting-cascade,
+  .entering-from-right,
+  .exiting-to-right,
+  .exiting-fly-up,
+  .exiting-up-and-grow,
+  .exiting-shrink-out,
+  .bp-pill-fade-out,
+  .inputarea-breathe,
+  .inputarea-pop,
+  .inputarea-hint,
+  .flash-border-normal,
+  .flash-border-turn-favorite {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+  }
+  .animate-pulse,
+  .animate-spin,
+  [class*="animate-"] {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-slide-in-right,
+  .chat-slide-in-left,
+  .chat-slide-out-left,
+  .chat-slide-out-right {
+    animation-duration: 1ms;
+  }
 }

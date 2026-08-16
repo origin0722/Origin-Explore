@@ -17,20 +17,30 @@ import { useApp } from "./app-context";
 
 const RADIUS = 2.6;
 
-/** 从当前主题（<html data-theme>）解析品牌色；SSR 时回退黑绿。 */
-function brandColor(): string {
-  if (typeof document === "undefined") return "#13e425";
+/** 从当前主题（<html data-theme>）解析一个 CSS 变量；SSR/缺失时回退默认值。 */
+function cssVar(name: string, fallback: string): string {
+  if (typeof document === "undefined") return fallback;
   return (
-    getComputedStyle(document.documentElement).getPropertyValue("--brand").trim() ||
-    "#13e425"
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim() ||
+    fallback
   );
 }
 
-/** Brand colors per node category ("主题"/默认随主题品牌色). */
-function categoryColor(category: string, brand: string): string {
+/** 品牌色（随主题切换）；SSR 时回退默认赛博青。 */
+function brandColor(): string {
+  return cssVar("--brand", "#22d3ee");
+}
+
+/** Brand colors per node category: "主题"随主题品牌色；概念/疑问用各主题的语义 token。 */
+function categoryColor(
+  category: string,
+  brand: string,
+  concept: string,
+  question: string
+): string {
   if (category === "主题") return brand;
-  if (category === "概念") return "#4d9fff";
-  if (category === "疑问") return "#ffb84d";
+  if (category === "概念") return concept;
+  if (category === "疑问") return question;
   return brand;
 }
 
@@ -246,10 +256,14 @@ function NodeGroup({
   nodes,
   onSelect,
   brand,
+  concept,
+  question,
 }: {
   nodes: ThoughtNode[];
   onSelect: (node: ThoughtNode) => void;
   brand: string;
+  concept: string;
+  question: string;
 }) {
   const positions = useMemo(() => fibPositions(nodes.length), [nodes]);
   const edges = useMemo(() => buildRelationEdges(nodes), [nodes]);
@@ -261,7 +275,7 @@ function NodeGroup({
           key={n.id}
           node={n}
           position={positions[i]}
-          color={categoryColor(n.category, brand)}
+          color={categoryColor(n.category, brand, concept, question)}
           delay={i * 120}
           onSelect={onSelect}
         />
@@ -307,6 +321,9 @@ export function MindUniverse({ onClose }: { onClose: () => void }) {
   const [selected, setSelected] = useState<ThoughtNode | null>(null);
   const gestureRef = useRef<Gesture>({ downX: 0, downY: 0, moved: 0 });
   const brand = useMemo(() => brandColor(), []);
+  const universeBg = useMemo(() => cssVar("--universe-bg", "#05080a"), []);
+  const conceptColor = useMemo(() => cssVar("--cat-concept", "#4d9fff"), []);
+  const questionColor = useMemo(() => cssVar("--cat-question", "#ffb84d"), []);
 
   // SSR safety: Canvas must not render during server render.
   useEffect(() => {
@@ -322,7 +339,7 @@ export function MindUniverse({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-[80] bg-[#05080a]"
+      className="fixed inset-0 z-[80] bg-universe-bg"
       onPointerDownCapture={(e) => {
         gestureRef.current = { downX: e.clientX, downY: e.clientY, moved: 0 };
       }}
@@ -336,11 +353,19 @@ export function MindUniverse({ onClose }: { onClose: () => void }) {
         camera={{ position: [0, 2.2, 7], fov: 55 }}
         gl={{ preserveDrawingBuffer: true }}
       >
-        <color attach="background" args={["#05080a"]} />
+        <color attach="background" args={[universeBg]} />
         <ambientLight intensity={0.4} />
         <pointLight position={[4, 6, 4]} intensity={30} color={brand} />
         <PointStars />
-        {validated.length > 0 && <NodeGroup nodes={validated} onSelect={setSelected} brand={brand} />}
+        {validated.length > 0 && (
+          <NodeGroup
+            nodes={validated}
+            onSelect={setSelected}
+            brand={brand}
+            concept={conceptColor}
+            question={questionColor}
+          />
+        )}
         <BackdropDeselect gestureRef={gestureRef} onDeselect={() => setSelected(null)} />
         <OrbitControls
           enablePan={false}
@@ -380,7 +405,7 @@ export function MindUniverse({ onClose }: { onClose: () => void }) {
       {selected && (() => {
         const chain = ancestorChain(selected, validated);
         return (
-        <div className="fixed bottom-6 right-6 z-[90] w-[320px] max-w-[calc(100vw-3rem)] rounded-2xl border border-brand/30 bg-[#101614]/90 p-4 backdrop-blur">
+        <div className="fixed bottom-6 right-6 z-[90] w-[320px] max-w-[calc(100vw-3rem)] rounded-2xl border border-brand/30 bg-universe-panel/90 p-4 backdrop-blur">
           <div className="flex items-start justify-between gap-3">
             <h3 className="text-base font-semibold text-white break-words">
               {selected.subject}

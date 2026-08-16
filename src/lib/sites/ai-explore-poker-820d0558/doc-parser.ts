@@ -54,3 +54,47 @@ export async function extractTextFromFile(file: File): Promise<{ kind: DocKind; 
 export function isParseable(content: string): boolean {
   return content.replace(/\s+/g, "").length >= 40;
 }
+
+/** 按空行把文档拆成段落（过滤空段）；超长段再按换行拆分。
+    过短的块（标题/作者/日期/元数据等）并入相邻块，避免"一行一卡片"。 */
+export function splitParagraphs(content: string): string[] {
+  const raw = content
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  const parts: string[] = [];
+  for (const p of raw) {
+    if (p.length > 900) {
+      for (const line of p.split(/\n+/)) {
+        const t = line.trim();
+        if (t.length > 0) parts.push(t);
+      }
+    } else {
+      parts.push(p);
+    }
+  }
+  // 短块合并：不足阈值的块（如"张三"、"2024"）并入前一块，不单独成卡。
+  const MIN_BLOCK = 24;
+  const merged: string[] = [];
+  for (const p of parts) {
+    if (merged.length === 0 || p.length >= MIN_BLOCK) {
+      merged.push(p);
+      continue;
+    }
+    merged[merged.length - 1] = `${merged[merged.length - 1]}\n\n${p}`;
+  }
+  return merged;
+}
+
+/** 离线启发式"AI 解读"回退：语义分块（按空行）+ 每块加小标题 + 清理空白。
+    BYOK 用户走真实 API（可翻译/润色/深度整理），离线只能保证格式工整。 */
+export function heuristicInterpret(content: string): string {
+  const blocks = splitParagraphs(content);
+  const out: string[] = ["# 文档解读（离线整理版）", ""];
+  blocks.forEach((b, i) => {
+    const flat = b.replace(/\s+/g, " ").trim();
+    const title = flat.length > 14 ? flat.slice(0, 14) + "…" : flat || `第 ${i + 1} 块`;
+    out.push(`## ${title}`, "", b, "");
+  });
+  return out.join("\n");
+}

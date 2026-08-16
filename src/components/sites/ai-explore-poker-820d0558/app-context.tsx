@@ -36,10 +36,12 @@ import {
   GLOSSARY,
   makeDemoProject,
   makeDemoTurn,
+  OFFLINE_MODEL,
   TERM_TREE,
   THEME_META_COLORS,
   themeId,
 } from "@/lib/sites/ai-explore-poker-820d0558/mock";
+import { heuristicInterpret } from "@/lib/sites/ai-explore-poker-820d0558/doc-parser";
 
 /**
  * OpenAI 兼容的 chat/completions 流式调用（`stream: true` + SSE，浏览器直连，密钥不落盘到服务器）。
@@ -117,7 +119,8 @@ export interface AppState {
   setSettings(partial: Partial<ChatSettings>): void;
   projects: ChatProject[];
   activeProjectId: string | null;
-  createProject(): void;
+  /** 新建项目（folder = 目标文件夹名；null/缺省 = 本地项目组）。返回新项目 id（供定位）。 */
+  createProject(folder?: string | null): string;
   /** 空态 "?" 按钮：载入一个带示例对话的项目 */
   loadSampleProject(): void;
   selectProject(id: string): void;
@@ -140,9 +143,11 @@ export interface AppState {
   /** 全量恢复/导入：识别新版备份包（按 id 合并、备份胜出）与旧版项目文件（{ title, turns }）；
       返回 { ok, message } 供 UI 提示 */
   importBackup(parsed: unknown): { ok: boolean; message: string };
-  /** 用户自带的 BYOK 模型（密钥仅存本机） */
+  /** 用户自带的 BYOK 模型（密钥仅存本机）；返回是否添加成功（同名已存在时 false） */
   byokModels: ByokModel[];
-  addByokModel(input: { name: string; baseUrl: string; modelId: string; apiKey: string }): void;
+  addByokModel(input: { name: string; baseUrl: string; modelId: string; apiKey: string }): boolean;
+  /** 删除一个 BYOK 模型；删除当前默认模型时自动回退离线知识库 */
+  removeByokModel(id: string): void;
   collapsed: boolean;
   toggleSidebar(): void;
   mindscapeOpen: boolean;
@@ -156,18 +161,50 @@ export interface AppState {
   turns: Turn[];
   activeTurn: Turn | null;
   sendMessage(text: string): void;
+  /** 平行视图发送目标：当前聚焦的发散轮次 id（null = 发往主对话流）。
+      ChatCard 在平行视图聚焦发散卡时设置；InputArea 据此把消息顺延进该平行对话。 */
+  parallelSendTarget: string | null;
+  setParallelSendTarget(id: string | null): void;
+  /** 卡片树聚焦：当前聚焦卡片 id + 平行组来源 id（groupSourceId = null 表示主流视图）。
+      ChatCard 视图切换时同步；TurnGraph 据此高亮当前卡片/平行组并滚动到可见。 */
+  treeFocus: { cardId: string; groupSourceId: string | null } | null;
+  setTreeFocus(f: { cardId: string; groupSourceId: string | null } | null): void;
+  /** 文档段落视图底部提问：基于文档内容问 AI（自动建/复用「论文：xxx」项目 + 新 turn），
+      切回对话视图看回答。文档全文注入上下文（截断），让 AI 真正基于文件内容解读。 */
+  sendDocQuestion(text: string): void;
+  /** AI 解读文档：理解内容 → 语义分块 + 双语对照 + 格式工整（markdown）。
+      BYOK 流式生成（边生成边在解读视图浮现），失败回退离线启发式；结果缓存到 doc.interpreted。
+      force = 忽略已有缓存，重新解读。 */
+  interpretDocument(docId: string, force?: boolean): void;
+  /** 正在 AI 解读的文档 id 列表（支持并发解读多个文档） */
+  docInterpretingIds: string[];
+  /** 在指定轮次内继续提问（消息级顺延）：平行对话是独立线程，
+      继续在发散卡片下方对话，而不是弹回主对话流。 */
+  sendInTurn(turnId: string, text: string): void;
   busy: boolean;
+  /** 当前流式回复的目标轮次 id（null = 无流式；并发时 = 最近启动者）。
+      ChatCard 用它做贴底跟随与未读判定，而非假设目标 = 最后一个 turn。 */
+  streamingTurnId: string | null;
   /** 分支卡片 → 在当前项目开新 turn（继承上游卡片主题与分支点之前的对话历史，走双通道）；
       sourceTurnId = 发起分支的轮次（有向图边 + parentTurnId）；新 turn 记为 kind="branch"，
       branchPointIndex 默认 = 创建时上游轮次最后一条消息的下标（分割线画在该消息之后）。
-      去重：同一 sourceTurnId + 同一标题的分支卡片已存在时复用（返回其 id），不新建重复节点；
-      新建返回 null。 */
-  openBranchTurn(title: string, history?: { role: string; content: string }[], sourceTurnId?: string): string | null;
+      去重：同一 sourceTurnId + 同一标题的分支卡片已存在时复用。
+      返回 { id, created }：created=false 表示复用已有卡片。 */
+  openBranchTurn(
+    title: string,
+    history?: { role: string; content: string }[],
+    sourceTurnId?: string
+  ): { id: string; created: boolean };
   /** 发散卡片 → 在当前项目开新 turn 作为平行会话（kind="diverge"，divergeSourceId=来源轮次）。
-      与分支卡片不同：不继承上游历史、也不打断当前对话——调用方保留卡片栈。
-      去重：同一 divergeSourceId + 同一标题的发散卡片已存在时复用（返回其 id，调用方跳转），不新建；
-      新建返回 null。 */
-  openDivergeTurn(title: string, sourceTurnId: string): string | null;
+      与分支卡片不同：不继承上游完整历史，但携带来源锚点上下文（来源主题 + 术语所在段落），
+      让平行会话知道术语的来源语境（如"工业革命语境下的煤炭"）；不打断当前对话——调用方保留卡片栈。
+      去重：同一 divergeSourceId + 同一标题的发散卡片已存在时复用。
+      返回 { id, created }：created=false 表示复用已有卡片。 */
+  openDivergeTurn(
+    title: string,
+    sourceTurnId: string,
+    anchor?: { sourceTitle: string; anchorText?: string }
+  ): { id: string; created: boolean };
   /** 调整分支卡片的分支点（上游轮次 messages 下标；分割线画在该消息之后） */
   setBranchPoint(turnId: string, index: number): void;
   /** 生成并缓存分支卡片"分支点前上游对话"的总结（启发式，写入 turn.preBranchSummary） */
@@ -186,7 +223,12 @@ export interface AppState {
   setTurnUnread(turnId: string, unread: boolean): void;
   /** 收藏/取消收藏轮次（收藏区 + 智能摘要） */
   toggleFavorite(turnId: string): void;
-  /** 跳转到某个轮次（切换项目 + 滚动定位） */
+  /** 删除一张轮次卡片：级联删除其分支（parentTurnId 指向它）与发散卡（divergeSourceId 指向它）
+      及其子树；同时清理视图引用（平行发送目标/树聚焦指向被删卡时重置）。 */
+  removeTurn(turnId: string): void;
+  /** 清空常驻聊天的全部轮次（常驻聊天不可删除项目，清空是唯一重置手段） */
+  clearResidentChat(): void;
+  /** 跳转到某个轮次（切换项目 + 主对话滑动聚焦该轮次） */
   focusTurn(projectId: string, turnId: string): void;
   /** ChatCard 消费 focusTurn 后的清理 */
   clearFocusRequest(): void;
@@ -213,8 +255,12 @@ export interface AppState {
   removeDocument(id: string): void;
   activeDocId: string | null;
   setActiveDocId(id: string | null): void;
-  /** 文档里问术语 → 自动建同名项目 + 新 turn（mock AI 回复取自术语树） */
-  openDocQuestion(term: string, docName: string): void;
+  /** 文档里问术语 → 自动建同名项目 + 新 turn（mock AI 回复取自术语树；文档全文注入上下文） */
+  openDocQuestion(term: string, docId: string): void;
+  /** 文档解读块/段落 → 分支卡片：在「论文：xxx」项目中开分支，来源 = 该项目最新轮次（无则建上下文轮次） */
+  openDocBranch(title: string, block: string, docName: string): { id: string; created: boolean };
+  /** 文档解读块/段落 → 发散卡片：锚点 = 文档名 + 块文本（同上项目/来源规则） */
+  openDocDiverge(title: string, block: string, docName: string): { id: string; created: boolean };
   universeOpen: boolean;
   setUniverseOpen(v: boolean): void;
 }
@@ -328,6 +374,92 @@ function buildPreBranchSummary(
   ].join("\n");
 }
 
+/** 发散卡片提示词：携带来源锚点上下文（来源主题 + 术语所在段落）。
+    平行会话"不继承上游完整历史"，但必须知道术语的来源语境——
+    例如「煤炭」源自「工业革命」对话，模型才能讲出"工业革命语境下的煤炭"，
+    而不是泛泛介绍。无锚点时回退到旧提示。 */
+function buildDivergePrompt(
+  title: string,
+  anchor?: { sourceTitle: string; anchorText?: string }
+): string {
+  if (!anchor?.sourceTitle) {
+    return `发散卡片：以「${title}」为主题开一个平行会话（不打断当前对话）。请给出与当前主题相关但独立成篇的讲解，用中文回答，重要术语用 **加粗** 标记，方便继续深挖。`;
+  }
+  const origin = `该话题源自对话「${anchor.sourceTitle}」`;
+  const quote = anchor.anchorText ? `，其中提到：「${anchor.anchorText}」` : "";
+  return (
+    `发散卡片：以「${title}」为主题开一个平行会话（不打断当前对话）。` +
+    `${origin}${quote}。请结合这一语境，讲解「${title}」——` +
+    `回答应与来源对话相关（讲清「${title}」在「${anchor.sourceTitle}」语境中的角色与关系），` +
+    `但独立成篇、自成体系，用中文回答，重要术语用 **加粗** 标记，方便继续深挖。` +
+    `仅依据上述语境与你的知识作答，来源中未提到的内容不要虚构。`
+  );
+}
+
+/** 智能模式个性化上下文（常驻聊天专属，deliverReply 消费）：
+    用户档案称呼 + 思维宇宙已收录概念 + 术语掌握度（已掌握/曾提问）。
+    返回 BYOK system 提示 + 离线回复尾注；无任何个性化数据时返回 null（不注入）。 */
+function buildSmartContext(
+  profile: Profile | null,
+  thoughtNodes: ThoughtNode[],
+  termStates: Record<string, TermState>
+): { system: string; note: string } | null {
+  const mastered = Object.entries(termStates)
+    .filter(([, s]) => s === "mastered")
+    .map(([t]) => t);
+  const asked = Object.entries(termStates)
+    .filter(([, s]) => s === "asked")
+    .map(([t]) => t);
+  const concepts = thoughtNodes
+    .filter((n) => n.status !== "pending")
+    .slice(0, 6)
+    .map((n) => n.subject);
+  const name = profile?.name;
+  if (!name && mastered.length === 0 && asked.length === 0 && concepts.length === 0) {
+    return null;
+  }
+  const lines: string[] = [];
+  if (name) lines.push(`- 用户称呼：${name}`);
+  if (concepts.length) lines.push(`- 用户思维宇宙已收录概念：${concepts.join("、")}`);
+  if (mastered.length) lines.push(`- 用户已掌握术语：${mastered.slice(0, 8).join("、")}`);
+  if (asked.length) lines.push(`- 用户曾提问术语：${asked.slice(0, 8).join("、")}`);
+  const system =
+    `你正在与用户进行常驻对话（AI 智能模式已开启）。以下是你对用户的了解：\n` +
+    lines.join("\n") +
+    `\n请据此个性化回答：可用用户已掌握的概念作类比，对曾提问的术语适度回顾，并给出下一步深挖建议；不要编造档案中不存在的信息。`;
+  const parts: string[] = [];
+  if (mastered.length) parts.push(`你已掌握：${mastered.slice(0, 6).join("、")}`);
+  if (concepts.length) parts.push(`思维宇宙已收录：${concepts.slice(0, 4).join("、")}`);
+  let note = `\n\n---\n🧠 智能模式：`;
+  if (parts.length) note += `${parts.join("；")}。`;
+  if (asked.length) note += `你曾问过「${asked[0]}」，可以再展开深挖。`;
+  note += `我会结合你的探索档案继续为你讲解。`;
+  return { system, note };
+}
+
+interface SearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+/** 联网搜索（经 /api/search 服务端代理，避免 CORS）；失败/超时返回空数组——前端静默降级。 */
+async function webSearch(query: string): Promise<SearchResult[]> {
+  try {
+    const ctrl = new AbortController();
+    const t = window.setTimeout(() => ctrl.abort(), 9000);
+    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
+      signal: ctrl.signal,
+    });
+    window.clearTimeout(t);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { results?: SearchResult[] };
+    return Array.isArray(data.results) ? data.results : [];
+  } catch {
+    return [];
+  }
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const boot = useMemo(loadState, []);
 
@@ -354,14 +486,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     login: false,
     guide: false,
   });
-  const [busy, setBusy] = useState(false);
+  // busy 引用计数：并行流（如主对话流式期间从术语卡开发散/分支）各自 +1/-1，
+  // 任一流结束不提前解锁输入（修：单布尔在多流并发时被先结束的流提前置 false）。
+  const [busyCount, setBusyCount] = useState(0);
+  const busy = busyCount > 0;
+  const markBusy = useCallback(() => setBusyCount((c) => c + 1), []);
+  const markIdle = useCallback(() => setBusyCount((c) => Math.max(0, c - 1)), []);
+  /** 当前流式回复的目标轮次（并发时记录最近启动者；结束只清自己的）。
+      ChatCard 据此做贴底跟随与未读判定——不再假设"流式目标 = 最后一个 turn"。 */
+  const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(boot.profile ?? null);
   const [thoughtNodes, setThoughtNodes] = useState<ThoughtNode[]>(boot.thoughtNodes ?? []);
   const [termStates, setTermStates] = useState<Record<string, TermState>>(
     boot.termStates ?? {}
   );
   const [documents, setDocuments] = useState<DocumentItem[]>(boot.documents ?? []);
-  const [activeDocId, setActiveDocId] = useState<string | null>(null);
+  /** 正在 AI 解读的文档 id 列表（支持并发解读多个文档） */
+  const [docInterpretingIds, setDocInterpretingIds] = useState<string[]>([]);
+  const [activeDocId, setActiveDocIdState] = useState<string | null>(null);
   /** 选中 AI 回复文本 → 引用（InputArea 收到后收进引用列表并清空） */
   const [pendingQuote, setPendingQuote] = useState<string | null>(null);
   /** 收藏区智能摘要缓存 + 生成中标记 */
@@ -369,6 +511,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [summarizingTurnId, setSummarizingTurnId] = useState<string | null>(null);
   /** 跨组件跳转请求（收藏区 → 聊天轮次滚动定位） */
   const [focusRequest, setFocusRequest] = useState<{ turnId: string; seq: number } | null>(null);
+  /** 平行视图发送目标：当前聚焦的发散轮次 id（null = 发往主对话流）。 */
+  const [parallelSendTarget, setParallelSendTarget] = useState<string | null>(null);
+  /** 文档视图 = 独立全屏模式：进入即清空平行发送目标——
+      否则 ChatCard 卸载后残留的发散卡 id 会让文档提问误发进旧平行会话。 */
+  const setActiveDocId = useCallback(
+    (id: string | null) => {
+      setActiveDocIdState(id);
+      if (id != null) setParallelSendTarget(null);
+    },
+    [setParallelSendTarget]
+  );
+  /** 卡片树聚焦（当前卡片位置，供导航图高亮）。 */
+  const [treeFocus, setTreeFocus] = useState<{
+    cardId: string;
+    groupSourceId: string | null;
+  } | null>(null);
   /** 轮次导航图卡片节点 → 重新打开术语卡片请求 */
   const [cardOpenRequest, setCardOpenRequest] = useState<{
     turnId: string;
@@ -423,10 +581,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSettingsState((s) => ({ ...s, ...partial }));
   }, []);
 
-  const createProject = useCallback(() => {
-    const p: ChatProject = { ...makeDemoProject(), id: uid(), title: "Untitled" };
+  const createProject = useCallback((folder: string | null = null) => {
+    const p: ChatProject = {
+      ...makeDemoProject(),
+      id: uid(),
+      title: "Untitled",
+      folder: folder ?? undefined,
+    };
     setProjects((list) => [p, ...list]);
     setActiveProjectId(p.id);
+    return p.id;
   }, []);
 
   const loadSampleProject = useCallback(() => {
@@ -446,9 +610,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveDocId(null);
   }, []);
 
-  const selectProject = useCallback((id: string) => setActiveProjectId(id), []);
+  const selectProject = useCallback((id: string) => {
+    setActiveProjectId(id);
+    setActiveDocId(null); // 文档视图是独立全屏模式：点项目 = 明确回到对话视图
+  }, []);
 
-  const selectResident = useCallback(() => setActiveProjectId(RESIDENT_CHAT_ID), []);
+  const selectResident = useCallback(() => {
+    setActiveProjectId(RESIDENT_CHAT_ID);
+    setActiveDocId(null);
+  }, []);
 
   const deleteProject = useCallback((id: string) => {
     // 常驻聊天不可删除。
@@ -600,11 +770,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const addByokModel = useCallback(
-    (input: { name: string; baseUrl: string; modelId: string; apiKey: string }) => {
+    (input: { name: string; baseUrl: string; modelId: string; apiKey: string }): boolean => {
       const name = input.name.trim();
-      if (!name) return;
+      if (!name) return false;
+      const id = "byok:" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      // 同名去重：id 由名称生成，重复添加会产生 key 冲突与双条目
+      if (byokModels.some((m) => m.id === id)) return false;
       const m: ByokModel = {
-        id: "byok:" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+        id,
         name,
         provider: "BYOK",
         description: input.apiKey.trim() ? "自定义模型（密钥仅存本机）" : "自定义模型",
@@ -613,9 +786,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         apiKey: input.apiKey.trim(),
       };
       setByokModels((list) => [...list, m]);
+      return true;
     },
-    []
+    [byokModels]
   );
+
+  /** 删除一个 BYOK 模型；若删除的是当前默认模型，自动回退到离线知识库。 */
+  const removeByokModel = useCallback((id: string) => {
+    setByokModels((list) => list.filter((m) => m.id !== id));
+    setSettingsState((s) =>
+      s.activeModelId === id ? { ...s, activeModelId: OFFLINE_MODEL.id } : s
+    );
+  }, []);
 
   const toggleSidebar = useCallback(() => setCollapsed((c) => !c), []);
 
@@ -708,9 +890,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  /** 收藏区跳转：切到目标项目 + 通知 ChatCard 滚动定位该轮次 */
+  /** 删除一张轮次卡片：级联删除子树（分支/发散/更深层），并清理视图引用。
+      删除后卡片树、收藏区、未读标记随 turns 派生自动消失。 */
+  const removeTurn = useCallback(
+    (turnId: string) => {
+      const doomed = new Set<string>();
+      const collect = (id: string) => {
+        if (doomed.has(id)) return;
+        doomed.add(id);
+        for (const p of projects) {
+          for (const t of p.turns) {
+            if (t.parentTurnId === id) collect(t.id);
+            if (t.kind === "diverge" && t.divergeSourceId === id) collect(t.id);
+          }
+        }
+      };
+      collect(turnId);
+      setProjects((list) =>
+        list.map((p) => ({
+          ...p,
+          updatedAt: Date.now(),
+          turns: p.turns.filter((t) => !doomed.has(t.id)),
+        }))
+      );
+      // 视图引用清理：平行发送目标/树聚焦指向被删卡（或来源）时重置
+      setParallelSendTarget((cur) => (cur && doomed.has(cur) ? null : cur));
+      setTreeFocus((cur) =>
+        cur && (doomed.has(cur.cardId) || (cur.groupSourceId != null && doomed.has(cur.groupSourceId)))
+          ? null
+          : cur
+      );
+    },
+    [projects]
+  );
+
+  /** 清空常驻聊天的全部轮次（常驻聊天不可删除项目，清空是唯一重置手段）。 */
+  const clearResidentChat = useCallback(() => {
+    setProjects((list) =>
+      list.map((p) =>
+        p.id === RESIDENT_CHAT_ID ? { ...p, turns: [], updatedAt: Date.now() } : p
+      )
+    );
+    setParallelSendTarget(null);
+    setTreeFocus(null);
+  }, []);
+
+  /** 收藏区跳转：切到目标项目 + 回到对话视图 + 通知 ChatCard 滚动定位该轮次 */
   const focusTurn = useCallback((projectId: string, turnId: string) => {
     setActiveProjectId(projectId);
+    setActiveDocId(null); // 收藏跳转永远落回对话视图（文档视图下点击不再"无反应"）
     setFocusRequest({ turnId, seq: Date.now() });
   }, []);
 
@@ -770,15 +998,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [projects, byokModels, settings.activeModelId, summarizingTurnId]
   );
 
-  /** 在目标项目最后一个 turn 追加一条空 assistant 消息（打字机/SSE 共用的写入目标）。 */
-  const appendAssistantMessage = useCallback((targetId: string) => {
+  /** 在目标项目追加一条空 assistant 消息（打字机/SSE 共用的写入目标）。
+      turnId 缺省 = 最后一个 turn；平行对话内继续提问时指定发散 turn。 */
+  const appendAssistantMessage = useCallback((targetId: string, turnId?: string) => {
     setProjects((list) =>
       list.map((p) =>
         p.id === targetId
           ? {
               ...p,
               turns: p.turns.map((t, i) =>
-                i === p.turns.length - 1
+                (turnId ? t.id === turnId : i === p.turns.length - 1)
                   ? {
                       ...t,
                       messages: [
@@ -799,16 +1028,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  /** 覆写目标项目最后一条 assistant 消息的内容。 */
+  /** 覆写目标项目最后一条 assistant 消息的内容（turnId 缺省 = 最后一个 turn）。 */
   const setLastAssistantContent = useCallback(
-    (targetId: string, content: string) => {
+    (targetId: string, content: string, turnId?: string) => {
       setProjects((list) =>
         list.map((p) =>
           p.id === targetId
             ? {
                 ...p,
                 turns: p.turns.map((t, i) =>
-                  i === p.turns.length - 1
+                  (turnId ? t.id === turnId : i === p.turns.length - 1)
                     ? {
                         ...t,
                         messages: t.messages.map((m, mi) =>
@@ -835,87 +1064,156 @@ export function AppProvider({ children }: { children: ReactNode }) {
       reply: string,
       targetId: string,
       onDone?: () => void,
-      opts?: { append?: boolean; prefix?: string }
+      opts?: { append?: boolean; prefix?: string },
+      turnId?: string
     ) => {
-      if (opts?.append !== false) appendAssistantMessage(targetId);
+      if (opts?.append !== false) appendAssistantMessage(targetId, turnId);
       const prefix = opts?.prefix ?? "";
       let pos = 0;
       const step = 16;
       const timer = window.setInterval(() => {
         pos = Math.min(pos + step, reply.length);
-        setLastAssistantContent(targetId, prefix + reply.slice(0, pos));
+        setLastAssistantContent(targetId, prefix + reply.slice(0, pos), turnId);
         if (pos >= reply.length) {
           window.clearInterval(timer);
-          setBusy(false);
+          markIdle();
+          setStreamingTurnId((cur) => (cur === turnId ? null : cur));
           onDone?.();
         }
       }, 20);
     },
-    [appendAssistantMessage, setLastAssistantContent]
+    [appendAssistantMessage, setLastAssistantContent, markIdle]
   );
 
   /**
    * 双通道回复：BYOK 走真实流式 API（失败回退离线），否则离线知识库。
-   * 回复写入 targetId 的最后一个 turn；`history` 为之前的消息（不含当前问题）。
+   * 回复写入 targetId 项目（turnId 缺省 = 最后一个 turn）；`history` 为之前的消息（不含当前问题）。
    */
   const deliverReply = useCallback(
     (
       question: string,
       history: { role: string; content: string }[],
       targetId: string,
-      onDone?: () => void
+      onDone?: () => void,
+      turnId?: string
     ) => {
-      const byok = byokModels.find(
-        (m) => m.id === settings.activeModelId && m.provider === "BYOK"
-      );
-      if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
-        const controller = new AbortController();
-        // 15s 内没有任何增量 -> 放弃回退；开始出字后不再限时（流可能很长）。
-        const timer = window.setTimeout(() => controller.abort(), 15000);
-        appendAssistantMessage(targetId); // SSE 直接往这条消息里流
-        let acc = "";
-        streamOpenAICompatible(
-          byok,
-          [...history, { role: "user", content: question }],
-          (delta) => {
-            acc += delta;
-            setLastAssistantContent(targetId, acc);
-          },
-          controller.signal,
-          () => window.clearTimeout(timer)
-        )
-          .then(() => {
-            window.clearTimeout(timer);
-            setBusy(false);
-            onDone?.();
-          })
-          .catch((err: unknown) => {
-            window.clearTimeout(timer);
-            const why =
-              err instanceof Error && err.name === "AbortError"
-                ? "请求超时"
-                : err instanceof Error && err.message
-                  ? err.message
-                  : "网络错误";
-            if (acc) {
-              // 流中断：保留已收到的部分，接着补一段离线回复。
-              streamReply(generateReply(question, history), targetId, onDone, {
-                append: false,
-                prefix: `${acc}\n\n> ⚠️ BYOK 流式中断（${why}），以下为离线知识库补充：\n\n`,
-              });
-            } else {
-              const fallback = `> ⚠️ BYOK 请求失败（${why}），已回退到离线知识库。\n\n${generateReply(question, history)}`;
-              streamReply(fallback, targetId, onDone, { append: false });
-            }
-          });
-      } else {
-        // 离线 mock 路径：短暂延迟后按知识库生成回复（带上下文记忆）。
-        window.setTimeout(() => {
-          streamReply(generateReply(question, history), targetId, onDone);
-        }, 500);
-      }
+      void (async () => {
+        const byok = byokModels.find(
+          (m) => m.id === settings.activeModelId && m.provider === "BYOK"
+        );
+        // 智能模式（仅常驻聊天）：注入个性化上下文——用户档案 + 思维宇宙 + 术语掌握度。
+        // BYOK 走 system 消息；离线路径在回复尾部追加个性化注记。
+        const smart =
+          smartMode && targetId === RESIDENT_CHAT_ID
+            ? buildSmartContext(profile, thoughtNodes, termStates)
+            : null;
+        const withNote = (s: string) => (smart ? s + smart.note : s);
+        // 联网搜索（开关开启）：先取实时结果再组上下文——
+        // BYOK 注入 prompt 引导基于结果回答并注明来源；离线路径把结果链接附在回复尾部。
+        let searchPrompt = "";
+        let searchDisplay = "";
+        if (settings.isWebSearchEnabled) {
+          const results = await webSearch(question);
+          if (results.length > 0) {
+            const list = results
+              .map(
+                (r, i) =>
+                  `${i + 1}. [${r.title}](${r.url})${r.snippet ? `\n   ${r.snippet}` : ""}`
+              )
+              .join("\n");
+            searchPrompt =
+              `\n\n以下是用户开启联网搜索后获取的实时搜索结果（按相关度排序）：\n${list}` +
+              `\n请优先基于这些结果回答，引用时注明来源；若结果与问题无关，请如实说明。`;
+            searchDisplay =
+              `\n\n---\n🔎 联网搜索：\n` +
+              results.map((r, i) => `${i + 1}. [${r.title}](${r.url})`).join("\n");
+          } else {
+            searchDisplay = `\n\n---\n🔎 联网搜索：未能获取结果，以上回答未基于实时网页。`;
+          }
+        }
+        // 记录流式目标（供贴底/未读判定）；并发时最近启动者胜出，结束只清自己的。
+        setStreamingTurnId(turnId ?? null);
+        if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
+          const controller = new AbortController();
+          // 15s 内没有任何增量 -> 放弃回退；开始出字后不再限时（流可能很长）。
+          const timer = window.setTimeout(() => controller.abort(), 15000);
+          appendAssistantMessage(targetId, turnId); // SSE 直接往这条消息里流
+          let acc = "";
+          streamOpenAICompatible(
+            byok,
+            [
+              ...(smart ? [{ role: "system" as const, content: smart.system }] : []),
+              ...(searchPrompt
+                ? [{ role: "user" as const, content: searchPrompt }]
+                : []),
+              ...history,
+              { role: "user", content: question },
+            ],
+            (delta) => {
+              acc += delta;
+              setLastAssistantContent(targetId, acc, turnId);
+            },
+            controller.signal,
+            () => window.clearTimeout(timer)
+          )
+            .then(() => {
+              window.clearTimeout(timer);
+              markIdle();
+              setStreamingTurnId((cur) => (cur === turnId ? null : cur));
+              onDone?.();
+            })
+            .catch((err: unknown) => {
+              window.clearTimeout(timer);
+              const why =
+                err instanceof Error && err.name === "AbortError"
+                  ? "请求超时"
+                  : err instanceof Error && err.message
+                    ? err.message
+                    : "网络错误";
+              if (acc) {
+                // 流中断：保留已收到的部分，接着补一段离线回复。
+                streamReply(
+                  withNote(generateReply(question, history)) + searchDisplay,
+                  targetId,
+                  onDone,
+                  {
+                    append: false,
+                    prefix: `${acc}\n\n> ⚠️ BYOK 流式中断（${why}），以下为离线知识库补充：\n\n`,
+                  },
+                  turnId
+                );
+              } else {
+                const fallback = `> ⚠️ BYOK 请求失败（${why}），已回退到离线知识库。\n\n${withNote(generateReply(question, history)) + searchDisplay}`;
+                streamReply(fallback, targetId, onDone, { append: false }, turnId);
+              }
+            });
+        } else {
+          // 离线 mock 路径：短暂延迟后按知识库生成回复（带上下文记忆）。
+          window.setTimeout(() => {
+            streamReply(
+              withNote(generateReply(question, history)) + searchDisplay,
+              targetId,
+              onDone,
+              undefined,
+              turnId
+            );
+          }, 500);
+        }
+      })();
     },
-    [byokModels, settings.activeModelId, appendAssistantMessage, setLastAssistantContent, streamReply]
+    [
+      byokModels,
+      settings.activeModelId,
+      settings.isWebSearchEnabled,
+      appendAssistantMessage,
+      setLastAssistantContent,
+      streamReply,
+      markIdle,
+      smartMode,
+      profile,
+      thoughtNodes,
+      termStates,
+    ]
   );
 
   const sendMessage = useCallback(
@@ -941,7 +1239,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const titleSource =
         plain || content.replace(/^>\s?/gm, "").trim().slice(0, 40) || "引用对话";
       const title = titleSource.length > 18 ? titleSource.slice(0, 18) + "…" : titleSource;
-      appendTurn(targetId, title, content);
+      const turnId = appendTurn(targetId, title, content);
+      // 单卡片聚焦视图：新轮次成为激活卡片（滑动切入）。
+      focusTurn(targetId, turnId);
       // 自动标题：给"Untitled"项目用首条消息命名（设置可关）。
       if (settings.autoTitleEnabled) {
         setProjects((list) =>
@@ -952,36 +1252,97 @@ export function AppProvider({ children }: { children: ReactNode }) {
           )
         );
       }
-      setBusy(true);
+      markBusy();
       const done = () => {
         // 发消息后自动折叠侧边栏（桌面端）
         if (wasDesktop) setCollapsed(true);
       };
 
       // 最近对话历史（离线回复与 BYOK 共用；当前问题单独传）。
+      // 平行会话（diverge）是独立线程：不进入主对话流上下文，避免主题漂移。
       const history = turns
+        .filter((t) => t.kind !== "diverge")
         .flatMap((t) => t.messages)
         .slice(-12)
         .map((m) => ({ role: m.role, content: m.content }));
 
-      deliverReply(content, history, targetId, done);
+      // turnId 显式指定写入目标：主对话流式期间若有并发流（术语卡发散/分支），
+      // 写入目标不随"最后一个 turn"漂移（修双流覆写）。
+      deliverReply(content, history, targetId, done, turnId);
     },
-    [activeProjectId, busy, appendTurn, settings.autoTitleEnabled, turns, deliverReply]
+    [activeProjectId, busy, appendTurn, settings.autoTitleEnabled, turns, deliverReply, focusTurn, markBusy]
+  );
+
+  /** 在指定轮次内继续提问（消息级顺延）：
+      平行对话是独立线程——在发散卡片下方继续对话，而不是弹回主对话流。
+      回复写入该轮次（turnId 指定），上下文取该轮次前序消息。 */
+  const sendInTurn = useCallback(
+    (turnId: string, text: string) => {
+      const content = text.trim();
+      if (!content || busy) return;
+      const proj = projects.find((p) => p.turns.some((t) => t.id === turnId));
+      const turn = proj?.turns.find((t) => t.id === turnId);
+      if (!proj || !turn) return;
+      setProjects((list) =>
+        list.map((p) =>
+          p.id === proj.id
+            ? {
+                ...p,
+                updatedAt: Date.now(),
+                turns: p.turns.map((t) =>
+                  t.id === turnId
+                    ? {
+                        ...t,
+                        messages: [
+                          ...t.messages,
+                          { id: uid(), role: "user" as const, content, createdAt: Date.now() },
+                        ],
+                      }
+                    : t
+                ),
+              }
+            : p
+        )
+      );
+      // 上下文：分支卡 = 分支点前上游切片 + 深挖路径 + 卡内最近消息
+      // （分割线位置即继承边界；调整分支点后自动按新切片，无需重生成旧回答）；
+      // 其余轮次（含发散卡）取该轮次前序消息。
+      const history =
+        turn.kind === "branch" && turn.branchContext
+          ? [
+              ...turn.branchContext.slice,
+              ...turn.branchContext.trail,
+              ...turn.messages
+                .slice(-8)
+                .map((m) => ({ role: m.role, content: m.content })),
+            ]
+          : turn.messages
+              .slice(-12)
+              .map((m) => ({ role: m.role, content: m.content }));
+      markBusy();
+      deliverReply(content, history, proj.id, undefined, turnId);
+    },
+    [projects, busy, deliverReply, markBusy]
   );
 
   /** 分支卡片：以术语开新 turn，继承上游卡片主题与分支点之前的对话历史。
       AI 回复走 deliverReply 双通道（BYOK 真实 API / 离线知识库），不再静态贴摘要。
       新 turn 记为 kind="branch"；branchPointIndex 默认 = 创建时上游轮次最后一条消息下标。 */
   const openBranchTurn = useCallback(
-    (title: string, history: { role: string; content: string }[] = [], sourceTurnId?: string): string | null => {
-      // 去重：同一来源轮次 + 同一标题的分支卡片已存在 → 复用（返回其 id），不新建重复节点。
+    (
+      title: string,
+      history: { role: string; content: string }[] = [],
+      sourceTurnId?: string,
+      targetProjectId?: string
+    ): { id: string; created: boolean } => {
+      // 去重：同一来源轮次 + 同一标题的分支卡片已存在 → 复用，不新建重复节点。
       if (sourceTurnId) {
         const existing = projects
           .flatMap((p) => p.turns)
           .find((t) => t.kind === "branch" && t.parentTurnId === sourceTurnId && t.title === title);
-        if (existing) return existing.id;
+        if (existing) return { id: existing.id, created: false };
       }
-      let targetId = activeProjectId;
+      let targetId = targetProjectId ?? activeProjectId;
       if (!targetId) {
         const p: ChatProject = { ...makeDemoProject(), id: uid(), title: "Untitled" };
         setProjects((list) => [p, ...list]);
@@ -992,6 +1353,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const source = sourceTurnId
         ? projects.flatMap((p) => p.turns).find((t) => t.id === sourceTurnId) ?? null
         : null;
+      // 分支点前的上游消息切片（分割线位置 = 实际继承的历史边界）：
+      // 供 ctx 注入与 branchContext 缓存共用。
+      const point = source ? Math.max(source.messages.length - 1, 0) : -1;
+      const sourceSlice =
+        source && point >= 0 ? source.messages.slice(0, point + 1) : [];
       if (sourceTurnId || source) {
         const defaultPoint = source
           ? Math.max(source.messages.length - 1, 0)
@@ -1008,6 +1374,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
                           kind: "branch" as const,
                           parentTurnId: sourceTurnId ?? null,
                           branchPointIndex: defaultPoint,
+                          // 续问上下文缓存：分支点前切片 + 深挖路径（调整分支点时重算 slice）
+                          branchContext: {
+                            slice: sourceSlice.map((m) => ({
+                              role: m.role,
+                              content: m.content,
+                            })),
+                            trail: history.slice(-16),
+                          },
                         }
                       : t
                   ),
@@ -1019,31 +1393,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // 新 turn 的探索路径从该分支术语起算（继承上下文另起炉灶）。
       recordExploration(turnId, title, "branch", null);
       setMindscapeOpen(false);
-      setBusy(true);
-      const ctx = [
+      markBusy();
+      const ctx: { role: string; content: string }[] = [
         {
           role: "user",
-          content: `分支卡片：以「${title}」为主题另起炉灶，继承上游卡片主题与分支点之前的对话历史。请结合历史继续深挖，用中文回答，重要术语用 **加粗** 标记。`,
+          content: `分支卡片：以「${title}」为主题另起炉灶，继承上游卡片主题与分支点之前的对话历史（上游共 ${sourceSlice.length} 条消息）。请结合历史继续深挖，用中文回答，重要术语用 **加粗** 标记。`,
         },
+        ...sourceSlice.map((m) => ({ role: m.role, content: m.content })),
         ...history.slice(-16),
       ];
-      deliverReply(`继续深挖：${title}`, ctx, targetId);
-      return null;
+      deliverReply(`继续深挖：${title}`, ctx, targetId, undefined, turnId);
+      return { id: turnId, created: true };
     },
-    [activeProjectId, projects, appendTurn, recordExploration, deliverReply]
+    [activeProjectId, projects, appendTurn, recordExploration, deliverReply, markBusy]
   );
 
   /** 发散卡片：以术语开"平行会话"（kind="diverge"）。
-      与分支卡片的关键区别：不继承上游历史、不打断当前对话（调用方保留卡片栈），
+      与分支卡片的关键区别：不继承上游完整历史，但携带来源锚点上下文
+      （来源主题 + 术语所在段落，buildDivergePrompt 注入）；不打断当前对话（调用方保留卡片栈），
       树中与来源卡片同层、位于其右侧。AI 回复走双通道。
-      去重：同一来源 + 同一主题已存在 → 复用（返回其 id，调用方跳转），不新建。 */
+      去重：同一来源 + 同一主题已存在 → 复用，不新建。 */
   const openDivergeTurn = useCallback(
-    (title: string, sourceTurnId: string): string | null => {
+    (
+      title: string,
+      sourceTurnId: string,
+      anchor?: { sourceTitle: string; anchorText?: string },
+      targetProjectId?: string
+    ): { id: string; created: boolean } => {
       const existing = projects
         .flatMap((p) => p.turns)
         .find((t) => t.kind === "diverge" && t.divergeSourceId === sourceTurnId && t.title === title);
-      if (existing) return existing.id;
-      let targetId = activeProjectId;
+      if (existing) return { id: existing.id, created: false };
+      let targetId = targetProjectId ?? activeProjectId;
       if (!targetId) {
         const p: ChatProject = { ...makeDemoProject(), id: uid(), title: "Untitled" };
         setProjects((list) => [p, ...list]);
@@ -1065,27 +1446,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
         )
       );
       setMindscapeOpen(false);
-      setBusy(true);
-      const ctx = [
-        {
-          role: "user",
-          content: `发散卡片：以「${title}」为主题开一个平行会话（不打断当前对话）。请给出与当前主题相关但独立成篇的讲解，用中文回答，重要术语用 **加粗** 标记，方便继续深挖。`,
-        },
-      ];
-      deliverReply(`发散话题：${title}`, ctx, targetId);
-      return null;
+      markBusy();
+      const ctx = [{ role: "user", content: buildDivergePrompt(title, anchor) }];
+      deliverReply(`发散话题：${title}`, ctx, targetId, undefined, turnId);
+      return { id: turnId, created: true };
     },
-    [activeProjectId, projects, appendTurn, deliverReply]
+    [activeProjectId, projects, appendTurn, deliverReply, markBusy]
   );
 
-  /** 调整分支卡片的分支点（上游轮次 messages 下标；分割线画在该消息之后）。 */
+  /** 调整分支卡片的分支点（上游轮次 messages 下标；分割线画在该消息之后）。
+      同时失效 preBranchSummary 缓存 + 按新分支点重算 branchContext.slice——
+      分支卡内续问的上下文立即与新的分割线一致（闭环：调整分支点 → 续问即按新边界）。 */
   const setBranchPoint = useCallback((turnId: string, index: number) => {
     setProjects((list) =>
       list.map((p) => ({
         ...p,
-        turns: p.turns.map((t) =>
-          t.id === turnId ? { ...t, branchPointIndex: Math.max(index, 0) } : t
-        ),
+        turns: p.turns.map((t) => {
+          if (t.id !== turnId) return t;
+          const i = Math.max(index, 0);
+          const src = t.parentTurnId
+            ? p.turns.find((x) => x.id === t.parentTurnId) ?? null
+            : null;
+          const newSlice = src
+            ? src.messages
+                .slice(0, i + 1)
+                .map((m) => ({ role: m.role, content: m.content }))
+            : [];
+          return {
+            ...t,
+            branchPointIndex: i,
+            preBranchSummary: undefined,
+            branchContext: t.branchContext
+              ? { ...t.branchContext, slice: newSlice }
+              : undefined,
+          };
+        }),
       }))
     );
   }, []);
@@ -1114,9 +1509,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   /** 文档问答：同名项目（论文: xxx）不存在则创建，然后开新 turn。
-      回复走 deliverReply 双通道：BYOK 用真实 API，否则离线知识库。 */
+      回复走 deliverReply 双通道：BYOK 用真实 API，否则离线知识库。
+      文档全文注入上下文（截断 8000 字）：术语解释真正基于论文内容，而非泛泛而谈。 */
   const openDocQuestion = useCallback(
-    (term: string, docName: string) => {
+    (term: string, docId: string) => {
+      const doc = documents.find((d) => d.id === docId) ?? null;
+      const docName = doc?.name ?? "文档";
       const projectTitle = `论文：${docName}`;
       const question = `什么是「${term}」？\n\n> 来自论文《${docName}》`;
       // 同步决定项目 id——不能在 updater 里写副作用（React 可能多次/延迟调用 updater，
@@ -1132,20 +1530,211 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
         setProjects((list) => [p, ...list]);
       }
-      appendTurn(pid, term, question);
+      const turnId = appendTurn(pid, term, question);
       setActiveDocId(null); // 回到对话视图看回答
-      setBusy(true);
+      focusTurn(pid, turnId); // 树聚焦 + 滚动定位到新卡
+      markBusy();
+      const truncated = doc ? doc.content.length > 8000 : false;
       const history = [
         {
           role: "user",
-          content: `用户正在阅读论文《${docName}》，遇到了术语「${term}」。请用中文详细解释，重要术语用 **加粗** 标记，方便继续深挖。`,
+          content: `用户正在阅读论文《${docName}》，遇到了术语「${term}」。请基于论文内容用中文详细解释，重要术语用 **加粗** 标记，方便继续深挖。论文全文：\n\n${doc ? doc.content.slice(0, 8000) : "（文档内容不可用）"}${truncated ? "\n\n（文档过长，以上为前 8000 字）" : ""}`,
         },
       ];
-      deliverReply(`什么是「${term}」？`, history, pid);
+      deliverReply(`什么是「${term}」？`, history, pid, undefined, turnId);
       // Mark term as asked (personalization).
       setTermStates((s) => ({ ...s, [term]: "asked" }));
     },
-    [projects, appendTurn, deliverReply]
+    [projects, documents, appendTurn, deliverReply, focusTurn, markBusy]
+  );
+
+  /** 文档解读块/段落 → 分支卡片：在「论文：xxx」项目中创建分支，来源 = 该项目最新轮次
+      （无轮次则先建「📄 阅读《xxx》」上下文轮次）。修：不再挂到"最后一个轮次"——空项目
+      悬空发散（平行视图白屏）与挂错无关轮次（树位置误导）两个问题一并解决。 */
+  const openDocBranch = useCallback(
+    (title: string, block: string, docName: string) => {
+      const projectTitle = `论文：${docName}`;
+      const existing = projects.find((p) => p.title === projectTitle);
+      const pid = existing ? existing.id : uid();
+      if (!existing) {
+        setProjects((list) => [
+          { ...makeDemoProject(), id: pid, title: projectTitle, folder: "doc" },
+          ...list,
+        ]);
+      }
+      const proj = existing ?? projects.find((p) => p.id === pid);
+      // 来源 = 最近的非发散轮次：文档发散统一挂在文档上下文/问答轮次下，
+      // 连续开多张卡时不会"发散挂发散"（同一来源的平行会话聚在同一组）。
+      const last = proj ? [...proj.turns].reverse().find((t) => t.kind !== "diverge") ?? null : null;
+      // 项目尚无任何轮次 → 建一个文档上下文来源轮次（树中可见、平行/分支有真实来源）。
+      const sourceId =
+        last?.id ??
+        appendTurn(pid, `📄 阅读《${docName}》`, `阅读文档《${docName}》，AI 解读完成，可在此继续深挖`);
+      const r = openBranchTurn(
+        title,
+        [{ role: "user", content: `文档《${docName}》中的段落：\n\n${block}` }],
+        sourceId,
+        pid
+      );
+      focusTurn(pid, r.id); // 切项目 + 回对话视图 + 滚动/滑动定位
+      return r;
+    },
+    [projects, appendTurn, openBranchTurn, focusTurn]
+  );
+
+  /** 文档解读块/段落 → 发散卡片：锚点 = 文档名 + 块文本；来源与创建项目同 openDocBranch。 */
+  const openDocDiverge = useCallback(
+    (title: string, block: string, docName: string) => {
+      const projectTitle = `论文：${docName}`;
+      const existing = projects.find((p) => p.title === projectTitle);
+      const pid = existing ? existing.id : uid();
+      if (!existing) {
+        setProjects((list) => [
+          { ...makeDemoProject(), id: pid, title: projectTitle, folder: "doc" },
+          ...list,
+        ]);
+      }
+      const proj = existing ?? projects.find((p) => p.id === pid);
+      const last = proj ? [...proj.turns].reverse().find((t) => t.kind !== "diverge") ?? null : null;
+      const sourceId =
+        last?.id ??
+        appendTurn(pid, `📄 阅读《${docName}》`, `阅读文档《${docName}》，AI 解读完成，可在此继续深挖`);
+      const r = openDivergeTurn(
+        title,
+        sourceId,
+        { sourceTitle: docName, anchorText: block.slice(0, 400) },
+        pid
+      );
+      focusTurn(pid, r.id);
+      return r;
+    },
+    [projects, appendTurn, openDivergeTurn, focusTurn]
+  );
+
+  /** 基于当前打开的文档提问：自动建/复用「论文：xxx」项目 + 新 turn，
+      文档全文注入上下文（截断 8000 字），AI 基于文件内容解读；随后切回对话视图看回答。 */
+  const sendDocQuestion = useCallback(
+    (text: string) => {
+      const content = text.trim();
+      if (!content || busy) return;
+      const doc = documents.find((d) => d.id === activeDocId) ?? null;
+      if (!doc) return;
+      const projectTitle = `论文：${doc.name}`;
+      const existing = projects.find((p) => p.title === projectTitle);
+      const pid = existing ? existing.id : uid();
+      if (!existing) {
+        const p: ChatProject = {
+          ...makeDemoProject(),
+          id: pid,
+          title: projectTitle,
+          folder: "doc",
+        };
+        setProjects((list) => [p, ...list]);
+      }
+      const plain = content
+        .split("\n")
+        .filter((l) => !l.trim().startsWith(">"))
+        .join(" ")
+        .trim();
+      const title = plain.length > 18 ? plain.slice(0, 18) + "…" : plain || "文档提问";
+      const turnId = appendTurn(pid, title, content);
+      setActiveDocId(null); // 回对话视图看回答
+      focusTurn(pid, turnId); // 树聚焦 + 滚动定位到新卡
+      markBusy();
+      const truncated = doc.content.length > 8000;
+      const history = [
+        {
+          role: "user",
+          content: `用户正在阅读论文《${doc.name}》，请基于论文内容回答下面的问题。论文全文：\n\n${doc.content.slice(0, 8000)}${truncated ? "\n\n（文档过长，以上为前 8000 字，回答时请说明只能基于这部分内容）" : ""}`,
+        },
+      ];
+      deliverReply(content, history, pid, undefined, turnId);
+    },
+    [projects, documents, activeDocId, busy, appendTurn, deliverReply, focusTurn, markBusy]
+  );
+
+  /** AI 解读文档：先理解内容 → 按语义分块 + 双语对照 + 格式工整（markdown）。
+      BYOK 走真实流式 API（边生成边写入 doc.interpreted，解读视图即时浮现），
+      失败回退离线启发式；无 BYOK 直接启发式整理。
+      force = 忽略已有缓存重新解读。 */
+  const interpretDocument = useCallback(
+    (docId: string, force = false) => {
+      const doc = documents.find((d) => d.id === docId) ?? null;
+      if (!doc || docInterpretingIds.includes(docId)) return;
+      if (!force && doc.interpreted) return; // 已有缓存
+      const byok = byokModels.find(
+        (m) => m.id === settings.activeModelId && m.provider === "BYOK"
+      );
+      setDocInterpretingIds((ids) => [...ids, docId]);
+      const finish = () =>
+        setDocInterpretingIds((ids) => ids.filter((id) => id !== docId));
+      const apply = (md: string) => {
+        setDocuments((list) =>
+          list.map((d) =>
+            d.id === docId ? { ...d, interpreted: md, interpretedAt: Date.now() } : d
+          )
+        );
+        finish();
+      };
+      const fallback = () => apply(heuristicInterpret(doc.content));
+      if (byok && byok.apiKey && byok.baseUrl && byok.modelId) {
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => controller.abort(), 45000);
+        let acc = "";
+        let lastFlush = 0;
+        // 流式写入（节流 ~250ms）：首字到达前解读视图显示"解读中"，
+        // 之后块随生成进度逐渐浮现——上传后第一时间就看到 AI 如何分块。
+        const flush = () => {
+          setDocuments((list) =>
+            list.map((d) => (d.id === docId ? { ...d, interpreted: acc } : d))
+          );
+        };
+        streamOpenAICompatible(
+          byok,
+          [
+            {
+              role: "user",
+              content: [
+                `请先理解下面这份论文/文档的内容，然后输出一份"解读版"。这是供用户精读论文用的解读，请做到：`,
+                ``,
+                `1. 【全文概览】开头先输出 \`## 全文概览\` 块：用 3-6 条要点概括——研究/写作背景、核心问题、主要方法、关键结论与创新点；`,
+                `2. 【语义分块】按语义把内容分成若干清晰的块，每块用 \`## 块标题\` 开头（3-12 块，标题简短概括主旨）；每块必须有实质内容——标题、作者、日期、脚注等零碎信息不要单独成块，并入「全文概览」或相邻块；`,
+                `3. 【双语对照】以中文为阅读主语言，但不要只给译文——每块正文包含两部分：a) 中文解读/翻译，专业术语首次出现保留英文括号注释，如"机器学习（Machine Learning）"；b) 块末用引用格式附上对应的英文原文（\`> 原文…\`），供逐句对照；原文已是中文的块只需润色成通顺书面语、重要专有名词保留英文原名，无需附对照；`,
+                `4. 【工整易读】整理格式：数据、公式、引文、图表描述、列表等关键信息一律保留不得省略；用 markdown 的列表/引用/强调组织层级；去掉页眉页脚、目录与重复噪音；`,
+                `5. 【术语标记】遇到关键概念、术语、人名用 **加粗** 标记，方便继续深挖。`,
+                ``,
+                `直接输出整理结果，不要任何开场白或额外解释。`,
+                ``,
+                `文档《${doc.name}》：`,
+                doc.content.slice(0, 14000),
+              ].join("\n"),
+            },
+          ],
+          (delta) => {
+            acc += delta;
+            const now = Date.now();
+            if (now - lastFlush > 250) {
+              lastFlush = now;
+              flush();
+            }
+          },
+          controller.signal,
+          () => window.clearTimeout(timer)
+        )
+          .then(() => {
+            window.clearTimeout(timer);
+            if (acc.trim().length >= 40) apply(acc);
+            else fallback();
+          })
+          .catch(() => {
+            window.clearTimeout(timer);
+            fallback();
+          });
+      } else {
+        window.setTimeout(fallback, 400); // 离线：启发式整理（翻译/润色需 BYOK）
+      }
+    },
+    [documents, docInterpretingIds, byokModels, settings.activeModelId]
   );
 
   const addThoughtNode = useCallback(
@@ -1186,7 +1775,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const removeDocument = useCallback((id: string) => {
     setDocuments((list) => list.filter((d) => d.id !== id));
-    setActiveDocId((cur) => (cur === id ? null : cur));
+    // 函数式更新走底层 state（包装版只处理显式 id）
+    setActiveDocIdState((cur) => (cur === id ? null : cur));
   }, []);
 
   const value: AppState = {
@@ -1211,6 +1801,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     importBackup,
     byokModels,
     addByokModel,
+    removeByokModel,
     collapsed,
     toggleSidebar,
     mindscapeOpen,
@@ -1221,7 +1812,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     turns,
     activeTurn,
     sendMessage,
+    parallelSendTarget,
+    setParallelSendTarget,
+    sendInTurn,
+    sendDocQuestion,
+    interpretDocument,
+    docInterpretingIds,
+    treeFocus,
+    setTreeFocus,
     busy,
+    streamingTurnId,
     openBranchTurn,
     openDivergeTurn,
     setBranchPoint,
@@ -1244,6 +1844,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPendingQuote,
     setTurnUnread,
     toggleFavorite,
+    removeTurn,
+    clearResidentChat,
     focusTurn,
     clearFocusRequest,
     focusRequest,
@@ -1254,6 +1856,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     summarizingTurnId,
     summarizeTurn,
     openDocQuestion,
+    openDocBranch,
+    openDocDiverge,
     universeOpen,
     setUniverseOpen,
   };
