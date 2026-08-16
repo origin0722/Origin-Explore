@@ -1,26 +1,27 @@
 {
-  "name": "ai-website-clone-template",
+  "name": "origin-explore",
   "version": "1.0.0",
   "private": true,
   "main": "electron/main.js",
-  "description": "Clone any website into a clean, modern Next.js codebase using AI coding agents",
-  "author": "JCodesMore",
+  "description": "OriginExplore — AI 结构化思维与知识探索工具（纯前端 + BYOK + 桌面版）",
+  "author": "origin0722",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/JCodesMore/ai-website-cloner-template.git"
+    "url": "https://github.com/origin0722/Origin-Explore.git"
   },
-  "homepage": "https://github.com/JCodesMore/ai-website-cloner-template",
+  "homepage": "https://github.com/origin0722/Origin-Explore",
   "bugs": {
-    "url": "https://github.com/JCodesMore/ai-website-cloner-template/issues"
+    "url": "https://github.com/origin0722/Origin-Explore/issues"
   },
   "keywords": [
-    "claude-code",
-    "website-clone",
-    "reverse-engineering",
-    "nextjs",
+    "origin-explore",
     "ai",
-    "template",
+    "knowledge-exploration",
+    "structured-thinking",
+    "nextjs",
+    "electron",
+    "byok",
     "tailwindcss",
     "shadcn-ui"
   ],
@@ -46,6 +47,7 @@
     },
     "files": [
       "electron/main.js",
+      "electron/loading.html",
       "package.json",
       "!node_modules/**/*"
     ],

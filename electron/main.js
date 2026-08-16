@@ -67,10 +67,12 @@ const PORT_RANGE_START = 3210;
 const PORT_RANGE_END = 3225;
 const HOST = "127.0.0.1";
 
-/** 定位 Next standalone 目录：打包后 = resources/next；开发 = 项目 .next/standalone */
+/** 定位 Next standalone 目录：打包后 = resources/next；开发 = 项目 .next/standalone。
+    用 app.isPackaged 显式判定，避免依赖 cwd。 */
 function serverRoot() {
-  const bundled = path.join(process.resourcesPath || "", "next");
-  if (fs.existsSync(path.join(bundled, "server.js"))) return bundled;
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath || "", "next");
+  }
   return path.join(__dirname, "..", ".next", "standalone");
 }
 
@@ -211,7 +213,7 @@ app.whenReady().then(async () => {
     return;
   }
 
-  // 窗口尽早创建：服务器就绪前先显示深色背景窗口，避免"双击后长时间无反应"。
+  // 窗口尽早创建，先显示本地加载页（"正在启动…"），服务器就绪后再加载真实页面。
   win = new BrowserWindow({
     width: 1360,
     height: 860,
@@ -226,6 +228,10 @@ app.whenReady().then(async () => {
       sandbox: true,
     },
   });
+  const loadingHtml = path.join(__dirname, "loading.html");
+  if (fs.existsSync(loadingHtml)) {
+    win.loadFile(loadingHtml).catch(() => {});
+  }
 
   // 导航/弹窗边界：只允许本地页面，禁止 window.open 与外部跳转。
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -258,30 +264,81 @@ app.whenReady().then(async () => {
   win.on("closed", () => app.quit());
 
   // 动态选端口：避免与用户机器上其他程序冲突导致"服务器启动超时"
-  const PORT = await pickFreePort();
-  if (PORT == null) {
-    log("all ports busy");
-    dialogError(`本地端口 ${PORT_RANGE_START}-${PORT_RANGE_END} 全部被占用。\n请关闭占用这些端口的程序后重试。`);
-    return;
-  }
-  log(`using port ${PORT}`);
-
-  startServer(root, serverEntry, PORT);
-
-  try {
-    await waitForServer(PORT);
-    log("server ready");
-  } catch (e) {
-    log(`waitForServer failed: ${e.message}`);
-    dialogError(
-      `本地服务启动失败：${e.message}\n\n请检查：\n1) 若本机有安全软件，允许其放行本地进程；\n` +
-        `2) 若反复失败，查看日志：${logFile()}\n\n（点击确定退出）`
-    );
-    return;
-  }
-
-  win.loadURL(`http://${HOST}:${PORT}`);
+  bootstrapServer(win).catch((e) => {
+    log(`bootstrapServer failed: ${e.message}`);
+  });
 });
+
+/**
+ * 启动本地服务器并加载页面：选端口 → fork → 等待就绪 → loadURL。
+ * 失败时弹"重试 / 查看日志 / 退出"对话框（不直接静默退出）。
+ */
+async function bootstrapServer(win) {
+  const root = serverRoot();
+  const serverEntry = path.join(root, "server.js");
+
+  for (let attempt = 0; ; attempt++) {
+    const PORT = await pickFreePort();
+    if (PORT == null) {
+      log("all ports busy");
+      const choice = dialog.showMessageBoxSync({
+        type: "error",
+        title: "OriginExplore 启动失败",
+        message: `本地端口 ${PORT_RANGE_START}-${PORT_RANGE_END} 全部被占用。`,
+        detail: "请关闭占用这些端口的程序后重试。",
+        buttons: ["重试", "退出"],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      if (choice === 0) continue;
+      app.quit();
+      return;
+    }
+    log(`using port ${PORT}`);
+
+    startServer(root, serverEntry, PORT);
+
+    try {
+      await waitForServer(PORT);
+      log("server ready");
+    } catch (e) {
+      log(`waitForServer failed: ${e.message}`);
+      if (attempt >= 2) {
+        const choice = dialog.showMessageBoxSync({
+          type: "error",
+          title: "OriginExplore 启动失败",
+          message: `本地服务启动失败：${e.message}`,
+          detail:
+            `请检查：\n1) 若本机有安全软件，允许其放行本地进程；\n2) 若反复失败，查看日志：${logFile()}`,
+          buttons: ["重试", "查看日志", "退出"],
+          defaultId: 0,
+          cancelId: 2,
+        });
+        if (choice === 0) {
+          cleanupServer();
+          continue; // 重试（重新选端口 + 启动）
+        }
+        if (choice === 1) {
+          try {
+            require("electron").shell.openPath(logFile());
+          } catch {
+            /* ignore */
+          }
+        }
+        app.quit();
+        return;
+      }
+      // 前两次失败：自动换端口重试一次（不打断用户）
+      cleanupServer();
+      continue;
+    }
+
+    if (win && !win.isDestroyed()) {
+      win.loadURL(`http://${HOST}:${PORT}`);
+    }
+    return;
+  }
+}
 
 function dialogError(msg) {
   log(`dialogError: ${msg}`);
@@ -300,6 +357,8 @@ function cleanupServer() {
   }
 }
 
+// 主目标是 Windows x64：所有窗口关闭即退出（含 macOS 行为差异的有意取舍；
+// 如需 macOS 常驻可改为 darwin 时不退出并在 activate 中重建窗口）。
 app.on("window-all-closed", () => {
   quitting = true;
   cleanupServer();

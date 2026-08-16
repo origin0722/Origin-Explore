@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OriginExplore</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #0a0e1a;
+      color: #e8f6fb;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .wrap { text-align: center; user-select: none; }
+    .logo {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      background: linear-gradient(135deg, #22d3ee, #818cf8);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .spinner {
+      width: 28px;
+      height: 28px;
+      margin: 22px auto 0;
+      border: 3px solid rgba(34, 211, 238, 0.2);
+      border-top-color: #22d3ee;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    .hint { margin-top: 14px; font-size: 13px; color: #8ba3b3; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo">OriginExplore</div>
+    <div class="spinner"></div>
+    <div class="hint">正在启动本地服务…</div>
+  </div>
+</body>
+</html>
