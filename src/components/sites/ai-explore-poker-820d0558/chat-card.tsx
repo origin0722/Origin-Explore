@@ -38,9 +38,82 @@ import {
 import { useApp, streamOpenAICompatible } from "./app-context";
 import { explorationChains, type ExploreEntry } from "./turn-graph";
 import { findTerm, GLOSSARY } from "@/lib/sites/ai-explore-poker-820d0558/mock";
-import type { Message, TermNode, Turn } from "@/types/sites/ai-explore-poker-820d0558";
+import type { AttachedImage, Message, TermNode, Turn } from "@/types/sites/ai-explore-poker-820d0558";
 
 const uid = () => "m-" + Math.random().toString(36).slice(2, 10);
+
+/* ------------------------------------------------------------------ */
+/* 用户消息气泡（含视觉模式图片网格 + lightbox）                         */
+/* ------------------------------------------------------------------ */
+
+/** 消息图片网格 + 简易 lightbox（fixed 遮罩，Esc/点击关闭）。 */
+function MessageImages({ images }: { images: AttachedImage[] }) {
+  const [lightbox, setLightbox] = useState<AttachedImage | null>(null);
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
+
+  if (images.length === 0) return null;
+  return (
+    <>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {images.map((img) => (
+          <button
+            key={img.id}
+            type="button"
+            onClick={() => setLightbox(img)}
+            title={img.name}
+            className="h-20 w-20 overflow-hidden rounded-lg border border-std/60 bg-item-std transition-transform hover:scale-105"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={img.thumbDataUrl} alt={img.name} className="h-full w-full object-cover" />
+          </button>
+        ))}
+      </div>
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-6"
+          onClick={() => setLightbox(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightbox.fullDataUrl || lightbox.thumbDataUrl}
+            alt={lightbox.name}
+            className="max-h-full max-w-full rounded-xl object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            aria-label="关闭"
+            onClick={() => setLightbox(null)}
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** 用户消息气泡：文本 + 图片（视觉模式）。 */
+function UserMessageBubble({ message }: { message: Message }) {
+  return (
+    <div className="flex flex-col items-end gap-2 mt-3">
+      <div className="bg-usermsg shadow-usermsg rounded-usermsg px-3 py-2 relative max-w-[90%]">
+        <span className="text-text-content whitespace-pre-wrap">{message.content}</span>
+        {message.images && message.images.length > 0 && (
+          <MessageImages images={message.images} />
+        )}
+      </div>
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* 对话区视图模型                                                        */
@@ -243,11 +316,7 @@ function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect,
 
         {messages.map((m) =>
           m.role === "user" ? (
-            <div key={m.id} className="flex flex-col items-end gap-2 mt-3">
-              <div className="bg-usermsg shadow-usermsg rounded-usermsg px-3 py-2 relative max-w-[90%]">
-                <span className="text-text-content whitespace-pre-wrap">{m.content}</span>
-              </div>
-            </div>
+            <UserMessageBubble key={m.id} message={m} />
           ) : (
             <div key={m.id} className="markdown-content w-full mt-3 text-text-content">
               <ReactMarkdown components={mdComponents}>{m.content}</ReactMarkdown>
@@ -1398,13 +1467,7 @@ export function ChatCard() {
                       return turn.messages.map((msg, mi) => (
                         <Fragment key={msg.id}>
                           {msg.role === "user" ? (
-                            <div className="flex flex-col items-end gap-2">
-                              <div className="bg-usermsg shadow-usermsg rounded-usermsg px-3 py-2 relative max-w-[90%]">
-                                <span className="text-text-content whitespace-pre-wrap select-none">
-                                  {msg.content}
-                                </span>
-                              </div>
-                            </div>
+                            <UserMessageBubble message={msg} />
                           ) : (
                             <div
                               className="ai-message-content relative w-full select-text"

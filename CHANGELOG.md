@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **视觉模式（Vision Mode）**：图片理解能力——多模态主模型直传原图 / 纯文本主模型由视觉模型识图（dsh-vision-router 式"眼睛"路由）；三合一入口（文件选择/剪贴板粘贴/拖拽）；画布降采样 + SHA-256 内容哈希缓存（同图不重复识图）+ 历史旧图降级为文字描述；设置新增「视觉模式」面板（auto/native/router/off + 视觉模型选择）；新增 GLM-4V-Flash、Qwen-VL-Max 视觉预设与 BYOK「视觉模型」标记。
+
 ## [1.0.0] - 2026-08-16
 
 ### Added

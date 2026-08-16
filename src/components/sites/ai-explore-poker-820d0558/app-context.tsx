@@ -16,6 +16,7 @@ import {
   type ReactNode,
 } from "react";
 import type {
+  AttachedImage,
   BackupEnvelope,
   ByokModel,
   ChatProject,
@@ -40,6 +41,15 @@ import {
   THEME_META_COLORS,
   themeId,
 } from "@/lib/sites/ai-explore-poker-820d0558/mock";
+import type { WireContent } from "@/lib/sites/ai-explore-poker-820d0558/vision";
+import {
+  decideVision,
+  describeImage,
+  getVisionCache,
+  toNativeParts,
+  toRouterText,
+  type VisionDecision,
+} from "@/lib/sites/ai-explore-poker-820d0558/vision";
 
 /**
  * OpenAI 兼容的 chat/completions 流式调用（`stream: true` + SSE，浏览器直连，密钥不落盘到服务器）。
@@ -49,7 +59,7 @@ import {
  */
 export async function streamOpenAICompatible(
   byok: ByokModel,
-  messages: { role: string; content: string }[],
+  messages: { role: string; content: string | WireContent[] }[],
   onDelta: (delta: string) => void,
   signal?: AbortSignal,
   onFirst?: () => void
@@ -141,7 +151,7 @@ export interface AppState {
   importBackup(parsed: unknown): { ok: boolean; message: string };
   /** 用户自带的 BYOK 模型（密钥仅存本机）；返回是否添加成功（同名已存在时 false） */
   byokModels: ByokModel[];
-  addByokModel(input: { name: string; baseUrl: string; modelId: string; apiKey: string }): boolean;
+  addByokModel(input: { name: string; baseUrl: string; modelId: string; apiKey: string; vision?: boolean }): boolean;
   /** 删除一个 BYOK 模型；若删除的是当前默认模型，清除选中（由用户重新配置）。 */
   removeByokModel(id: string): void;
   collapsed: boolean;
@@ -156,7 +166,7 @@ export interface AppState {
   setPendingQuote(q: string | null): void;
   turns: Turn[];
   activeTurn: Turn | null;
-  sendMessage(text: string): void;
+  sendMessage(text: string, images?: AttachedImage[]): void;
   /** 平行视图发送目标：当前聚焦的发散轮次 id（null = 发往主对话流）。
       ChatCard 在平行视图聚焦发散卡时设置；InputArea 据此把消息顺延进该平行对话。 */
   parallelSendTarget: string | null;
@@ -176,7 +186,7 @@ export interface AppState {
   docInterpretingIds: string[];
   /** 在指定轮次内继续提问（消息级顺延）：平行对话是独立线程，
       继续在发散卡片下方对话，而不是弹回主对话流。 */
-  sendInTurn(turnId: string, text: string): void;
+  sendInTurn(turnId: string, text: string, images?: AttachedImage[]): void;
   busy: boolean;
   /** 当前流式回复的目标轮次 id（null = 无流式；并发时 = 最近启动者）。
       ChatCard 用它做贴底跟随与未读判定，而非假设目标 = 最后一个 turn。 */
@@ -780,7 +790,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const addByokModel = useCallback(
-    (input: { name: string; baseUrl: string; modelId: string; apiKey: string }): boolean => {
+    (input: { name: string; baseUrl: string; modelId: string; apiKey: string; vision?: boolean }): boolean => {
       const name = input.name.trim();
       if (!name) return false;
       const id = "byok:" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -794,6 +804,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         baseUrl: input.baseUrl.trim().replace(/\/+$/, "") || "https://api.openai.com/v1",
         modelId: input.modelId.trim() || name,
         apiKey: input.apiKey.trim(),
+        vision: input.vision ?? false,
       };
       setByokModels((list) => [...list, m]);
       return true;
@@ -837,11 +848,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       projectId: string,
       title: string,
       userContent: string,
-      aiContent?: string
+      aiContent?: string,
+      images?: AttachedImage[]
     ) => {
       const turn = makeDemoTurn(title);
       const messages: Message[] = [
-        { id: uid(), role: "user", content: userContent, createdAt: Date.now() },
+        {
+          id: uid(),
+          role: "user",
+          content: userContent,
+          createdAt: Date.now(),
+          // 落盘只存缩略图（剥离 fullDataUrl，控制 localStorage 配额）
+          images: images?.map(({ fullDataUrl: _full, ...rest }) => rest),
+        },
       ];
       if (aiContent) {
         messages.push({ id: uid(), role: "assistant", content: aiContent, createdAt: Date.now() });
@@ -1109,6 +1128,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /**
    * 双通道回复：BYOK 走真实流式 API；未配置或失败时明确提示（无离线兜底）。
    * 回复写入 targetId 项目（turnId 缺省 = 最后一个 turn）；`history` 为之前的消息（不含当前问题）。
+   * `images` = 本条消息附带图片（视觉模式：原生直传 / 路由识图 / 未配置则拦截）。
    */
   const deliverReply = useCallback(
     (
@@ -1116,7 +1136,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       history: { role: string; content: string }[],
       targetId: string,
       onDone?: () => void,
-      turnId?: string
+      turnId?: string,
+      images?: AttachedImage[]
     ) => {
       void (async () => {
         const byok = byokModels.find(
@@ -1156,7 +1177,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setStreamingTurnId((cur) => (cur === turnId ? null : cur));
           return;
         }
+        // ---- 视觉决策：主模型多模态 / 路由识图 / 未配置拦截 ----
         const controller = new AbortController();
+        const visionModel = settings.visionModelId
+          ? byokModels.find((m) => m.id === settings.visionModelId && m.vision) ?? null
+          : null;
+        const visionDecision: VisionDecision = images?.length
+          ? decideVision({
+              mainVision: !!byok.vision,
+              visionMode: settings.visionMode,
+              hasVisionModel: !!visionModel,
+            })
+          : "native"; // 无图时不影响
+        if (images?.length && visionDecision === "blocked") {
+          setAppNotice(
+            settings.visionMode === "off"
+              ? "视觉模式已关闭：可在 设置 → AI 模型 → 视觉模式 开启"
+              : "当前模型不支持图片，且未配置视觉模型：请在 设置 → AI 模型 添加一个视觉模型（如 GLM-4V-Flash）"
+          );
+          markIdle();
+          setStreamingTurnId((cur) => (cur === turnId ? null : cur));
+          return;
+        }
+        // ---- 组装 wire 消息：历史图片降级为缓存描述；当前图片按模式处理 ----
+        const wireHistory: { role: string; content: string | WireContent[] }[] = [];
+        for (const m of history) {
+          const img = (m as { images?: AttachedImage[] }).images?.[0];
+          if (img) {
+            const cached = getVisionCache(img.hash);
+            if (cached) {
+              wireHistory.push({ role: m.role, content: `[图片描述] ${cached.desc}` });
+              continue;
+            }
+          }
+          wireHistory.push({ role: m.role, content: m.content });
+        }
+        let questionContent: string | WireContent[] = question;
+        if (images?.length) {
+          if (visionDecision === "native") {
+            questionContent = toNativeParts(question, images);
+          } else {
+            // 路由：逐图识图（查缓存 → miss 调视觉模型），描述拼进问题
+            setAppNotice("🔍 正在看图…");
+            const descs: string[] = [];
+            for (const img of images) {
+              try {
+                descs.push(await describeImage(visionModel!, img, controller.signal));
+              } catch {
+                descs.push("（图片描述失败）");
+              }
+            }
+            questionContent = toRouterText(question, descs);
+          }
+        }
         // 15s 内没有任何增量 -> 放弃；开始出字后不再限时（流可能很长）。
         const timer = window.setTimeout(() => controller.abort(), 15000);
         appendAssistantMessage(targetId, turnId); // SSE 直接往这条消息里流
@@ -1168,8 +1241,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ...(searchPrompt
               ? [{ role: "user" as const, content: searchPrompt }]
               : []),
-            ...history,
-            { role: "user", content: question },
+            ...wireHistory,
+            { role: "user", content: questionContent },
           ],
           (delta) => {
             acc += delta;
@@ -1216,6 +1289,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       byokModels,
       settings.activeModelId,
       settings.isWebSearchEnabled,
+      settings.visionMode,
+      settings.visionModelId,
       appendAssistantMessage,
       setLastAssistantContent,
       streamReply,
@@ -1229,9 +1304,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const sendMessage = useCallback(
-    (text: string) => {
+    (text: string, images?: AttachedImage[]) => {
       const content = text.trim();
-      if (!content || busy) return;
+      if ((!content && !images?.length) || busy) return;
       // 无 API 守卫（输入区已禁用，这里是兜底）：不发消息、不建空轮次。
       const byok = byokModels.find(
         (m) => m.id === settings.activeModelId && m.provider === "BYOK"
@@ -1259,7 +1334,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const titleSource =
         plain || content.replace(/^>\s?/gm, "").trim().slice(0, 40) || "引用对话";
       const title = titleSource.length > 18 ? titleSource.slice(0, 18) + "…" : titleSource;
-      const turnId = appendTurn(targetId, title, content);
+      const turnId = appendTurn(targetId, title, content, undefined, images);
       // 单卡片聚焦视图：新轮次成为激活卡片（滑动切入）。
       focusTurn(targetId, turnId);
       // 自动标题：给"Untitled"项目用首条消息命名（设置可关）。
@@ -1284,11 +1359,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .filter((t) => t.kind !== "diverge")
         .flatMap((t) => t.messages)
         .slice(-12)
-        .map((m) => ({ role: m.role, content: m.content }));
+        .map((m) => ({ role: m.role, content: m.content, images: m.images }));
 
       // turnId 显式指定写入目标：主对话流式期间若有并发流（术语卡发散/分支），
       // 写入目标不随"最后一个 turn"漂移（修双流覆写）。
-      deliverReply(content, history, targetId, done, turnId);
+      deliverReply(content, history, targetId, done, turnId, images);
     },
     [activeProjectId, busy, appendTurn, settings.autoTitleEnabled, turns, deliverReply, focusTurn, markBusy, byokModels, settings.activeModelId]
   );
@@ -1297,9 +1372,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       平行对话是独立线程——在发散卡片下方继续对话，而不是弹回主对话流。
       回复写入该轮次（turnId 指定），上下文取该轮次前序消息。 */
   const sendInTurn = useCallback(
-    (turnId: string, text: string) => {
+    (turnId: string, text: string, images?: AttachedImage[]) => {
       const content = text.trim();
-      if (!content || busy) return;
+      if ((!content && !images?.length) || busy) return;
       const proj = projects.find((p) => p.turns.some((t) => t.id === turnId));
       const turn = proj?.turns.find((t) => t.id === turnId);
       if (!proj || !turn) return;
@@ -1315,7 +1390,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
                         ...t,
                         messages: [
                           ...t.messages,
-                          { id: uid(), role: "user" as const, content, createdAt: Date.now() },
+                          {
+                            id: uid(),
+                            role: "user" as const,
+                            content,
+                            createdAt: Date.now(),
+                            images: images?.map(({ fullDataUrl: _full, ...rest }) => rest),
+                          },
                         ],
                       }
                     : t
@@ -1330,17 +1411,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const history =
         turn.kind === "branch" && turn.branchContext
           ? [
-              ...turn.branchContext.slice,
-              ...turn.branchContext.trail,
+              ...turn.branchContext.slice.map((m) => ({ role: m.role, content: m.content })),
+              ...turn.branchContext.trail.map((m) => ({ role: m.role, content: m.content })),
               ...turn.messages
                 .slice(-8)
-                .map((m) => ({ role: m.role, content: m.content })),
+                .map((m) => ({ role: m.role, content: m.content, images: m.images })),
             ]
           : turn.messages
               .slice(-12)
-              .map((m) => ({ role: m.role, content: m.content }));
+              .map((m) => ({ role: m.role, content: m.content, images: m.images }));
       markBusy();
-      deliverReply(content, history, proj.id, undefined, turnId);
+      deliverReply(content, history, proj.id, undefined, turnId, images);
     },
     [projects, busy, deliverReply, markBusy]
   );

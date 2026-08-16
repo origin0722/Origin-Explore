@@ -6,11 +6,12 @@
  * State flows through AppContext (useApp); no local backend.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChangeEvent, KeyboardEvent } from "react";
+import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
 import {
   Check,
   ChevronDown,
   Globe,
+  ImagePlus,
   Loader2,
   Paperclip,
   Send,
@@ -18,6 +19,12 @@ import {
   Zap,
 } from "lucide-react";
 import { useApp } from "./app-context";
+import {
+  fileToAttachedImage,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGES_PER_MESSAGE,
+} from "@/lib/sites/ai-explore-poker-820d0558/vision";
+import type { AttachedImage } from "@/types/sites/ai-explore-poker-820d0558";
 
 export function InputArea() {
   const {
@@ -41,11 +48,15 @@ export function InputArea() {
   } = useApp();
   const [text, setText] = useState("");
   const [quotes, setQuotes] = useState<string[]>([]);
+  /** 待发送图片（视觉模式；上限 4 张，落盘前由 app-context 剥离 fullDataUrl） */
+  const [images, setImages] = useState<AttachedImage[]>([]);
   const [modelOpen, setModelOpen] = useState(false);
   const [hint, setHint] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const hintTimer = useRef<number | undefined>(undefined);
+  const imgInputRef = useRef<HTMLInputElement>(null);
 
   const allModels = byokModels;
   const activeModel = allModels.find((m) => m.id === settings.activeModelId);
@@ -94,9 +105,63 @@ export function InputArea() {
 
   useEffect(() => () => window.clearTimeout(hintTimer.current), []);
 
+  /** 图片预处理：校验数量/大小 → 降采样 → 加入待发送列表 */
+  const addImageFiles = useCallback(
+    async (files: File[]) => {
+      const imgs = files.filter((f) => f.type.startsWith("image/"));
+      if (imgs.length === 0) return;
+      const room = MAX_IMAGES_PER_MESSAGE - images.length;
+      if (room <= 0) {
+        setAppNotice(`最多发送 ${MAX_IMAGES_PER_MESSAGE} 张图片`);
+        return;
+      }
+      const picked = imgs.slice(0, room);
+      if (imgs.length > room) setAppNotice(`最多发送 ${MAX_IMAGES_PER_MESSAGE} 张，已保留前 ${room} 张`);
+      const oversized = picked.find((f) => f.size > MAX_IMAGE_BYTES);
+      if (oversized) {
+        setAppNotice(`图片「${oversized.name}」超过 10MB，已跳过`);
+      }
+      const ok = picked.filter((f) => f.size <= MAX_IMAGE_BYTES);
+      for (const f of ok) {
+        try {
+          const img = await fileToAttachedImage(f);
+          setImages((list) => [...list, img]);
+        } catch {
+          setAppNotice(`图片「${f.name}」处理失败`);
+        }
+      }
+    },
+    [images.length, setAppNotice]
+  );
+
+  const handleImageInput = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    addImageFiles(files);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(e.clipboardData?.files ?? []).filter((f) =>
+      f.type.startsWith("image/")
+    );
+    if (files.length) {
+      e.preventDefault();
+      addImageFiles(files);
+    }
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (files.some((f) => f.type.startsWith("image/"))) {
+      addImageFiles(files);
+    }
+  };
+
   const handleSend = useCallback(() => {
     const body = text.trim();
-    if ((!body && quotes.length === 0) || busy) return;
+    if ((!body && quotes.length === 0 && images.length === 0) || busy) return;
     if (noModel) {
       setAppNotice("请先在设置 → AI 模型中配置 API 模型");
       return;
@@ -107,15 +172,20 @@ export function InputArea() {
     // 文档视图是独立全屏模式，优先级最高——即使 parallelSendTarget 残留
     // （切视图时未清理的旧发散卡 id），文档提问也绝不发进无关平行会话。
     if (activeDoc) {
+      if (images.length) {
+        setAppNotice("文档解读暂不支持图片");
+        return;
+      }
       sendDocQuestion(content);
     } else if (parallelTurn) {
       // 平行视图聚焦发散卡：消息顺延进该平行对话（独立线程，不打断主对话）。
-      sendInTurn(parallelTurn.id, content);
+      sendInTurn(parallelTurn.id, content, images);
     } else {
-      sendMessage(content);
+      sendMessage(content, images);
     }
     setText("");
     setQuotes([]);
+    setImages([]);
     setModelOpen(false);
     requestAnimationFrame(() => {
       const el = taRef.current;
@@ -124,7 +194,7 @@ export function InputArea() {
         el.style.height = el.scrollHeight + "px";
       }
     });
-  }, [text, quotes, busy, noModel, activeDoc, parallelTurn, sendInTurn, sendDocQuestion, sendMessage, setAppNotice]);
+  }, [text, quotes, images, busy, noModel, activeDoc, parallelTurn, sendInTurn, sendDocQuestion, sendMessage, setAppNotice]);
 
   // Ctrl+Enter (default) or plain Enter when settings.sendShortcut === "enter".
   // Shift+Enter always inserts a newline.
@@ -148,9 +218,17 @@ export function InputArea() {
     <div className="w-full flex justify-center px-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] sm:px-4 sm:pb-0">
       <div
         ref={rootRef}
+        onDragOver={(e) => {
+          if (e.dataTransfer?.types.includes("Files")) {
+            e.preventDefault();
+            setDragOver(true);
+          }
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
         className={`relative bg-inputarea shadow-card border-2 border-std rounded-[28px] p-3 gap-3 flex flex-col w-full max-w-[900px] transition-colors focus-within:border-brand/50 ${
           busy ? "border-brand/60 inputarea-breathe" : ""
-        }`}
+        } ${dragOver ? "border-brand/80 ring-2 ring-brand/30" : ""}`}
       >
         {/* transient hint (document library) */}
         {hint !== null && (
@@ -179,6 +257,35 @@ export function InputArea() {
                   className="shrink-0 rounded-full p-0.5 text-text-quaternary transition-colors hover:bg-item-std-hover hover:text-primary"
                 >
                   <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* 待发送图片缩略图条 */}
+        {images.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {images.map((img) => (
+              <span
+                key={img.id}
+                className="group relative inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border border-brand/30 bg-item-std"
+                title={img.name}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={img.thumbDataUrl}
+                  alt={img.name}
+                  className="h-full w-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => setImages((list) => list.filter((i) => i.id !== img.id))}
+                  aria-label="移除图片"
+                  title="移除图片"
+                  className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                >
+                  <X size={11} />
                 </button>
               </span>
             ))}
@@ -258,6 +365,19 @@ export function InputArea() {
             )}
           </div>
 
+          {/* 图片附件（视觉模式） */}
+          <button
+            type="button"
+            onClick={() => imgInputRef.current?.click()}
+            aria-label="添加图片"
+            title="添加图片（支持粘贴 / 拖拽，最多 4 张）"
+            className={`h-8 w-8 sm:h-[34px] sm:w-[34px] flex-shrink-0 rounded-full bg-btn-inputarea-transparent-hover flex items-center justify-center transition-colors ${
+              images.length ? "text-brand" : "text-text-icon-secondary"
+            }`}
+          >
+            <ImagePlus size={18} />
+          </button>
+
           {/* web-search toggle */}
           <button
             type="button"
@@ -281,6 +401,7 @@ export function InputArea() {
             disabled={noModel}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={
               noModel
                 ? "请先在设置中配置 API 模型…"
@@ -313,7 +434,7 @@ export function InputArea() {
           <button
             type="button"
             onClick={handleSend}
-            disabled={(!text.trim() && quotes.length === 0) || busy || noModel}
+            disabled={(!text.trim() && quotes.length === 0 && images.length === 0) || busy || noModel}
             aria-label="发送"
             className="h-8 w-8 sm:h-[34px] sm:w-[34px] rounded-full bg-btn-inputarea text-brand-fg flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
@@ -346,6 +467,16 @@ export function InputArea() {
         }
         .inputarea-hint { animation: inputarea-hint-fade 1.8s ease-out forwards; }
       `}</style>
+
+      {/* 图片选择 hidden input */}
+      <input
+        ref={imgInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleImageInput}
+        className="hidden"
+      />
     </div>
   );
 }

@@ -708,6 +708,11 @@ body {
 .markdown-content > *:first-child { margin-top: 0; }
 .markdown-content > *:last-child { margin-bottom: 0; }
 .markdown-content > * { animation: fadeIn 1000ms ease-in-out; }
+.markdown-content img {
+  max-width: 100%;
+  border-radius: 0.5rem;
+  display: block;
+}
 .markdown-content .katex svg path {
   stroke: currentColor !important;
   fill: currentColor !important;

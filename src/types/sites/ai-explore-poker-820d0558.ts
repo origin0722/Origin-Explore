@@ -31,6 +31,24 @@ export interface ModelPreset {
   description: string;
   baseUrl: string;
   modelId: string;
+  /** 多模态（支持图片输入）——设置里显示 Vision 徽章，视觉模式 auto 判定用 */
+  vision?: boolean;
+}
+
+/** 对话中附加的图片（视觉模式）。
+    thumbDataUrl 持久化（≤512px JPEG q0.75）；fullDataUrl 仅内存（≤1280px q0.8，落盘前剥离）。 */
+export interface AttachedImage {
+  id: string;
+  name: string;
+  mime: string;
+  /** 缩略图 data URL（持久化） */
+  thumbDataUrl: string;
+  /** 原图降采样 data URL（仅内存，发送后剥离） */
+  fullDataUrl?: string;
+  width: number;
+  height: number;
+  /** SHA-256 内容哈希（视觉缓存 key） */
+  hash: string;
 }
 
 export interface Project {
@@ -51,6 +69,8 @@ export interface Message {
   createdAt: number;
   /** term-linked expansion (child/related/branch cards) */
   linkedCards?: CardRef[];
+  /** 视觉模式：本条消息附带的图片（持久化只含缩略图） */
+  images?: AttachedImage[];
 }
 
 export interface CardRef {
@@ -113,6 +133,10 @@ export interface ChatSettings {
   autoTitleInterval: number;
   sendShortcut: "ctrl-enter" | "enter";
   uiZoom: number;
+  /** 视觉模式：auto（按主模型能力判定）/ native（强制直传原图）/ router（强制视觉模型描述）/ off（禁用图片） */
+  visionMode: "auto" | "native" | "router" | "off";
+  /** 路由模式使用的视觉模型 id（须为 vision=true 的 BYOK 模型） */
+  visionModelId: string | null;
 }
 
 /** Mindscape thought node (user-authored understanding, AI-validated) */

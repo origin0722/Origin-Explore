@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Compass,
   Database,
+  Eye,
   FolderTree,
   GitBranch,
   Keyboard,
@@ -431,6 +432,8 @@ export function SettingsModal() {
   const [byokBaseUrl, setByokBaseUrl] = useState("");
   const [byokModelId, setByokModelId] = useState("");
   const [byokKey, setByokKey] = useState("");
+  /** BYOK 表单：是否视觉（多模态）模型 */
+  const [byokVision, setByokVision] = useState(false);
   // 连通性测试：表单草稿测试 + 已保存模型逐行测试
   const [testingDraft, setTestingDraft] = useState(false);
   const [draftTestResult, setDraftTestResult] = useState<{
@@ -617,6 +620,15 @@ export function SettingsModal() {
                     <p className="text-[10px] text-text-quaternary leading-4">
                       请求发往你填的地址（浏览器直连，密钥不出本机）；添加前可先「测试连接」确认可用。
                     </p>
+                    <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={byokVision}
+                        onChange={(e) => setByokVision(e.target.checked)}
+                        className="h-3.5 w-3.5 accent-brand"
+                      />
+                      这是一个视觉（多模态）模型 —— 可作为「视觉模式」的识图模型（眼睛）
+                    </label>
                     {draftTestResult && (
                       <p
                         className={`text-[11px] ${
@@ -643,6 +655,7 @@ export function SettingsModal() {
                           setByokBaseUrl("");
                           setByokModelId("");
                           setByokKey("");
+                          setByokVision(false);
                         }}
                         className="text-xs text-text-tertiary hover:text-primary px-3 py-1.5 transition-colors"
                       >
@@ -659,6 +672,7 @@ export function SettingsModal() {
                             baseUrl: byokBaseUrl,
                             modelId: byokModelId,
                             apiKey: byokKey,
+                            vision: byokVision,
                           });
                           if (!ok) {
                             showToast("同名模型已存在，请换一个名称");
@@ -668,6 +682,7 @@ export function SettingsModal() {
                           setByokBaseUrl("");
                           setByokModelId("");
                           setByokKey("");
+                          setByokVision(false);
                           setByokOpen(false);
                           showToast("已添加 BYOK 模型");
                         }}
@@ -701,6 +716,71 @@ export function SettingsModal() {
                     }}
                   />
                 ))}
+              </div>
+            )}
+
+            {section === "models" && (
+              <div className="mt-6 rounded-2xl border border-std bg-modal-floating/50 p-4">
+                <h4 className="text-sm font-semibold text-text-header-secondary mb-1">
+                  视觉模式（图片理解）
+                </h4>
+                <p className="text-xs text-text-tertiary mb-3">
+                  发送图片时：多模态主模型直传原图；纯文本主模型则先由「视觉模型」识图，再把描述注入回答。
+                </p>
+                <div className="space-y-1">
+                  <RadioRow
+                    name="settings_vision_mode"
+                    label="自动（推荐）：主模型支持则直传，否则用视觉模型识图"
+                    checked={draft.visionMode === "auto"}
+                    onSelect={() => update({ visionMode: "auto" })}
+                  />
+                  <RadioRow
+                    name="settings_vision_mode"
+                    label="原生：直传原图（需多模态主模型）"
+                    checked={draft.visionMode === "native"}
+                    onSelect={() => update({ visionMode: "native" })}
+                  />
+                  <RadioRow
+                    name="settings_vision_mode"
+                    label="路由：始终用视觉模型识图"
+                    checked={draft.visionMode === "router"}
+                    onSelect={() => update({ visionMode: "router" })}
+                  />
+                  <RadioRow
+                    name="settings_vision_mode"
+                    label="关闭：不允许发送图片"
+                    checked={draft.visionMode === "off"}
+                    onSelect={() => update({ visionMode: "off" })}
+                  />
+                </div>
+                <div className="mt-4">
+                  <div className="text-xs text-text-tertiary mb-1.5">
+                    视觉模型（识图"眼睛"）：{draft.visionMode === "auto" || draft.visionMode === "router" ? "用于路由识图" : "当前模式下不参与"}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {byokModels.filter((m) => m.vision).length === 0 && (
+                      <span className="text-[11px] text-text-quaternary">
+                        还没有视觉模型 —— 添加模型时勾选「视觉（多模态）模型」，或使用预设 GLM-4V-Flash / Qwen-VL-Max
+                      </span>
+                    )}
+                    {byokModels
+                      .filter((m) => m.vision)
+                      .map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => update({ visionModelId: m.id })}
+                          className={`text-[11px] rounded-full border px-2.5 py-1 transition-colors ${
+                            draft.visionModelId === m.id
+                              ? "border-brand/60 bg-brand/10 text-brand"
+                              : "border-std text-text-secondary hover:border-brand/40 hover:text-primary"
+                          }`}
+                        >
+                          {m.name}
+                        </button>
+                      ))}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1259,6 +1339,7 @@ const DOC_SECTIONS: { id: string; label: string; icon: typeof Compass }[] = [
   { id: "universe", label: "思维宇宙", icon: Orbit },
   { id: "reading", label: "文档阅读", icon: BookOpen },
   { id: "smart", label: "智能模式", icon: Sparkles },
+  { id: "vision", label: "视觉模式", icon: Eye },
   { id: "data", label: "数据与备份", icon: Database },
 ];
 
@@ -1501,6 +1582,28 @@ export function UsageDocModal() {
             </DocCard>
             <DocCard icon={Sparkles} title="引用回答">
               选中 AI 回复中的任意文本，可引用到提问框，多条引用叠加提问。
+            </DocCard>
+          </DocSection>
+
+          {/* 视觉模式 */}
+          <DocSection
+            id="vision"
+            title="视觉模式（图片理解）"
+            lead="发送图片，让 AI 看图——即使主模型是纯文本的也能做到。"
+          >
+            <DocCard icon={Eye} title="两种路线（自动判定）">
+              输入框旁 🖼 按钮 / 直接粘贴 / 拖拽图片即可发送。主模型本身支持多模态
+              （如 GPT-5.4、Gemini）→ 原图直传；主模型纯文本（如 DeepSeek）
+              → 先由「视觉模型」识图，再把描述注入回答。
+            </DocCard>
+            <DocCard icon={Eye} title="配置建议">
+              设置 → AI 模型 → 勾选「视觉（多模态）模型」添加识图模型。
+              推荐：DeepSeek 用户配 <span className="text-brand">GLM-4V-Flash</span>
+              （智谱免费档）当"眼睛"；视觉模式选「自动」即可。
+            </DocCard>
+            <DocCard icon={Eye} title="省流机制">
+              图片自动降采样后发送；同一张图二次发送命中本地缓存（不重复识图）；
+              历史对话里的旧图会降级为文字描述，控制请求体量。图片仅存缩略图在本机。
             </DocCard>
           </DocSection>
 

@@ -24,15 +24,18 @@ import type {
 export const MODEL_PRESETS: ModelPreset[] = [
   { name: "DeepSeek V4 Pro", provider: "DeepSeek", description: "旗舰推理，1M 上下文", baseUrl: "https://api.deepseek.com/v1", modelId: "deepseek-v4-pro" },
   { name: "DeepSeek V4 Flash", provider: "DeepSeek", description: "高性价比，低延迟", baseUrl: "https://api.deepseek.com/v1", modelId: "deepseek-v4-flash" },
-  { name: "GPT-5.4", provider: "OpenAI", description: "OpenAI 当前旗舰", baseUrl: "https://api.openai.com/v1", modelId: "gpt-5.4" },
-  { name: "GPT-5.4 mini", provider: "OpenAI", description: "轻量快速，成本低", baseUrl: "https://api.openai.com/v1", modelId: "gpt-5.4-mini" },
-  { name: "Claude Sonnet 4.6", provider: "Anthropic", description: "平衡性能与成本", baseUrl: "https://api.anthropic.com/v1", modelId: "claude-sonnet-4-6" },
-  { name: "Gemini 3.1 Pro", provider: "Google", description: "最新旗舰（预览）", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", modelId: "gemini-3.1-pro-preview" },
-  { name: "Gemini 2.5 Flash", provider: "Google", description: "快速多模态", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", modelId: "gemini-2.5-flash" },
+  { name: "GPT-5.4", provider: "OpenAI", description: "OpenAI 当前旗舰", baseUrl: "https://api.openai.com/v1", modelId: "gpt-5.4", vision: true },
+  { name: "GPT-5.4 mini", provider: "OpenAI", description: "轻量快速，成本低", baseUrl: "https://api.openai.com/v1", modelId: "gpt-5.4-mini", vision: true },
+  { name: "Claude Sonnet 4.6", provider: "Anthropic", description: "平衡性能与成本（多模态）", baseUrl: "https://api.anthropic.com/v1", modelId: "claude-sonnet-4-6", vision: true },
+  { name: "Gemini 3.1 Pro", provider: "Google", description: "最新旗舰（预览）", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", modelId: "gemini-3.1-pro-preview", vision: true },
+  { name: "Gemini 2.5 Flash", provider: "Google", description: "快速多模态", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", modelId: "gemini-2.5-flash", vision: true },
   { name: "Qwen3 Max", provider: "阿里云", description: "通义千问旗舰", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", modelId: "qwen3-max" },
   { name: "GLM-4.6", provider: "智谱 AI", description: "中文友好", baseUrl: "https://open.bigmodel.cn/api/paas/v4", modelId: "glm-4.6" },
   { name: "Kimi K2.5", provider: "月之暗面", description: "超长上下文", baseUrl: "https://api.moonshot.cn/v1", modelId: "kimi-k2.5" },
-  { name: "MiniMax M2.7", provider: "MiniMax", description: "新一代推理模型", baseUrl: "https://api.minimax.io/v1", modelId: "MiniMax-M2.7" },
+  { name: "MiniMax M2.7", provider: "MiniMax", description: "新一代推理模型（多模态）", baseUrl: "https://api.minimax.io/v1", modelId: "MiniMax-M2.7", vision: true },
+  // 视觉专用预设（路由模式"眼睛"，主模型纯文本时配一个即可）
+  { name: "GLM-4V-Flash", provider: "智谱 AI", description: "视觉理解（免费档，适合当眼睛）", baseUrl: "https://open.bigmodel.cn/api/paas/v4", modelId: "glm-4v-flash", vision: true },
+  { name: "Qwen-VL-Max", provider: "阿里云", description: "通义千问视觉旗舰", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", modelId: "qwen-vl-max", vision: true },
 ];
 
 /** 九种颜色主题：赛博青（默认）、白蓝、暗紫霓虹、琥珀暖橙、纸墨风、品红、森林绿、海洋蓝、玫瑰金。 */
@@ -81,6 +84,8 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   autoTitleEnabled: true,
   sendShortcut: "ctrl-enter",
   uiZoom: 1,
+  visionMode: "auto",
+  visionModelId: null,
 };
 
 /** A demo conversation used to showcase the knowledge-tree card (mock AI reply). */
