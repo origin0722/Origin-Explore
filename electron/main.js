@@ -12,7 +12,7 @@
  * - 渲染进程崩溃自动重载（指数退避，避免 reload 风暴）。
  * - 全链路日志写入 userData/explore.log。
  */
-const { app, BrowserWindow, utilityProcess, dialog, shell } = require("electron");
+const { app, BrowserWindow, utilityProcess, dialog, shell, ipcMain } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const http = require("node:http");
@@ -63,9 +63,73 @@ app.on("child-process-gone", (_ev, details) => {
   }
 });
 
-const PORT_RANGE_START = 3210;
+// 端口策略：
+// - 3210 保留给网站预览（npm run start:web），桌面版不占用。
+// - 桌面版端口 3211-3225。首次启动选一个空闲端口并写入 userData/explore-port.json，
+//   之后每次启动优先复用该端口 —— 保证页面 origin（协议+域名+端口）不变，
+//   localStorage 数据（API 配置、对话、记忆）在重启后依然存在。
+//   仅当保存的端口被其它程序占用时才换新端口（并更新记录）。
+const PORT_RANGE_START = 3211;
 const PORT_RANGE_END = 3225;
 const HOST = "127.0.0.1";
+
+/** 记住的端口文件（userData/explore-port.json） */
+function portFile() {
+  try {
+    return path.join(app.getPath("userData"), "explore-port.json");
+  } catch {
+    return null;
+  }
+}
+function savedPort() {
+  const f = portFile();
+  if (!f) return null;
+  try {
+    const port = JSON.parse(fs.readFileSync(f, "utf8")).port;
+    return typeof port === "number" && port >= PORT_RANGE_START && port <= PORT_RANGE_END ? port : null;
+  } catch {
+    return null;
+  }
+}
+function savePort(port) {
+  const f = portFile();
+  if (!f) return;
+  try {
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, JSON.stringify({ port }));
+  } catch (e) {
+    log(`savePort failed: ${e.message}`);
+  }
+}
+/** 单端口占用检测 */
+function isPortFree(port) {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.unref();
+    srv.once("error", () => resolve(false));
+    srv.listen(port, HOST, () => {
+      srv.close(() => resolve(true));
+    });
+  });
+}
+
+/**
+ * 选端口：优先复用已保存的端口（保证数据 origin 稳定）；
+ * 被占用时在 3211-3225 中挑一个空闲的并更新记录。全部占用返回 null。
+ */
+async function pickStablePort() {
+  const saved = savedPort();
+  if (saved != null && (await isPortFree(saved))) {
+    return saved;
+  }
+  for (let port = PORT_RANGE_START; port <= PORT_RANGE_END; port++) {
+    if (await isPortFree(port)) {
+      savePort(port);
+      return port;
+    }
+  }
+  return null;
+}
 
 /** 定位 Next standalone 目录：打包后 = resources/next；开发 = 项目 .next/standalone。
     用 app.isPackaged 显式判定，避免依赖 cwd。 */
@@ -95,26 +159,82 @@ function log(msg) {
 process.on("uncaughtException", (e) => log(`uncaughtException: ${(e && e.stack) || e}`));
 process.on("unhandledRejection", (e) => log(`unhandledRejection: ${(e && e.stack) || e}`));
 
-/**
- * 动态选择空闲端口（避免与用户机器上的其他程序冲突导致"服务器启动超时"）。
- * 全部占用时返回 null（由调用方给出明确错误，而不是静默回退到被占端口）。
- */
-async function pickFreePort() {
-  for (let port = PORT_RANGE_START; port <= PORT_RANGE_END; port++) {
-    const free = await new Promise((resolve) => {
-      const srv = net.createServer();
-      srv.unref();
-      srv.once("error", () => resolve(false));
-      srv.listen(port, HOST, () => {
-        srv.close(() => resolve(true));
-      });
-    });
-    if (free) return port;
+// ---------------- IPC（renderer ⇄ main 最小桥接） ----------------
+// 关于页展示：应用版本 + 数据保存目录；"打开文件夹"按钮。
+ipcMain.handle("app-info", () => ({
+  version: app.getVersion(),
+  userData: app.getPath("userData"),
+}));
+ipcMain.handle("open-user-data", async () => {
+  try {
+    await shell.openPath(app.getPath("userData"));
+    return true;
+  } catch (e) {
+    log(`openPath failed: ${e.message}`);
+    return false;
   }
-  return null;
+});
+
+// ---------------- 持久化数据文件（根治 localStorage 的 origin 隔离/配额问题） ----------------
+// 渲染进程把完整状态 JSON 落到 userData/explore-state-v1.json：
+// - 读：sendSync（boot 时一次）；文件不存在/损坏/超大 → null（前端回落 localStorage 播种，首次保存即迁移）
+// - 写：异步 invoke；校验类型与长度上限，tmp + rename 原子替换，失败记 log 并返回 false
+const STATE_FILE = "explore-state-v1.json"; // 与前端 STORAGE_KEY 的 v1 对齐
+const STATE_MAX_BYTES = 20 * 1024 * 1024; // 20MB 上限（超出视为异常，拒绝读写）
+
+function stateFilePath() {
+  try {
+    return path.join(app.getPath("userData"), STATE_FILE);
+  } catch {
+    return null;
+  }
 }
 
-/** 等待本地服务器就绪（最多 timeoutMs） */
+ipcMain.on("storage:read", (e) => {
+  const f = stateFilePath();
+  if (!f) {
+    e.returnValue = null;
+    return;
+  }
+  try {
+    const size = fs.statSync(f).size;
+    if (size > STATE_MAX_BYTES) {
+      log(`storage:read ignored (file too large: ${size} bytes)`);
+      e.returnValue = null;
+      return;
+    }
+    e.returnValue = fs.readFileSync(f, "utf8");
+  } catch {
+    e.returnValue = null; // 不存在/不可读 → 前端回落 localStorage
+  }
+});
+
+ipcMain.handle("storage:write", (_e, json) => {
+  const f = stateFilePath();
+  if (!f) return false;
+  if (typeof json !== "string") {
+    log("storage:write rejected (not a string)");
+    return false;
+  }
+  const bytes = Buffer.byteLength(json, "utf8");
+  if (bytes > STATE_MAX_BYTES) {
+    log(`storage:write rejected (too large: ${bytes} bytes)`);
+    return false;
+  }
+  try {
+    const tmp = `${f}.tmp`;
+    fs.writeFileSync(tmp, json, "utf8");
+    fs.renameSync(tmp, f); // 同目录原子替换（Windows MoveFileEx REPLACE_EXISTING）
+    return true;
+  } catch (err) {
+    log(`storage:write failed: ${err.message}`);
+    return false;
+  }
+});
+
+/**
+ * 等待本地服务器就绪（最多 timeoutMs）
+ */
 function waitForServer(port, timeoutMs = 60000) {
   const deadline = Date.now() + timeoutMs;
   return new Promise((resolve, reject) => {
@@ -188,8 +308,8 @@ async function restartServerFlow() {
   if (restarting) return;
   restarting = true;
   try {
-    const PORT = await pickFreePort();
-    if (PORT == null) throw new Error("端口 3210-3225 全部被占用");
+    const PORT = await pickStablePort();
+    if (PORT == null) throw new Error("端口 3211-3225 全部被占用");
     log(`restart using port ${PORT}`);
     startServer(serverRoot(), path.join(serverRoot(), "server.js"), PORT);
     await waitForServer(PORT);
@@ -226,6 +346,7 @@ app.whenReady().then(async () => {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, "preload.js"),
     },
   });
   const loadingHtml = path.join(__dirname, "loading.html");
@@ -283,7 +404,7 @@ async function bootstrapServer(win) {
   const serverEntry = path.join(root, "server.js");
 
   for (let attempt = 0; ; attempt++) {
-    const PORT = await pickFreePort();
+    const PORT = await pickStablePort();
     if (PORT == null) {
       log("all ports busy");
       const choice = dialog.showMessageBoxSync({
@@ -299,7 +420,8 @@ async function bootstrapServer(win) {
       app.quit();
       return;
     }
-    log(`using port ${PORT}`);
+    const saved = savedPort();
+    log(`using port ${PORT}${saved === PORT ? " (stable/reused)" : ""}`);
 
     startServer(root, serverEntry, PORT);
 

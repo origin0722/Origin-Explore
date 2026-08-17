@@ -18,6 +18,7 @@ import {
 } from "react";
 import ReactMarkdown from "react-markdown";
 import {
+  ArrowDown,
   BookmarkPlus,
   ChevronLeft,
   ChevronRight,
@@ -31,12 +32,13 @@ import {
   Quote,
   Scissors,
   Send,
+  Square,
   Star,
   Trash2,
   X,
 } from "lucide-react";
 import { useApp, streamOpenAICompatible } from "./app-context";
-import { explorationChains, type ExploreEntry } from "./turn-graph";
+import { explorationChains } from "./turn-graph";
 import { findTerm, GLOSSARY } from "@/lib/sites/ai-explore-poker-820d0558/mock";
 import type { AttachedImage, Message, StackItem, TermNode, Turn } from "@/types/sites/ai-explore-poker-820d0558";
 
@@ -206,6 +208,48 @@ function LinkWrap({ node, children }: { node?: unknown; children?: ReactNode }) 
 }
 
 /* ------------------------------------------------------------------ */
+/* useStickScroll — 贴底跟随 + 上滚固定查看（流式期间可上滚阅读）        */
+/* ------------------------------------------------------------------ */
+
+interface StickScroll {
+  stickRef: React.RefObject<boolean>;
+  showJump: boolean;
+  onScroll: () => void;
+  scrollToBottom: () => void;
+}
+
+/**
+ * 滚动容器贴底状态管理：
+ * - 用户滚动离开底部（距底 > 80px）→ 贴底 false，出现「回到底部」按钮；
+ * - 回到底部 → 贴底 true，按钮隐藏；
+ * - scrollToBottom()：平滑滚底并恢复贴底（用于点击回底按钮 / 发送消息后强制跟随）。
+ * showJump 仅在值变化时 setState，避免滚动事件高频触发重渲染。
+ */
+function useStickScroll(scrollRef: React.RefObject<HTMLDivElement | null>): StickScroll {
+  const stickRef = useRef(true);
+  const [showJump, setShowJump] = useState(false);
+
+  const onScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (nearBottom !== stickRef.current) {
+      stickRef.current = nearBottom;
+      setShowJump(!nearBottom);
+    }
+  }, [scrollRef]);
+
+  const scrollToBottom = useCallback(() => {
+    stickRef.current = true;
+    setShowJump(false);
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [scrollRef]);
+
+  return { stickRef, showJump, onScroll, scrollToBottom };
+}
+
+/* ------------------------------------------------------------------ */
 /* TermCard — one layer of the recursive term tree                     */
 /* ------------------------------------------------------------------ */
 
@@ -222,18 +266,23 @@ interface TermCardProps {
   /** 发散卡片：以本术语开平行会话（不打断当前对话） */
   onDiverge(): void;
   onAsk(question: string): void;
+  /** 停止卡内流式生成（busy 时显示停止按钮） */
+  onStop?(): void;
 }
 
-function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect, onBranch, onDiverge, onAsk }: TermCardProps) {
+function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect, onBranch, onDiverge, onAsk, onStop }: TermCardProps) {
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const stick = useStickScroll(scrollRef);
 
-  // 自动滚底（随回复增长）。
+  // 自动滚底（随回复增长）：仅当用户贴底时跟随（上滚阅读不拉回）。
   const lastLen = messages[messages.length - 1]?.content.length ?? 0;
   useEffect(() => {
+    if (!stick.stickRef.current) return;
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stick.stickRef 是稳定 ref，非依赖
   }, [lastLen, messages.length, busy]);
 
   const send = () => {
@@ -241,6 +290,8 @@ function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect,
     if (!q || busy) return;
     setInput("");
     onAsk(q);
+    // 发送后强制贴底：回复流式到达时保持跟随（若用户之前上滚过，这里恢复）。
+    stick.scrollToBottom();
     requestAnimationFrame(() => {
       const el = taRef.current;
       if (el) {
@@ -310,6 +361,7 @@ function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect,
       {/* 卡片对话区：术语摘要 + 卡内问答 */}
       <div
         ref={scrollRef}
+        onScroll={stick.onScroll}
         className="mind-md flex-1 min-h-0 overflow-y-auto scrollbar-card-std px-4 py-3"
       >
         {node.summary && (
@@ -363,6 +415,19 @@ function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect,
 
       {/* 卡内输入条 */}
       <div className="shrink-0 border-t border-divider p-3">
+        {stick.showJump && (
+          <div className="pb-2 -mx-1 flex justify-end">
+            <button
+              type="button"
+              onClick={stick.scrollToBottom}
+              title="回到底部"
+              className="flex items-center gap-1 rounded-full border border-std bg-btn-std px-2.5 py-1 text-[11px] text-text-secondary shadow-card transition-colors hover:text-primary"
+            >
+              <ArrowDown size={11} />
+              回到底部
+            </button>
+          </div>
+        )}
         <div className="flex items-end gap-2">
           <textarea
             ref={taRef}
@@ -383,15 +448,27 @@ function TermCard({ node, messages, busy, path, onClose, onTermClick, onCollect,
             placeholder={`在「${node.term}」里继续问…（Enter 发送）`}
             className="block w-full min-h-0 flex-1 bg-inputarea border border-std rounded-xl px-3 py-2 text-sm resize-none outline-none focus:border-brand/50 placeholder:text-text-quaternary scrollbar-inputarea max-h-[120px] overflow-y-auto"
           />
-          <button
-            type="button"
-            onClick={send}
-            disabled={!input.trim() || busy}
-            aria-label="发送"
-            className="h-9 w-9 rounded-full bg-btn-inputarea text-brand-fg flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
-          >
-            {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} strokeWidth={2.5} />}
-          </button>
+          {busy && onStop ? (
+            <button
+              type="button"
+              onClick={onStop}
+              aria-label="停止生成"
+              title="停止生成"
+              className="h-9 w-9 rounded-full bg-btn-std text-text-secondary flex items-center justify-center hover:text-destructive transition shrink-0"
+            >
+              <Square size={14} strokeWidth={2.5} fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={send}
+              disabled={!input.trim() || busy}
+              aria-label="发送"
+              className="h-9 w-9 rounded-full bg-btn-inputarea text-brand-fg flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
+            >
+              {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} strokeWidth={2.5} />}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -406,7 +483,6 @@ export function ChatCard() {
   const {
     turns,
     busy,
-    mainBusy,
     isTurnBusy,
     streamingTurnId,
     projects,
@@ -424,7 +500,6 @@ export function ChatCard() {
     openModal,
     byokModels,
     settings,
-    pendingQuote,
     setPendingQuote,
     setAppNotice,
     memorySystemPrompt,
@@ -436,6 +511,8 @@ export function ChatCard() {
     setParallelSendTarget,
     setTreeFocus,
     sendInTurn,
+    stopTurn,
+    registerStreamController,
     removeTurn,
     clearResidentChat,
     cardOpenRequest,
@@ -461,6 +538,8 @@ export function ChatCard() {
   /** 正在飞行中的自动问（term），防止并发重复请求。 */
   const autoAskInflight = useRef(new Set<string>());
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** 贴底跟随 + 上滚固定查看（onScroll 维护；流式中上滚不被拉回，出现回底按钮） */
+  const stick = useStickScroll(scrollRef);
   /** term card closing animation state (exit class applied, then unmount) */
   const [termClosing, setTermClosing] = useState<string | null>(null);
   /** 选中 AI 回复文本 → 引用：浮动"引用"按钮的位置与内容 */
@@ -528,7 +607,6 @@ export function ChatCard() {
       ),
     [turns]
   );
-  const stickToBottom = useRef(true);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -541,7 +619,15 @@ export function ChatCard() {
         : streaming?.kind === "diverge" &&
           streaming.divergeSourceId === view.sourceId &&
           view.cardId === streaming.id;
-    if (stickToBottom.current && inFocus) el.scrollTop = el.scrollHeight;
+    // 用户刚发送（聚焦视图的最后一条消息是 user）→ 强制贴底，保证发消息后总能跟随。
+    const focusTurn =
+      view.kind === "stream"
+        ? streamTurns[streamTurns.length - 1] ?? null
+        : turns.find((t) => t.id === view.cardId) ?? null;
+    const lastMsg = focusTurn?.messages[focusTurn.messages.length - 1];
+    if (lastMsg?.role === "user") stick.stickRef.current = true;
+    if (stick.stickRef.current && inFocus) el.scrollTop = el.scrollHeight;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stick.stickRef 是稳定 ref，非依赖
   }, [lastMsgLen, turns, view, streamingTurnId]);
 
   // 新回复完成时，若目标轮次不在当前视图视野内 → 标记未读。
@@ -977,7 +1063,14 @@ export function ChatCard() {
       lastFlush = Date.now();
     };
     const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 15000);
+    // 注册进全局停止表（key = 卡片 key）：主界面「停止」/平行停止可中止卡内流式。
+    const unregister = registerStreamController(key, controller);
+    // 15s 内没有任何增量 -> 放弃（timedOut 用于区分「超时」与「用户停止」）。
+    let timedOut = false;
+    const timer = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 15000);
     streamOpenAICompatible(
       byok,
       context,
@@ -991,23 +1084,33 @@ export function ChatCard() {
     )
       .then(() => {
         window.clearTimeout(timer);
+        unregister();
         flushPatch(); // 强制 flush 最后一节
         patch(key, (i) => ({ ...i, busy: false }));
         remember(acc);
         clearInflight();
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         window.clearTimeout(timer);
-        setAppNotice("API 请求失败：请检查模型配置或网络");
-        const fallback = `> ⚠️ API 请求失败，请检查 API 地址 / Key 是否正确，或稍后重试。`;
+        unregister();
+        const why =
+          err instanceof Error && err.name === "AbortError"
+            ? timedOut
+              ? "请求超时"
+              : "已停止"
+            : err instanceof Error && err.message
+              ? err.message
+              : "网络错误";
+        // 保留已流式部分，末尾标注中断原因（与主对话 deliverReply 行为对齐）。
+        const tail = `\n\n> ⚠️ ${why === "已停止" ? "已手动停止生成，以上为已生成的内容。" : `API 请求中断（${why}），以上为中断前已生成的内容。`}`;
         patch(key, (i) => ({
           ...i,
           busy: false,
           messages: i.messages.map((m, mi) =>
-            mi === i.messages.length - 1 ? { ...m, content: fallback } : m
+            mi === i.messages.length - 1 ? { ...m, content: acc ? `${acc}${tail}` : `> ⚠️ API 请求失败（${why}）。请检查 API 地址 / Key 是否正确，或稍后重试。` } : m
           ),
         }));
-        // 失败不写 autoAskCache：错误文本不应被缓存为"术语知识"（本会话内可重试）
+        // 失败/中断不写 autoAskCache：错误文本不应被缓存为"术语知识"（本会话内可重试）
         clearInflight();
       });
   };
@@ -1040,10 +1143,11 @@ export function ChatCard() {
     setTermStack([]);
   };
 
-  /** Divergence card → 以术语开"平行会话"（不打断当前对话）：保留卡片栈。
+  /** Divergence card → 以术语开"平行会话"（不打断当前对话）。
       携带来源锚点上下文：来源轮次标题 + 术语所在的那条 AI 消息段落，
       让平行会话知道术语的来源语境（如"工业革命语境下的煤炭"）。
-      新建或复用均滑动聚焦到该发散卡片。 */
+      新建或复用均滑动聚焦到该发散卡片，并清空卡片栈——卡片层是覆盖式悬浮层，
+      不收起会一直盖住平行会话视图（与 handleBranch 行为对齐）。 */
   const handleDiverge = (item: StackItem) => {
     const sourceTurn = turns.find((t) => t.id === item.sourceTurnId) ?? null;
     let anchorText: string | undefined;
@@ -1063,6 +1167,7 @@ export function ChatCard() {
         ? `✓ 已创建发散卡片「${item.node.term}」`
         : `已有同主题发散卡片「${item.node.term}」，已跳转`
     );
+    setTermStack([]);
   };
 
   /** 调整分支点：把分支轮次的分叉位置改到上游第 index 条消息之后，
@@ -1266,6 +1371,7 @@ export function ChatCard() {
             {/* ---------- scrollable turn list ---------- */}
             <div
               ref={scrollRef}
+              onScroll={stick.onScroll}
               className="absolute inset-0 overflow-y-auto scrollbar-card-std pt-[52px] pl-4 pb-6 pr-4"
             >
               {turns.length === 0 ? (
@@ -1753,6 +1859,19 @@ export function ChatCard() {
               )}
             </div>
 
+            {/* 上滚后「回到底部」悬浮按钮：层级低于术语卡层（z-20+） */}
+            {stick.showJump && (
+              <button
+                type="button"
+                onClick={stick.scrollToBottom}
+                className="absolute bottom-5 right-5 z-[15] flex items-center gap-1.5 rounded-full border border-std bg-btn-std px-3 py-1.5 text-xs text-text-secondary shadow-card transition-colors hover:bg-btn-std-hover hover:text-primary"
+                title="回到底部"
+              >
+                <ArrowDown size={13} />
+                {busy ? "新回复" : "回到底部"}
+              </button>
+            )}
+
             {/* floating "引用" button over the selection (上下文管理) */}
             {quoteSel && (
               <button
@@ -1803,6 +1922,7 @@ export function ChatCard() {
                       onBranch={() => handleBranch(item)}
                       onDiverge={() => handleDiverge(item)}
                       onAsk={(q) => askInCard(key, q, { node, path, messages, busy: cardBusy })}
+                      onStop={() => stopTurn(key)}
                     />
                   </div>
                   );

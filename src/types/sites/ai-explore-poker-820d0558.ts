@@ -220,13 +220,14 @@ export interface DocumentItem {
 export type TermState = "unseen" | "asked" | "mastered";
 
 /** 个人记忆条目：AI 应记住的"关于我"的事实。
-    source = manual（用户在设置里手动添加）/ auto（系统从档案/掌握度/概念自动汇总）。 */
+    source 目前仅 manual（用户在设置里手动添加）；"auto"（系统自动汇总）为预留值，
+    历史上从未写入，读取侧也只过滤 manual。 */
 export interface MemoryItem {
   id: string;
   text: string;
   /** 可选分类：职业 / 兴趣 / 背景 / 其他 */
   category?: string;
-  source: "manual" | "auto";
+  source: "manual";
   createdAt: number;
 }
 
@@ -237,12 +238,14 @@ export interface UIState {
   onboardingDone: boolean;
 }
 
-/** 全量备份包（导出/导入：所有项目 + 思维宇宙 + 文档 + 术语状态 + 文件夹 + 档案 + 记忆 + 设置）。
-    与旧的"项目级"导出（{ title, turns }）并存：导入时两种格式都识别。 */
+/** 全量备份包（导出/导入：所有项目 + 思维宇宙 + 文档 + 术语状态 + 文件夹 + 档案 + 记忆 + 设置 + 可选 BYOK 密钥）。
+    与旧的"项目级"导出（{ title, turns }）并存：导入时两种格式都识别。
+    keysIncluded：导出时是否包含 BYOK 模型的 API Key（默认不含，更安全）。 */
 export interface BackupEnvelope {
   app: "explore-backup";
   version: 1;
   exportedAt: number;
+  keysIncluded?: boolean;
   data: {
     projects: ChatProject[];
     thoughtNodes: ThoughtNode[];
@@ -253,5 +256,6 @@ export interface BackupEnvelope {
     memories?: MemoryItem[];
     termStack?: StackItem[];
     settings: ChatSettings;
+    byokModels?: ByokModel[];
   };
 }

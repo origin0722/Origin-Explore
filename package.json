@@ -1,6 +1,6 @@
 {
   "name": "origin-explore",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "main": "electron/main.js",
   "description": "OriginExplore — AI 结构化思维与知识探索工具（纯前端 + BYOK + 桌面版）",
@@ -47,6 +47,7 @@
     },
     "files": [
       "electron/main.js",
+      "electron/preload.js",
       "electron/loading.html",
       "package.json",
       "!node_modules/**/*"
@@ -63,12 +64,6 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
       "icon": "build/icon.png"
@@ -80,10 +75,7 @@
       "deleteAppDataOnUninstall": false,
       "artifactName": "OriginExplore-${version}-setup.exe"
     },
-    "compression": "maximum",
-    "portable": {
-      "artifactName": "OriginExplore-${version}-portable.exe"
-    }
+    "compression": "maximum"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

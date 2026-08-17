@@ -27,6 +27,7 @@ import {
   Network,
   Orbit,
   Palette,
+  Pencil,
   Plus,
   Sparkles,
   Star,
@@ -309,6 +310,7 @@ function ModelRow({
   selected,
   onSelect,
   onRemove,
+  onEdit,
   onTest,
   testState,
 }: {
@@ -316,6 +318,7 @@ function ModelRow({
   selected: boolean;
   onSelect(): void;
   onRemove?: () => void;
+  onEdit?: () => void;
   onTest?: () => void;
   testState?: { testing: boolean; result: { ok: boolean; message: string } | null };
 }) {
@@ -386,6 +389,20 @@ function ModelRow({
               </span>
             </>
           )}
+          {model.provider === "BYOK" && onEdit && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation(); // 不触发行选中
+                onEdit();
+              }}
+              aria-label={`编辑模型 ${model.name}`}
+              title="编辑该模型（可修改名称/地址/Key）"
+              className="w-6 h-6 rounded flex items-center justify-center text-text-tertiary hover:text-brand transition-colors"
+            >
+              <Pencil size={13} />
+            </button>
+          )}
           {model.provider === "BYOK" && onRemove && (
             <button
               type="button"
@@ -416,6 +433,7 @@ export function SettingsModal() {
     openModal,
     byokModels,
     addByokModel,
+    updateByokModel,
     removeByokModel,
     profile,
     memories,
@@ -423,6 +441,8 @@ export function SettingsModal() {
     removeMemory,
     termStates,
     thoughtNodes,
+    updateInfo,
+    refreshUpdateInfo,
   } =
     useApp();
   const [draft, setDraft] = useState<ChatSettings>(settings);
@@ -436,6 +456,8 @@ export function SettingsModal() {
   const [byokKey, setByokKey] = useState("");
   /** BYOK 表单：是否视觉（多模态）模型 */
   const [byokVision, setByokVision] = useState(false);
+  /** BYOK 表单：正在编辑的模型 id（null = 新增模式） */
+  const [editingId, setEditingId] = useState<string | null>(null);
   // 连通性测试：表单草稿测试 + 已保存模型逐行测试
   const [testingDraft, setTestingDraft] = useState(false);
   const [draftTestResult, setDraftTestResult] = useState<{
@@ -467,33 +489,61 @@ export function SettingsModal() {
     setTestingId(null);
   };
 
+  /** 清空 BYOK 表单并关闭（新增/编辑共用） */
+  const resetByokForm = () => {
+    setByokName("");
+    setByokBaseUrl("");
+    setByokModelId("");
+    setByokKey("");
+    setByokVision(false);
+    setEditingId(null);
+    setByokOpen(false);
+    setDraftTestResult(null);
+  };
+
+  /** 进入编辑模式：把已有模型回填到表单（密钥掩码显示，可直接覆盖） */
+  const startEdit = (m: ByokModel) => {
+    setByokName(m.name);
+    setByokBaseUrl(m.baseUrl);
+    setByokModelId(m.modelId === m.name ? "" : m.modelId);
+    setByokKey(m.apiKey);
+    setByokVision(m.vision ?? false);
+    setEditingId(m.id);
+    setByokOpen(true);
+    setDraftTestResult(null);
+  };
+
   // 个人记忆：手动添加输入
   const [memoryText, setMemoryText] = useState("");
   const [memoryCat, setMemoryCat] = useState("");
 
-  // 关于：版本检查
+  // 关于：版本检查（结果共享全局 updateInfo —— 侧边栏「设置」红点与这里同源；
+  // 启动时已自动检查过，打开设置即可看到，无需再点按钮）
   const [checkingVersion, setCheckingVersion] = useState(false);
-  const [versionInfo, setVersionInfo] = useState<{
-    current: string;
-    latest: string | null;
-    hasUpdate: boolean;
-    releaseUrl: string | null;
-    publishedAt: string | null;
-  } | null>(null);
   const [versionError, setVersionError] = useState<string | null>(null);
+
+  // 桌面端数据目录（仅打包后的 Electron 存在 exploreDesktop 桥；网页版无此信息）
+  const [desktopInfo, setDesktopInfo] = useState<{
+    version: string;
+    userData: string;
+  } | null>(null);
+  useEffect(() => {
+    const bridge = (window as unknown as { exploreDesktop?: { getAppInfo(): Promise<{ version: string; userData: string }> } })
+      .exploreDesktop;
+    if (bridge?.getAppInfo) {
+      bridge
+        .getAppInfo()
+        .then((info) => setDesktopInfo(info))
+        .catch(() => {});
+    }
+  }, []);
 
   const checkVersion = async () => {
     setCheckingVersion(true);
     setVersionError(null);
-    try {
-      const res = await fetch("/api/version");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setVersionInfo((await res.json()) as typeof versionInfo);
-    } catch {
-      setVersionError("检查失败：无法连接更新服务");
-    } finally {
-      setCheckingVersion(false);
-    }
+    const ok = await refreshUpdateInfo();
+    if (!ok) setVersionError("检查失败：无法连接更新服务");
+    setCheckingVersion(false);
   };
 
   const submitMemory = () => {
@@ -551,7 +601,12 @@ export function SettingsModal() {
                     : "bg-btn-std text-text-secondary"
                 }`}
               >
-                <item.icon size={12} />
+                <span className="relative flex-shrink-0">
+                  <item.icon size={12} />
+                  {item.id === "about" && updateInfo?.hasUpdate && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-destructive ring-2 ring-btn-std" />
+                  )}
+                </span>
                 {item.label}
               </button>
             ))}
@@ -572,7 +627,12 @@ export function SettingsModal() {
                         : "text-text-secondary hover:bg-item-std hover:text-primary"
                     }`}
                   >
-                    <item.icon size={15} className="flex-shrink-0" />
+                    <span className="relative flex-shrink-0">
+                    <item.icon size={15} />
+                    {item.id === "about" && updateInfo?.hasUpdate && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-destructive ring-2 ring-modal-std" />
+                    )}
+                  </span>
                     {item.label}
                   </button>
                 </li>
@@ -600,6 +660,16 @@ export function SettingsModal() {
 
                 {byokOpen && (
                   <div className="mb-4 p-3 bg-modal-floating border border-std rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-text-header-secondary">
+                        {editingId ? "编辑 BYOK 模型" : "添加 BYOK 模型"}
+                      </span>
+                      {editingId && (
+                        <span className="text-[10px] text-text-tertiary">
+                          正在编辑：{byokModels.find((m) => m.id === editingId)?.name}
+                        </span>
+                      )}
+                    </div>
                     {/* 预设一键填充（OpenAI 兼容接口） */}
                     <div className="flex flex-wrap gap-1.5">
                       {MODEL_PRESETS.map((p) => (
@@ -676,14 +746,8 @@ export function SettingsModal() {
                         {testingDraft ? "测试中…" : "测试连接"}
                       </button>
                       <button
-                        onClick={() => {
-                          setByokOpen(false);
-                          setByokName("");
-                          setByokBaseUrl("");
-                          setByokModelId("");
-                          setByokKey("");
-                          setByokVision(false);
-                        }}
+                        type="button"
+                        onClick={resetByokForm}
                         className="text-xs text-text-tertiary hover:text-primary px-3 py-1.5 transition-colors"
                       >
                         取消
@@ -694,28 +758,26 @@ export function SettingsModal() {
                             showToast("请填写模型名称");
                             return;
                           }
-                          const ok = addByokModel({
+                          const input = {
                             name: byokName,
                             baseUrl: byokBaseUrl,
                             modelId: byokModelId,
                             apiKey: byokKey,
                             vision: byokVision,
-                          });
+                          };
+                          const ok = editingId
+                            ? updateByokModel(editingId, input)
+                            : addByokModel(input);
                           if (!ok) {
                             showToast("同名模型已存在，请换一个名称");
                             return;
                           }
-                          setByokName("");
-                          setByokBaseUrl("");
-                          setByokModelId("");
-                          setByokKey("");
-                          setByokVision(false);
-                          setByokOpen(false);
-                          showToast("已添加 BYOK 模型");
+                          showToast(editingId ? "✓ 已保存修改" : "已添加 BYOK 模型");
+                          resetByokForm();
                         }}
                         className="text-xs text-brand-fg bg-brand hover:opacity-90 rounded-full px-4 py-1.5 font-medium transition-opacity"
                       >
-                        添加
+                        {editingId ? "保存修改" : "添加"}
                       </button>
                     </div>
                   </div>
@@ -736,6 +798,7 @@ export function SettingsModal() {
                       removeByokModel(m.id);
                       showToast("已删除模型");
                     }}
+                    onEdit={() => startEdit(m)}
                     onTest={() => testModel(m)}
                     testState={{
                       testing: testingId === m.id,
@@ -953,7 +1016,7 @@ export function SettingsModal() {
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full border border-std px-2.5 py-1 text-xs text-text-secondary">
-                      v{versionInfo?.current ?? "1.0.0"}
+                      v{updateInfo?.current ?? desktopInfo?.version ?? "1.0.2"}
                     </span>
                   </div>
                   <div className="border-t border-divider pt-3">
@@ -977,16 +1040,16 @@ export function SettingsModal() {
                     {versionError && (
                       <p className="mt-2 text-xs text-destructive">{versionError}</p>
                     )}
-                    {versionInfo?.hasUpdate && versionInfo.latest && (
+                    {updateInfo?.hasUpdate && updateInfo.latest && (
                       <div className="mt-2 rounded-lg border border-brand/40 bg-brand/10 px-3 py-2">
                         <p className="text-xs text-brand">
-                          🎉 发现新版本 v{versionInfo.latest}
-                          {versionInfo.publishedAt
-                            ? `（发布于 ${new Date(versionInfo.publishedAt).toLocaleDateString("zh-CN")}）`
+                          🎉 发现新版本 v{updateInfo.latest}
+                          {updateInfo.publishedAt
+                            ? `（发布于 ${new Date(updateInfo.publishedAt).toLocaleDateString("zh-CN")}）`
                             : ""}
                         </p>
                         <a
-                          href={versionInfo.releaseUrl ?? "https://github.com/origin0722/Origin-Explore/releases"}
+                          href={updateInfo.releaseUrl ?? "https://github.com/origin0722/Origin-Explore/releases"}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="mt-1 inline-block text-xs text-brand underline underline-offset-2 hover:opacity-80"
@@ -995,11 +1058,45 @@ export function SettingsModal() {
                         </a>
                       </div>
                     )}
-                    {versionInfo && !versionInfo.hasUpdate && (
+                    {updateInfo && !updateInfo.hasUpdate && (
                       <p className="mt-2 text-xs text-text-tertiary">
-                        {versionInfo.latest
-                          ? `已是最新版本（v${versionInfo.current}）`
+                        {updateInfo.latest
+                          ? `已是最新版本（v${updateInfo.current}）`
                           : "尚未发布任何 Release"}
+                      </p>
+                    )}
+                  </div>
+                  {/* 数据保存位置（本地持久化说明） */}
+                  <div className="border-t border-divider pt-3">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-text-header-secondary mb-1">
+                      <Database size={12} />
+                      数据保存位置
+                    </div>
+                    <p className="text-[11px] text-text-tertiary leading-4 mb-2">
+                      所有数据（API 配置、对话、记忆、文档）仅保存在本机，不会上传。
+                      {desktopInfo
+                        ? "桌面版数据以文件形式保存在应用用户数据目录（explore-state-v1.json），重启/重装应用后依然存在，卸载应用时不会自动删除："
+                        : "网页版数据存放在当前浏览器的本地存储（LocalStorage）："}
+                    </p>
+                    {desktopInfo ? (
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 min-w-0 truncate rounded-lg bg-inputarea border border-std px-2.5 py-1.5 text-[11px] text-text-secondary">
+                          {desktopInfo.userData}
+                        </code>
+                        <button
+                          onClick={() => {
+                            (window as unknown as { exploreDesktop?: { openUserData?(): Promise<void> } })
+                              .exploreDesktop?.openUserData?.()
+                              .catch(() => {});
+                          }}
+                          className="shrink-0 text-xs text-brand border border-brand/40 rounded-full px-3 py-1.5 hover:bg-brand/10 transition-colors"
+                        >
+                          打开文件夹
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-text-tertiary">
+                        浏览器 LocalStorage（清除浏览器数据或换浏览器会导致数据丢失；建议定期用「导出备份」保存）。
                       </p>
                     )}
                   </div>
@@ -1146,7 +1243,7 @@ export function SettingsModal() {
 const ONBOARDING_STEPS = ["选择主题颜色", "个人信息"];
 
 export function OnboardingWizard() {
-  const { settings, setSettings, profile, setProfile, closeModal } = useApp();
+  const { settings, setSettings, profile, setProfile, closeModal, markOnboarded } = useApp();
   const [step, setStep] = useState(0);
   const [theme, setTheme] = useState(settings.theme);
   const [name, setName] = useState(profile?.name ?? "");
@@ -1158,11 +1255,7 @@ export function OnboardingWizard() {
 
   /** 跳过 / 完成共用的收尾：标记已引导并关闭（数据仅在完成时写入） */
   const done = () => {
-    try {
-      localStorage.setItem("explore-onboarded", "1");
-    } catch {
-      /* localStorage unavailable — skip */
-    }
+    markOnboarded();
     closeModal("onboarding");
   };
 
@@ -1711,6 +1804,7 @@ export function UsageDocModal() {
             <DocCard icon={Database} title="备份与恢复">
               侧边栏顶部「导出完整备份」把所有数据（项目 + 思维宇宙 + 文档 + 设置 + 档案）导出为
               单个 JSON 文件；「导入项目/恢复备份」按 id 合并还原，兼容旧版项目文件。
+              导出时可选择是否包含 API 密钥：默认不含（更安全），需要迁移到新电脑时可选择包含（注意保管备份文件）。
             </DocCard>
             <DocCard icon={Database} title="数据安全">
               密钥（BYOK API Key）仅存本机浏览器/应用存储；请求由浏览器直连你填写的 API 地址，

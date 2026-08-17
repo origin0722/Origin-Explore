@@ -53,6 +53,7 @@ useApp() 提供: settings/setSettings / projects/activeProjectId/createProject/s
 | 07 | Modals（设置/引导/档案） | modals.tsx | 07-modals.md |
 | 08 | DocReader（文档库+分栏阅读器） | doc-reader.tsx | 08-docreader.md |
 | 09 | MindUniverse（全屏 3D） | mind-universe.tsx | 09-minduniverse.md |
+| 10 | Vision（图片理解：直传/路由识图/缓存） | app-context.tsx, input-area.tsx | 10-vision.md |
 | R9 | 发散 + 分支卡片（卡片树） | — | r9-divergence-branch-cards.md |
 | R10 | 平行视图 + 文档 AI 解读 + 卡片树 v2 | — | r10-parallel-view-doc-interpret.md |
 
@@ -65,12 +66,13 @@ useApp() 提供: settings/setSettings / projects/activeProjectId/createProject/s
 ### 打包给朋友（无需 Node 的桌面应用）
 - `npm run package:app` → 生成 `release/` 下的可分发包
   - `OriginExplore-<version>-setup.exe`：NSIS 安装版（带桌面快捷方式）
-  - `OriginExplore-<version>-portable.exe`：单文件便携版（双击即用）
 - 打包流程：`next build`（standalone）→ 组装运行目录 → electron-builder
 - 架构（`electron/main.js`）：Electron 主进程用 `utilityProcess` 内置运行 Next.js standalone 服务 → 打开窗口加载
-  `http://127.0.0.1:<port>`。数据全存本机（localStorage）。
-- 崩溃/运行日志：`%APPDATA%\ai-website-clone-template\explore.log`
+  `http://127.0.0.1:<port>`。数据全存本机（桌面版以文件形式持久化于 userData，浏览器版存 localStorage）。
+- 桌面版端口固定复用（`userData/explore-port.json`），保证 origin 稳定、重启后数据不丢；
+  状态数据由主进程原子写入 `userData/explore-state-v1.json`（老数据首次启动自动从 localStorage 迁移）。
+- 崩溃/运行日志：`%APPDATA%\OriginExplore\explore.log`
 
 ### 联网搜索
 - 服务端代理 `src/app/api/search/route.ts`（`GET /api/search?q=`）：主源 Bing RSS、回退 DuckDuckGo；
-  开启后 BYOK 回答基于实时结果，离线模式附搜索结果链接。
+  开启后 BYOK 回答基于实时结果并附来源链接（离线模式已于 v1.0.0 移除，AI 能力全部走 BYOK）。

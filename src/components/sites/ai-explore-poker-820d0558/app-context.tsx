@@ -24,7 +24,6 @@ import type {
   DocumentItem,
   MemoryItem,
   Message,
-  ModelInfo,
   Profile,
   StackItem,
   TermKind,
@@ -145,16 +144,25 @@ export interface AppState {
   toggleSmartMode(): void;
   /** 导入一个项目（导出/导入为 JSON） */
   importProject(data: { title?: string; turns?: Turn[] }): void;
-  /** 全量备份：导出所有数据（项目+思维宇宙+文档+术语状态+文件夹+档案+设置）为单个 JSON 文件并下载 */
-  exportBackup(): void;
+  /** 全量备份：导出所有数据（项目+思维宇宙+文档+术语状态+文件夹+档案+设置）为单个 JSON 文件并下载；
+      includeKeys=true 时额外包含 BYOK 模型（含 API Key），备份包标记 keysIncluded。 */
+  exportBackup(includeKeys?: boolean): void;
   /** 全量恢复/导入：识别新版备份包（按 id 合并、备份胜出）与旧版项目文件（{ title, turns }）；
       返回 { ok, message } 供 UI 提示 */
   importBackup(parsed: unknown): { ok: boolean; message: string };
   /** 用户自带的 BYOK 模型（密钥仅存本机）；返回是否添加成功（同名已存在时 false） */
   byokModels: ByokModel[];
   addByokModel(input: { name: string; baseUrl: string; modelId: string; apiKey: string; vision?: boolean }): boolean;
+  /** 更新一个 BYOK 模型（名称/地址/Key/模型 ID/视觉标记）；返回是否成功（改名后与其它模型重名时 false）。
+      名称变化导致 id 变化时，默认模型/视觉模型的选中引用同步迁移。 */
+  updateByokModel(
+    id: string,
+    input: { name: string; baseUrl: string; modelId: string; apiKey: string; vision?: boolean }
+  ): boolean;
   /** 删除一个 BYOK 模型；若删除的是当前默认模型，清除选中（由用户重新配置）。 */
   removeByokModel(id: string): void;
+  /** 标记引导已完成（随持久化通道落盘：桌面版写文件、浏览器写 localStorage）。 */
+  markOnboarded(): void;
   collapsed: boolean;
   toggleSidebar(): void;
   mindscapeOpen: boolean;
@@ -197,6 +205,9 @@ export interface AppState {
   stopStreaming(): void;
   /** 停止指定轮次的流式生成（分目标停止） */
   stopTurn(id: string): void;
+  /** 把外部流式请求注册进全局停止表（key 与 stopTurn/stopStreaming 对齐）；
+      返回注销函数（流结束/失败时调用；已注销的 controller 不再被 stop 遍历到）。 */
+  registerStreamController(key: string, controller: AbortController): () => void;
   /** 当前流式回复的目标轮次 id（null = 无流式；并发时 = 最近启动者）。
       ChatCard 用它做贴底跟随与未读判定，而非假设目标 = 最后一个 turn。 */
   streamingTurnId: string | null;
@@ -290,6 +301,19 @@ export interface AppState {
   /** 全局轻提示（底部 toast）：无 API / 请求失败等状态反馈 */
   appNotice: string | null;
   setAppNotice(v: string | null): void;
+  /** 更新检查结果（null = 尚未检查/检查失败）。启动时自动检查 + 周期复查；
+      「设置 → 关于 → 检查更新」也调用 refreshUpdateInfo。 */
+  updateInfo: UpdateInfo | null;
+  refreshUpdateInfo(): Promise<boolean>;
+}
+
+/** /api/version 返回的更新检查结果 */
+export interface UpdateInfo {
+  current: string;
+  latest: string | null;
+  hasUpdate: boolean;
+  releaseUrl: string | null;
+  publishedAt: string | null;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -316,10 +340,45 @@ interface PersistedState {
   folders?: string[];
   smartMode?: boolean;
   byokModels?: ByokModel[];
+  /** 引导是否已完成（桌面版随数据文件持久化，避免端口/升级后重复弹引导） */
+  onboarded?: boolean;
+}
+
+/** 桌面端桥接面（Electron preload 注入；浏览器/dev 模式不存在 → null）。
+    readState 同步（boot 时一次），writeState 异步（防抖保存）。
+    getAppInfo/openUserData 仅设置页用（可选）。 */
+interface ExploreDesktopBridge {
+  readState(): string | null;
+  writeState(json: string): Promise<boolean>;
+  getAppInfo?(): Promise<{ version: string; userData: string }>;
+  openUserData?(): Promise<void>;
+}
+
+/** 仅当 readState/writeState 都可用时视为桌面桥（浏览器/dev 无此接口 → null） */
+function desktopBridge(): Pick<ExploreDesktopBridge, "readState" | "writeState"> | null {
+  if (typeof window === "undefined") return null;
+  const b = (window as unknown as { exploreDesktop?: ExploreDesktopBridge }).exploreDesktop;
+  return b && typeof b.readState === "function" && typeof b.writeState === "function"
+    ? b
+    : null;
 }
 
 function loadState(): PersistedState {
   if (typeof window === "undefined") return {};
+  // 桌面版：优先读持久化数据文件（文件存在且有内容 → 用文件）。
+  // 文件不存在/损坏/超大 → 回落 localStorage 播种（老用户免费迁移：首次防抖保存即写入文件）。
+  const bridge = desktopBridge();
+  if (bridge) {
+    try {
+      const raw = bridge.readState();
+      if (raw) {
+        const parsed = JSON.parse(raw) as PersistedState;
+        if (typeof parsed === "object" && parsed !== null) return parsed;
+      }
+    } catch {
+      /* 文件损坏/不可读 → 回落 localStorage */
+    }
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
@@ -518,6 +577,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [universeOpen, setUniverseOpen] = useState(false);
   /** 全局轻提示（底部 toast）：无 API / 请求失败等状态反馈 */
   const [appNotice, setAppNotice] = useState<string | null>(null);
+  /** 更新检查结果（null = 未检查/失败）——侧边栏「设置」红点 + 设置页「关于」共用 */
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+
+  /** 查一次 /api/version（服务端代理 GitHub，5 分钟缓存）；失败返回 false 供 UI 提示 */
+  const refreshUpdateInfo = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/version");
+      if (!res.ok) return false;
+      const info = (await res.json()) as UpdateInfo;
+      setUpdateInfo(info);
+      return true;
+    } catch {
+      /* 离线/服务不可达：保留上次结果，下个周期再试 */
+      return false;
+    }
+  }, []);
+
+  // 启动自动检查 + 每 10 分钟复查一次（有新版即冒红点提醒升级）
+  useEffect(() => {
+    refreshUpdateInfo();
+    const t = window.setInterval(refreshUpdateInfo, 10 * 60 * 1000);
+    return () => window.clearInterval(t);
+  }, [refreshUpdateInfo]);
   const [modals, setModals] = useState<AppState["modals"]>({
     settings: false,
     onboarding: false,
@@ -552,6 +634,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     activeControllersRef.current.clear();
   }, []);
+  /** 外部流式（术语卡内对话等）注册/注销：与 stopTurn/stopStreaming 共用一个停止表。
+      返回注销函数；重复注销安全（幂等）。 */
+  const registerStreamController = useCallback(
+    (key: string, controller: AbortController): (() => void) => {
+      if (!activeControllersRef.current.has(key)) {
+        activeControllersRef.current.set(key, new Set());
+      }
+      activeControllersRef.current.get(key)!.add(controller);
+      let removed = false;
+      return () => {
+        if (removed) return;
+        removed = true;
+        const set = activeControllersRef.current.get(key);
+        if (set) {
+          set.delete(controller);
+          if (set.size === 0) activeControllersRef.current.delete(key);
+        }
+      };
+    },
+    []
+  );
   /** 主对话流（root 轮次）是否在流式——主输入框守卫用 */
   const mainBusy = useMemo(
     () =>
@@ -614,45 +717,98 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [folders, setFolders] = useState<string[]>(boot.folders ?? []);
   const [smartMode, setSmartModeState] = useState<boolean>(boot.smartMode ?? false);
   const [byokModels, setByokModels] = useState<ByokModel[]>(boot.byokModels ?? []);
+  /** 引导标记：优先读持久化状态（桌面版在数据文件里），回落旧 localStorage 标记（兼容老数据）。 */
+  const [onboarded, setOnboarded] = useState<boolean>(() => {
+    if (boot.onboarded != null) return boot.onboarded;
+    try {
+      return !!localStorage.getItem("explore-onboarded");
+    } catch {
+      return false;
+    }
+  });
 
   // First visit → auto-open onboarding wizard once.
   useEffect(() => {
-    try {
-      if (!localStorage.getItem("explore-onboarded")) {
-        setModals((m) => ({ ...m, onboarding: true }));
-      }
-    } catch {
-      /* localStorage unavailable — skip */
+    if (!onboarded) {
+      setModals((m) => ({ ...m, onboarding: true }));
     }
-  }, []);
+  }, [onboarded]);
 
   // Persist everything (auto-save, 500ms 防抖：流式增量不逐 token 落盘)。
-  // 写失败（配额满/隐私模式）时明确提示用户，避免静默丢数据。
+  // 桌面版（有桥）→ 写 userData/explore-state-v1.json（主进程原子写，单一数据源）；
+  // 浏览器/dev → 写 localStorage（行为与以前完全一致）。
+  // 写失败（配额满/磁盘满/隐私模式）时明确提示用户，避免静默丢数据。
+  const lastWrittenRef = useRef<string | null>(null);
+  const serializeRef = useRef<() => string>(() => "");
+  const commitRef = useRef<(json: string) => void>(() => {});
+  const serialize = useCallback((): string => {
+    const data: PersistedState = {
+      settings,
+      projects,
+      activeProjectId,
+      thoughtNodes,
+      termStates,
+      profile,
+      memories,
+      termStack: sanitizeTermStack(termStack, projects),
+      documents,
+      folders,
+      smartMode,
+      byokModels,
+      onboarded,
+    };
+    return JSON.stringify(data);
+  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, memories, termStack, documents, folders, smartMode, byokModels, onboarded]);
+  const commit = useCallback((json: string) => {
+    if (json === lastWrittenRef.current) return; // 内容没变不重复写
+    lastWrittenRef.current = json;
+    const bridge = desktopBridge();
+    if (bridge) {
+      bridge
+        .writeState(json)
+        .then((ok) => {
+          if (!ok) {
+            setAppNotice("⚠️ 数据文件写入失败：改动可能未保存。请检查磁盘空间或查看应用日志。");
+          }
+        })
+        .catch(() => {
+          setAppNotice("⚠️ 数据文件写入失败：改动可能未保存。请检查磁盘空间或查看应用日志。");
+        });
+    } else {
+      try {
+        localStorage.setItem(STORAGE_KEY, json);
+      } catch {
+        setAppNotice("⚠️ 本地存储写入失败：数据可能无法保存。请导出备份或清理浏览器存储空间。");
+      }
+    }
+  }, []);
+  serializeRef.current = serialize;
+  commitRef.current = commit;
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        const data: PersistedState = {
-          settings,
-          projects,
-          activeProjectId,
-          thoughtNodes,
-          termStates,
-          profile,
-          memories,
-          termStack: sanitizeTermStack(termStack, projects),
-          documents,
-          folders,
-          smartMode,
-          byokModels,
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        commit(serialize());
       } catch {
-        setAppNotice("⚠️ 本地存储写入失败：数据可能无法保存。请导出备份或清理浏览器存储空间。");
+        setAppNotice("⚠️ 数据保存失败：请导出备份以防丢失。");
       }
     }, 500);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, memories, termStack, documents, folders, smartMode, byokModels]);
+  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, memories, termStack, documents, folders, smartMode, byokModels, onboarded]);
+
+  // 退出/切后台前冲刷未落盘的改动（防抖窗口内的最后改动不丢）。
+  useEffect(() => {
+    const onHide = () => {
+      try {
+        commitRef.current(serializeRef.current());
+      } catch {
+        /* best-effort */
+      }
+    };
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+  }, []);
 
   // Theme → <html data-theme> (runtime re-skin) + browser chrome color.
   useEffect(() => {
@@ -751,32 +907,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  /** 全量备份：导出所有数据为单个 JSON 文件并下载（个人工具，数据仅存本机——备份即防丢）。 */
-  const exportBackup = useCallback(() => {
-    const envelope = {
-      app: "explore-backup",
-      version: 1,
-      exportedAt: Date.now(),
-      data: {
-        projects,
-        thoughtNodes,
-        termStates,
-        documents,
-        folders,
-        profile,
-        memories,
-        termStack: sanitizeTermStack(termStack, projects),
-        settings,
-      },
-    };
-    const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `explore-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [projects, thoughtNodes, termStates, documents, folders, profile, memories, termStack, settings]);
+  /** 全量备份：导出所有数据为单个 JSON 文件并下载（个人工具，数据仅存本机——备份即防丢）。
+      includeKeys=true 时包含 BYOK 模型（含 API Key），备份包标记 keysIncluded。 */
+  const exportBackup = useCallback(
+    (includeKeys = false) => {
+      const envelope = {
+        app: "explore-backup",
+        version: 1,
+        exportedAt: Date.now(),
+        keysIncluded: includeKeys,
+        data: {
+          projects,
+          thoughtNodes,
+          termStates,
+          documents,
+          folders,
+          profile,
+          memories,
+          termStack: sanitizeTermStack(termStack, projects),
+          settings,
+          ...(includeKeys ? { byokModels } : {}),
+        },
+      };
+      const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `explore-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    [projects, thoughtNodes, termStates, documents, folders, profile, memories, termStack, settings, byokModels]
+  );
 
   /** 全量恢复/导入：
       - 新版备份包（app==="explore-backup"）：按 id 合并（备份胜出），项目/思维节点/文档/文件夹/术语状态/档案/设置
@@ -788,7 +950,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!parsed || typeof parsed !== "object") {
         return { ok: false, message: "无法识别的文件格式" };
       }
-      const env = parsed as { app?: unknown; data?: unknown; title?: unknown; turns?: unknown };
+      const env = parsed as {
+        app?: unknown;
+        data?: unknown;
+        title?: unknown;
+        turns?: unknown;
+        keysIncluded?: boolean;
+      };
       // 旧版项目文件
       if (env.app !== "explore-backup") {
         if (env.title !== undefined || env.turns !== undefined) {
@@ -835,6 +1003,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const memoriesIn = (Array.isArray(d.memories) ? d.memories : []).filter(
         (m): m is MemoryItem => !!m && typeof m === "object" && !!m.text
       );
+      // 备份中的 BYOK 模型（仅当导出时包含密钥才会出现）：按 id 合并、备份胜出；
+      // 无密钥备份绝不删除本地已有模型（只合并新增/覆盖）。
+      const byokIn = (Array.isArray(d.byokModels) ? d.byokModels : []).filter(
+        (m): m is ByokModel =>
+          !!m && typeof m === "object" && typeof m.id === "string" && typeof m.name === "string"
+      );
 
       // 按 id 合并（备份胜出）；保留备份之后新建的内容。
       setProjects((list) => {
@@ -862,6 +1036,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         for (const m of memoriesIn) if (!m.id) byText.set(m.text, m);
         return [...map.values(), ...[...byText.values()].filter((m) => !map.has(m.id))];
       });
+      // BYOK 模型合并（备份胜出；不删除本地模型）
+      setByokModels((list) => {
+        const map = new Map(list.map((m) => [m.id, m]));
+        for (const m of byokIn) map.set(m.id, m);
+        return [...map.values()];
+      });
       // 术语卡栈恢复：基于"现有 + 备份"的项目做 sanitize（来源轮次不存在则清空）
       setTermStack(sanitizeTermStack(d.termStack, [...projects, ...projectsIn]));
       if (d.profile) setProfile(d.profile as Profile);
@@ -870,7 +1050,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return {
         ok: true,
-        message: `已恢复备份：${projectsIn.length} 个项目 · ${thoughtIn.length} 个思维节点 · ${docsIn.length} 个文档`,
+        message: `已恢复备份：${projectsIn.length} 个项目 · ${thoughtIn.length} 个思维节点 · ${docsIn.length} 个文档${
+          byokIn.length > 0
+            ? ` · ${byokIn.length} 个模型${env.keysIncluded ? "（含密钥）" : ""}`
+            : ""
+        }`,
       };
     },
     [importProject, projects]
@@ -899,13 +1083,63 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [byokModels]
   );
 
-  /** 删除一个 BYOK 模型；若删除的是当前默认模型，清除选中（由用户重新配置）。 */
+  /** 删除一个 BYOK 模型；若删除的是当前默认模型/视觉模型，同步清除对应选中引用。 */
   const removeByokModel = useCallback((id: string) => {
     setByokModels((list) => list.filter((m) => m.id !== id));
-    setSettingsState((s) =>
-      s.activeModelId === id ? { ...s, activeModelId: "" } : s
-    );
+    setSettingsState((s) => ({
+      ...s,
+      activeModelId: s.activeModelId === id ? "" : s.activeModelId,
+      visionModelId: s.visionModelId === id ? null : s.visionModelId,
+    }));
   }, []);
+
+  /** 标记引导已完成：写进持久化状态（桌面版随数据文件落盘），并保留旧 localStorage 标记作兼容。 */
+  const markOnboarded = useCallback(() => {
+    setOnboarded(true);
+    try {
+      localStorage.setItem("explore-onboarded", "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  /** 更新一个 BYOK 模型（编辑保存）。改名会改变 id，需同步默认模型/视觉模型的选中引用；
+      新名称与其它模型重名时返回 false（由 UI 提示）。 */
+  const updateByokModel = useCallback(
+    (id: string, input: { name: string; baseUrl: string; modelId: string; apiKey: string; vision?: boolean }): boolean => {
+      const name = input.name.trim();
+      if (!name) return false;
+      const newId = "byok:" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      // 改名后与其它模型重名 → 拒绝（保持原 id 不变）
+      if (newId !== id && byokModels.some((m) => m.id === newId)) return false;
+      setByokModels((list) =>
+        list.map((m) =>
+          m.id === id
+            ? {
+                ...m,
+                id: newId,
+                name,
+                provider: "BYOK",
+                description: input.apiKey.trim() ? "自定义模型（密钥仅存本机）" : "自定义模型",
+                baseUrl: input.baseUrl.trim().replace(/\/+$/, "") || "https://api.openai.com/v1",
+                modelId: input.modelId.trim() || name,
+                apiKey: input.apiKey.trim(),
+                vision: input.vision ?? false,
+              }
+            : m
+        )
+      );
+      if (newId !== id) {
+        setSettingsState((s) => ({
+          ...s,
+          activeModelId: s.activeModelId === id ? newId : s.activeModelId,
+          visionModelId: s.visionModelId === id ? newId : s.visionModelId,
+        }));
+      }
+      return true;
+    },
+    [byokModels]
+  );
 
   const toggleSidebar = useCallback(() => setCollapsed((c) => !c), []);
 
@@ -1341,7 +1575,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         }
         // 15s 内没有任何增量 -> 放弃；开始出字后不再限时（流可能很长）。
-        const timer = window.setTimeout(() => controller.abort(), 15000);
+        // timedOut 标记区分「首字超时」与「用户手动停止」（两者都走 abort）。
+        let timedOut = false;
+        const timer = window.setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, 15000);
         appendAssistantMessage(targetId, turnId); // SSE 直接往这条消息里流
         let acc = "";
         // 渲染节流：SSE delta 高频到达时合并写入（40ms），流结束强制 flush——
@@ -1383,22 +1622,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
             done();
             const why =
               err instanceof Error && err.name === "AbortError"
-                ? "请求超时"
+                ? timedOut
+                  ? "请求超时"
+                  : "已停止"
                 : err instanceof Error && err.message
                   ? err.message
                   : "网络错误";
-            setAppNotice(`API 请求失败（${why}）`);
+            // 用户手动停止不是失败：提示改为中性文案，保留已生成的正文。
+            const userStopped = err instanceof Error && err.name === "AbortError" && !timedOut;
+            if (!userStopped) setAppNotice(`API 请求失败（${why}）`);
             if (acc) {
               // 流中断：保留已收到的部分，末尾标注中断原因。
               streamReply(
-                `\n\n> ⚠️ API 请求中断（${why}），以上为中断前已生成的内容。`,
+                userStopped
+                  ? `\n\n> ⏹ 已手动停止生成，以上为已生成的内容。`
+                  : `\n\n> ⚠️ API 请求中断（${why}），以上为中断前已生成的内容。`,
                 targetId,
                 onDone,
                 { append: false, prefix: `${acc}\n\n` },
                 turnId
               );
             } else {
-              const fallback = `> ⚠️ API 请求失败（${why}）。请检查 API 地址 / Key 是否正确，或稍后重试。`;
+              const fallback = userStopped
+                ? `> ⏹ 已停止生成。`
+                : `> ⚠️ API 请求失败（${why}）。请检查 API 地址 / Key 是否正确，或稍后重试。`;
               streamReply(fallback, targetId, onDone, { append: false }, turnId);
             }
           });
@@ -2100,7 +2347,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       importBackup,
       byokModels,
       addByokModel,
+      updateByokModel,
       removeByokModel,
+      markOnboarded,
       collapsed,
       toggleSidebar,
       mindscapeOpen,
@@ -2124,6 +2373,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isTurnBusy,
       stopStreaming,
       stopTurn,
+      registerStreamController,
       streamingTurnId,
       openBranchTurn,
       openDivergeTurn,
@@ -2171,6 +2421,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUniverseOpen,
       appNotice,
       setAppNotice,
+      updateInfo,
+      refreshUpdateInfo,
     }),
     [
       settings,
@@ -2193,6 +2445,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       streamingTurnId,
       stopStreaming,
       stopTurn,
+      registerStreamController,
       profile,
       memories,
       termStack,
@@ -2262,6 +2515,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       openDocDiverge,
       setUniverseOpen,
       setAppNotice,
+      updateInfo,
+      refreshUpdateInfo,
+      markOnboarded,
+      updateByokModel,
+      setSettings,
     ]
   );
 

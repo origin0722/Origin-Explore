@@ -66,7 +66,6 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
     moveProjectToFolder,
     smartMode,
     toggleSmartMode,
-    importProject,
     exportBackup,
     importBackup,
     addDocument,
@@ -82,6 +81,7 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
     summarizingTurnId,
     summarizeTurn,
     setAppNotice,
+    updateInfo,
   } = useApp();
 
   /** 有效展开态：shell 的 hover 临时展开（折叠窄条碰触即展）优先；
@@ -149,9 +149,13 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
     reader.readAsText(file);
   };
 
-  /** 全量备份下载：项目 + 思维宇宙 + 文档 + 术语状态 + 文件夹 + 档案 + 设置。 */
+  /** 全量备份下载：项目 + 思维宇宙 + 文档 + 术语状态 + 文件夹 + 档案 + 设置（可选含 API 密钥）。
+      导出前询问是否包含密钥：确定=包含（注意保管备份文件），取消=不含（默认，更安全）。 */
   const handleExportBackup = () => {
-    exportBackup();
+    const includeKeys = window.confirm(
+      "备份文件是否包含 API 密钥？\n\n【确定】包含 —— 方便换电脑恢复，但请妥善保管备份文件\n【取消】不含 —— 更安全（默认）"
+    );
+    exportBackup(includeKeys);
     showToast("✓ 已导出完整备份");
   };
 
@@ -740,6 +744,13 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
             !show ? "justify-center" : ""
           }`}
         >
+          {/* 有新版本可用 → 红点提醒升级 */}
+          {updateInfo?.hasUpdate && (
+            <span
+              className="absolute top-1.5 right-1.5 z-10 block w-2.5 h-2.5 rounded-full bg-destructive ring-2 ring-btn-control"
+              title={`发现新版本 v${updateInfo.latest}，可在设置中查看`}
+            />
+          )}
           <span className="relative p-2.5 bg-btn-control group-hover:bg-btn-control-hover rounded-lg shadow">
             <Settings size={24} />
           </span>

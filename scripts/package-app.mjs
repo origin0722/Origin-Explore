@@ -1,5 +1,6 @@
-// 打包桌面应用：next build（standalone）→ 组装运行目录（含 node_modules）→ electron-builder 便携版单 exe。
-// 产物：release/OriginExplore-<version>-portable.exe（朋友双击即用，无需 Node）。
+// 打包桌面应用：next build（standalone）→ 组装运行目录（含 node_modules）→ electron-builder 安装版（NSIS setup.exe）。
+// 产物：release/OriginExplore-<version>-setup.exe。
+// 注：portable 已废弃（不再产出）。
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 
@@ -40,7 +41,7 @@ for (const p of ["node_modules/sharp", "node_modules/@img"]) {
   }
 }
 
-step("4/4 electron-builder portable");
-execSync("npx electron-builder --win portable", { stdio: "inherit" });
+step("4/4 electron-builder nsis");
+execSync("npx electron-builder --win nsis", { stdio: "inherit" });
 
-console.log("\n完成：release/ 目录下即为可分发 exe");
+console.log("\n完成：release/ 目录下即为可分发安装包（setup.exe）");
