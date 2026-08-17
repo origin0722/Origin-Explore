@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **桌面版重启后配置丢失（严重）**：此前每次启动随机选择 3210-3225 端口，而 localStorage 按「协议+域名+端口」隔离 —— 端口一变，API 配置、对话、记忆等全部数据就像被清空。现在桌面版端口固定复用（首次选定后记入 userData/explore-port.json，之后每次启动优先使用同一端口），数据在重启/关机后稳定保留；3210 保留给网站预览不占用。
-- **数据改为文件持久化（根治）**：桌面版数据不再只依赖 localStorage，而是通过主进程原子写入 `%APPDATA%/OriginExplore/explore-state-v1.json`（tmp + rename，20MB 上限，损坏/超大自动回落到旧数据播种）。即使端口被其他程序抢占导致 origin 变化，数据依然完好；老用户首次启动自动从 localStorage 迁移，无需手动操作。
+- **数据改为文件持久化（根治）**：桌面版数据不再只依赖 localStorage，而是通过主进程原子写入 `%APPDATA%/OriginExplore/explore-state-v1.json`（tmp + rename，20MB 上限，损坏/超大自动回落到旧数据播种）。即使端口被其他程序抢占导致 origin 变化，数据依然完好；首次启动自动从当前端口的 localStorage 迁移到文件。注：升级若导致端口变化，旧端口的 localStorage 受浏览器同源策略无法读取，旧版本数据需用「导出备份」恢复。
 - **API 配置无法重新编辑**：已保存的 BYOK 模型新增「编辑」按钮（✏️），可直接修改名称 / API 地址 / 模型 ID / Key / 视觉标记，保存后原地更新；改名后默认模型与视觉模型选中自动跟随。
+- **术语卡内对话无法停止**：术语卡问答流式期间支持中途停止（全局 AbortController 停止表 + 卡内停止按钮），停止/超时/失败文案与主对话对齐（保留已流式正文，用户主动停止显示中性提示而非 API 报错）。
 
 ### Added
 - **更新提醒红点**：应用启动时自动检查新版本（每 10 分钟复查一次，服务端 5 分钟缓存，成本极低），发现新版本后侧边栏「设置」按钮冒小红点提醒升级；打开设置后「关于」导航项同步显示红点，无需手动点「检查更新」（点击仍然可用）。
@@ -18,9 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **设置 → 关于 显示数据保存位置**：桌面版展示真实用户数据目录（`%APPDATA%/OriginExplore`）并支持「打开文件夹」；网页版说明数据存于浏览器 LocalStorage，并提示用「导出备份」保护。
 - 桌面版版本号显示改为读取应用真实版本（不再等「检查更新」结果）。
 - 退出/切后台前冲刷未落盘改动（防抖窗口内最后 500ms 的改动不再丢失）；内容未变化时跳过重复写盘。
+- **BYOK 保存后自动测连通性**：保存模型后 fire-and-forget 跑一次连通性测试（成功/失败 toast 反馈），避免静默存入坏 Key；手动测试按钮保留。
+- **更新红点 per-version dismiss**：打开设置即视为已看到该版本更新，红点自动消除；后续再有新版本才重新亮起（dismissedUpdateVersion 持久化）。
 
 ### Changed
 - **打包只产出安装版（setup.exe）**：移除 portable 目标（此前已确认不再需要），打包更快、发布物更简洁。
+- **持久化 schema 化**：state 文件写入 `schemaVersion` + `migrateState` 迁移钩子，为后续 schema 变更预留迁移点。
+- **切后台冲刷补全**：除 `pagehide` 外新增 `visibilitychange` 监听，切到后台/失焦时同样冲刷未落盘改动（兑现此前承诺）。
+- **state 文件权限**：主进程写入 `explore-state-v1.json` 时设 `mode 0o600`（Windows ACL 基本忽略，macOS/Linux 限制仅属主可读写）。
+- **版本号去硬编码**：`next.config.ts` 构建时注入 `APP_VERSION`（取自 package.json），About 面板版本号不再硬编码兜底。
+- **备份警告明确「明文」**：导出含密钥备份时提示「密钥将以明文存入备份文件，请勿分享或上传」。
+- **迁移措辞修正**：localStorage 迁移说明改为「从当前端口迁移」，并注明升级致端口变化时旧端口数据受同源策略无法读取（不做易碎的跨端口 leveldb 迁移）。
 
 ## [1.0.1] - 2026-08-17
 

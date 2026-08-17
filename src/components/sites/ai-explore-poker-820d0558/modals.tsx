@@ -442,6 +442,7 @@ export function SettingsModal() {
     termStates,
     thoughtNodes,
     updateInfo,
+    showUpdateDot,
     refreshUpdateInfo,
   } =
     useApp();
@@ -603,7 +604,7 @@ export function SettingsModal() {
               >
                 <span className="relative flex-shrink-0">
                   <item.icon size={12} />
-                  {item.id === "about" && updateInfo?.hasUpdate && (
+                  {item.id === "about" && showUpdateDot && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-destructive ring-2 ring-btn-std" />
                   )}
                 </span>
@@ -629,7 +630,7 @@ export function SettingsModal() {
                   >
                     <span className="relative flex-shrink-0">
                     <item.icon size={15} />
-                    {item.id === "about" && updateInfo?.hasUpdate && (
+                    {item.id === "about" && showUpdateDot && (
                       <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-destructive ring-2 ring-modal-std" />
                     )}
                   </span>
@@ -774,6 +775,16 @@ export function SettingsModal() {
                           }
                           showToast(editingId ? "✓ 已保存修改" : "已添加 BYOK 模型");
                           resetByokForm();
+                          // 保存后自动测一次连通性（非阻断，仅提示结果，避免静默存入坏 Key）
+                          if (input.apiKey.trim() && input.baseUrl.trim()) {
+                            testByokConnection(input.baseUrl, input.apiKey).then((r) => {
+                              showToast(
+                                r.ok
+                                  ? `✓ ${input.name} 连接正常`
+                                  : `⚠️ ${input.name} 连接异常：${r.message}（请回「编辑」核对）`
+                              );
+                            });
+                          }
                         }}
                         className="text-xs text-brand-fg bg-brand hover:opacity-90 rounded-full px-4 py-1.5 font-medium transition-opacity"
                       >
@@ -1016,7 +1027,7 @@ export function SettingsModal() {
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full border border-std px-2.5 py-1 text-xs text-text-secondary">
-                      v{updateInfo?.current ?? desktopInfo?.version ?? "1.0.2"}
+                      v{updateInfo?.current ?? desktopInfo?.version ?? process.env.APP_VERSION ?? "0.0.0"}
                     </span>
                   </div>
                   <div className="border-t border-divider pt-3">

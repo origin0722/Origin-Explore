@@ -1101,13 +1101,19 @@ export function ChatCard() {
             : err instanceof Error && err.message
               ? err.message
               : "网络错误";
-        // 保留已流式部分，末尾标注中断原因（与主对话 deliverReply 行为对齐）。
-        const tail = `\n\n> ⚠️ ${why === "已停止" ? "已手动停止生成，以上为已生成的内容。" : `API 请求中断（${why}），以上为中断前已生成的内容。`}`;
+        // 用户手动停止不是失败：中性文案，保留已生成的正文（与主对话 deliverReply 行为对齐）。
+        const userStopped = err instanceof Error && err.name === "AbortError" && !timedOut;
+        const tail = userStopped
+          ? `\n\n> ⏹ 已手动停止生成，以上为已生成的内容。`
+          : `\n\n> ⚠️ API 请求中断（${why}），以上为中断前已生成的内容。`;
+        const fallback = userStopped
+          ? `> ⏹ 已停止生成。`
+          : `> ⚠️ API 请求失败（${why}）。请检查 API 地址 / Key 是否正确，或稍后重试。`;
         patch(key, (i) => ({
           ...i,
           busy: false,
           messages: i.messages.map((m, mi) =>
-            mi === i.messages.length - 1 ? { ...m, content: acc ? `${acc}${tail}` : `> ⚠️ API 请求失败（${why}）。请检查 API 地址 / Key 是否正确，或稍后重试。` } : m
+            mi === i.messages.length - 1 ? { ...m, content: acc ? `${acc}${tail}` : fallback } : m
           ),
         }));
         // 失败/中断不写 autoAskCache：错误文本不应被缓存为"术语知识"（本会话内可重试）

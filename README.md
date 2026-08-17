@@ -126,7 +126,7 @@ docs/                      # 规格、研究、设计参考文档
 当前版本：**v1.0.2**
 
 v1.0.2（2026-08-17）：
-- 桌面版数据改为文件持久化（`%APPDATA%\OriginExplore\explore-state-v1.json`，原子写 + 20MB 上限 + 旧数据自动迁移），端口固定复用（`userData/explore-port.json`）——重启/关机后 API 配置与对话稳定保留
+- 桌面版数据改为文件持久化（`%APPDATA%\OriginExplore\explore-state-v1.json`，原子写 + 20MB 上限 + 当前端口数据自动迁移），端口固定复用（`userData/explore-port.json`）——重启/关机后 API 配置与对话稳定保留
 - BYOK 模型支持编辑（改名称/地址/Key/模型 ID/视觉标记），改名后默认/视觉模型选中自动跟随
 - 新版本自动检查（侧边栏「设置」红点提醒），备份可选包含 API 密钥，设置「关于」显示数据保存位置
 - 打包改为仅产出安装版（setup.exe）

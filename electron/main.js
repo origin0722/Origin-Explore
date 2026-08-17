@@ -223,7 +223,7 @@ ipcMain.handle("storage:write", (_e, json) => {
   }
   try {
     const tmp = `${f}.tmp`;
-    fs.writeFileSync(tmp, json, "utf8");
+    fs.writeFileSync(tmp, json, { encoding: "utf8", mode: 0o600 });
     fs.renameSync(tmp, f); // 同目录原子替换（Windows MoveFileEx REPLACE_EXISTING）
     return true;
   } catch (err) {

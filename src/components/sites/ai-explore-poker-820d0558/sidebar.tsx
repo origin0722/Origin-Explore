@@ -82,6 +82,7 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
     summarizeTurn,
     setAppNotice,
     updateInfo,
+    showUpdateDot,
   } = useApp();
 
   /** 有效展开态：shell 的 hover 临时展开（折叠窄条碰触即展）优先；
@@ -153,7 +154,7 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
       导出前询问是否包含密钥：确定=包含（注意保管备份文件），取消=不含（默认，更安全）。 */
   const handleExportBackup = () => {
     const includeKeys = window.confirm(
-      "备份文件是否包含 API 密钥？\n\n【确定】包含 —— 方便换电脑恢复，但请妥善保管备份文件\n【取消】不含 —— 更安全（默认）"
+      "备份文件是否包含 API 密钥？\n\n【确定】包含 —— 方便换电脑恢复，但密钥将以明文存入备份文件，请勿分享或上传\n【取消】不含 —— 更安全（默认）"
     );
     exportBackup(includeKeys);
     showToast("✓ 已导出完整备份");
@@ -192,7 +193,7 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
   const scrollToProject = (id: string) => {
     requestAnimationFrame(() => {
       document
-        .getElementById(`project-row-${id}`)
+        .getElementById("project-row-" + id)
         ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
   };
@@ -745,10 +746,10 @@ export function Sidebar({ expanded, onClearHover }: { expanded?: boolean; onClea
           }`}
         >
           {/* 有新版本可用 → 红点提醒升级 */}
-          {updateInfo?.hasUpdate && (
+          {showUpdateDot && (
             <span
               className="absolute top-1.5 right-1.5 z-10 block w-2.5 h-2.5 rounded-full bg-destructive ring-2 ring-btn-control"
-              title={`发现新版本 v${updateInfo.latest}，可在设置中查看`}
+              title={`发现新版本 v${updateInfo?.latest}，可在设置中查看`}
             />
           )}
           <span className="relative p-2.5 bg-btn-control group-hover:bg-btn-control-hover rounded-lg shadow">

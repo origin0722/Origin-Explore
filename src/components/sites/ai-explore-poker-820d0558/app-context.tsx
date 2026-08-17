@@ -304,6 +304,8 @@ export interface AppState {
   /** 更新检查结果（null = 尚未检查/检查失败）。启动时自动检查 + 周期复查；
       「设置 → 关于 → 检查更新」也调用 refreshUpdateInfo。 */
   updateInfo: UpdateInfo | null;
+  /** 红点是否显示（有新版且未被 dismiss）--侧边栏设置按钮/关于导航红点共用 */
+  showUpdateDot: boolean;
   refreshUpdateInfo(): Promise<boolean>;
 }
 
@@ -328,6 +330,8 @@ const STORAGE_KEY = "explore-state-v1";
 const RESIDENT_CHAT_ID = "resident";
 
 interface PersistedState {
+  /** 持久化文件 schema 版本（当前 1）；schema 变更时在 migrateState 里递增迁移 */
+  schemaVersion?: number;
   settings?: ChatSettings;
   projects?: ChatProject[];
   activeProjectId?: string | null;
@@ -342,6 +346,8 @@ interface PersistedState {
   byokModels?: ByokModel[];
   /** 引导是否已完成（桌面版随数据文件持久化，避免端口/升级后重复弹引导） */
   onboarded?: boolean;
+  /** 已被用户「看过」的更新版本号（打开设置即视为看过，该版本不再亮红点；新版本再亮） */
+  dismissedUpdateVersion?: string;
 }
 
 /** 桌面端桥接面（Electron preload 注入；浏览器/dev 模式不存在 → null）。
@@ -363,6 +369,16 @@ function desktopBridge(): Pick<ExploreDesktopBridge, "readState" | "writeState">
     : null;
 }
 
+/** 持久化文件 schema 版本。schema 变更时递增，并在 migrateState 里补迁移逻辑。 */
+const STATE_SCHEMA_VERSION = 1;
+
+/** 迁移旧 schema 到当前版本（当前 v1 首版，仅补 schemaVersion 字段）。
+    未来 schema 变更示例：if (parsed.schemaVersion < 2) { 迁移字段; parsed.schemaVersion = 2; } */
+function migrateState(parsed: PersistedState): PersistedState {
+  // 当前无破坏性变更，仅补字段
+  return { ...parsed, schemaVersion: STATE_SCHEMA_VERSION };
+}
+
 function loadState(): PersistedState {
   if (typeof window === "undefined") return {};
   // 桌面版：优先读持久化数据文件（文件存在且有内容 → 用文件）。
@@ -373,7 +389,7 @@ function loadState(): PersistedState {
       const raw = bridge.readState();
       if (raw) {
         const parsed = JSON.parse(raw) as PersistedState;
-        if (typeof parsed === "object" && parsed !== null) return parsed;
+        if (typeof parsed === "object" && parsed !== null) return migrateState(parsed);
       }
     } catch {
       /* 文件损坏/不可读 → 回落 localStorage */
@@ -383,7 +399,7 @@ function loadState(): PersistedState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as PersistedState;
-    return typeof parsed === "object" && parsed !== null ? parsed : {};
+    return typeof parsed === "object" && parsed !== null ? migrateState(parsed) : {};
   } catch {
     return {};
   }
@@ -726,6 +742,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return false;
     }
   });
+  /** 已 dismiss 的更新版本（打开过设置即视为看过）--per-version 红点抑制 */
+  const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string | null>(
+    boot.dismissedUpdateVersion ?? null
+  );
+  /** 红点是否显示：有新版且尚未被 dismiss（打开过设置即视为看过该版本；新版本再亮） */
+  const showUpdateDot = !!(updateInfo?.hasUpdate && updateInfo.latest && updateInfo.latest !== dismissedUpdateVersion);
+  // 打开设置 -> 视为已看到该版本更新，dismiss 红点（持久化，重启后不再亮同一版本）
+  useEffect(() => {
+    if (modals.settings && updateInfo?.hasUpdate && updateInfo.latest && updateInfo.latest !== dismissedUpdateVersion) {
+      setDismissedUpdateVersion(updateInfo.latest);
+    }
+  }, [modals, updateInfo, dismissedUpdateVersion]);
 
   // First visit → auto-open onboarding wizard once.
   useEffect(() => {
@@ -743,6 +771,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const commitRef = useRef<(json: string) => void>(() => {});
   const serialize = useCallback((): string => {
     const data: PersistedState = {
+      schemaVersion: STATE_SCHEMA_VERSION,
       settings,
       projects,
       activeProjectId,
@@ -756,9 +785,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       smartMode,
       byokModels,
       onboarded,
+      dismissedUpdateVersion: dismissedUpdateVersion ?? undefined,
     };
     return JSON.stringify(data);
-  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, memories, termStack, documents, folders, smartMode, byokModels, onboarded]);
+  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, memories, termStack, documents, folders, smartMode, byokModels, onboarded, dismissedUpdateVersion]);
   const commit = useCallback((json: string) => {
     if (json === lastWrittenRef.current) return; // 内容没变不重复写
     lastWrittenRef.current = json;
@@ -795,9 +825,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, 500);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, memories, termStack, documents, folders, smartMode, byokModels, onboarded]);
+  }, [settings, projects, activeProjectId, thoughtNodes, termStates, profile, memories, termStack, documents, folders, smartMode, byokModels, onboarded, dismissedUpdateVersion]);
 
   // 退出/切后台前冲刷未落盘的改动（防抖窗口内的最后改动不丢）。
+  // pagehide 覆盖关闭/导航；visibilitychange:hidden 覆盖最小化/切到其他窗口/切标签。
   useEffect(() => {
     const onHide = () => {
       try {
@@ -806,8 +837,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         /* best-effort */
       }
     };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onHide();
+    };
     window.addEventListener("pagehide", onHide);
-    return () => window.removeEventListener("pagehide", onHide);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   // Theme → <html data-theme> (runtime re-skin) + browser chrome color.
@@ -2422,6 +2460,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       appNotice,
       setAppNotice,
       updateInfo,
+      showUpdateDot,
       refreshUpdateInfo,
     }),
     [
@@ -2516,6 +2555,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUniverseOpen,
       setAppNotice,
       updateInfo,
+      showUpdateDot,
       refreshUpdateInfo,
       markOnboarded,
       updateByokModel,
