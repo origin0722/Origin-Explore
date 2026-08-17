@@ -37,7 +37,8 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck && npm run build",
     "gen:icon": "node scripts/gen-icon.mjs",
-    "package:app": "node scripts/package-app.mjs"
+    "package:app": "node scripts/package-app.mjs",
+    "release": "node scripts/release.mjs"
   },
   "build": {
     "appId": "com.origin.explore",
